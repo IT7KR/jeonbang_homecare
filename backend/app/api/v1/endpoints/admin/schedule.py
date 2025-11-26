@@ -73,7 +73,7 @@ def get_schedule(
     start_date: str = Query(..., description="시작일 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="종료일 (YYYY-MM-DD)"),
     status: Optional[str] = Query(None, description="상태 필터"),
-    partner_id: Optional[int] = Query(None, description="파트너 필터"),
+    partner_id: Optional[int] = Query(None, description="협력사 필터"),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
@@ -93,7 +93,7 @@ def get_schedule(
         # 기본: 취소되지 않은 일정만
         query = query.filter(Application.status != "cancelled")
 
-    # 파트너 필터
+    # 협력사 필터
     if partner_id:
         query = query.filter(Application.assigned_partner_id == partner_id)
 
@@ -103,7 +103,7 @@ def get_schedule(
         Application.scheduled_time,
     ).all()
 
-    # 파트너 정보 조회
+    # 협력사 정보 조회
     partner_ids = set(app.assigned_partner_id for app in applications if app.assigned_partner_id)
     partners = {}
     if partner_ids:
@@ -169,7 +169,7 @@ def get_available_partners(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    일정 배정 가능한 파트너 목록 조회
+    일정 배정 가능한 협력사 목록 조회
     """
     partners = db.query(Partner).filter(Partner.status == "approved").all()
 

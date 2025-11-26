@@ -44,7 +44,7 @@ class Application(Base):
     # 신청 상태
     # new: 신규신청
     # consulting: 상담중
-    # assigned: 파트너 배정됨
+    # assigned: 협력사 배정됨
     # scheduled: 일정 확정
     # completed: 완료
     # cancelled: 취소

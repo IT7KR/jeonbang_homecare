@@ -13,6 +13,7 @@ import math
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.core.encryption import decrypt_value, encrypt_value
+from app.core.config import settings
 from app.models.admin import Admin
 from app.models.sms_log import SMSLog
 from app.schemas.sms_log import (
@@ -22,9 +23,76 @@ from app.schemas.sms_log import (
     SMSSendResponse,
     SMSStatsResponse,
 )
-from app.services.sms import send_sms_direct
+from app.services.sms import send_sms, send_sms_direct
 
 router = APIRouter(prefix="/sms", tags=["Admin - SMS"])
+
+
+@router.get("/test-config")
+def test_sms_config(
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    SMS API 설정 상태 확인 (연동 테스트용)
+
+    알리고 API 키 설정 여부 확인
+    """
+    has_api_key = bool(settings.ALIGO_API_KEY)
+    has_user_id = bool(settings.ALIGO_USER_ID)
+    has_sender = bool(settings.ALIGO_SENDER)
+
+    # 발신번호 마스킹 (끝 4자리만 표시)
+    masked_sender = None
+    if has_sender:
+        sender = settings.ALIGO_SENDER.replace("-", "")
+        masked_sender = f"***-****-{sender[-4:]}"
+
+    return {
+        "configured": has_api_key and has_user_id and has_sender,
+        "api_key_set": has_api_key,
+        "user_id_set": has_user_id,
+        "sender_set": has_sender,
+        "sender": masked_sender,
+        "mode": "production" if has_api_key else "development (SMS disabled)",
+    }
+
+
+@router.post("/test-send")
+async def test_sms_send(
+    test_phone: str = Query(..., description="테스트 수신 번호 (본인 번호)"),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    SMS 발송 테스트 (관리자 본인 번호로 테스트)
+
+    실제 SMS가 발송됩니다. 테스트 비용이 발생합니다.
+    """
+    # 테스트 메시지
+    test_message = f"""[전방홈케어] SMS 연동 테스트
+테스트 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+관리자: {current_admin.name}
+이 메시지가 정상 수신되면 SMS 연동이 완료된 것입니다."""
+
+    try:
+        result = await send_sms(test_phone, test_message, "[테스트]")
+
+        success = result.get("result_code") == "1"
+
+        return {
+            "success": success,
+            "result_code": result.get("result_code"),
+            "message": result.get("message"),
+            "msg_id": result.get("msg_id"),
+            "test_phone": f"{test_phone[:3]}****{test_phone[-4:]}",
+            "note": "테스트 SMS가 발송되었습니다. 수신을 확인해주세요." if success else "SMS 발송에 실패했습니다. 설정을 확인해주세요.",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "note": "SMS 발송 중 오류가 발생했습니다.",
+        }
 
 
 def decrypt_sms_log(log: SMSLog) -> dict:

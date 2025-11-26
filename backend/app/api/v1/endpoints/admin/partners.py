@@ -1,6 +1,6 @@
 """
 Admin Partner API endpoints
-관리자용 파트너 관리 API
+관리자용 협력사 관리 API
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -62,7 +62,7 @@ def get_partners(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    파트너 목록 조회 (관리자용)
+    협력사 목록 조회 (관리자용)
 
     - 페이징 지원
     - 상태 필터링
@@ -119,12 +119,12 @@ def get_partner(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    파트너 상세 조회 (관리자용)
+    협력사 상세 조회 (관리자용)
     """
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
 
     if not partner:
-        raise HTTPException(status_code=404, detail="파트너를 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     decrypted = decrypt_partner(partner)
     return PartnerDetailResponse(**decrypted)
@@ -138,7 +138,7 @@ def update_partner(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    파트너 수정 (관리자용)
+    협력사 수정 (관리자용)
 
     - 상태 변경
     - 거절 사유
@@ -147,7 +147,7 @@ def update_partner(
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
 
     if not partner:
-        raise HTTPException(status_code=404, detail="파트너를 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     # 필드 업데이트
     update_data = data.model_dump(exclude_unset=True)
@@ -176,7 +176,7 @@ def approve_partner(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    파트너 승인/거절 (관리자용)
+    협력사 승인/거절 (관리자용)
 
     - action: approve / reject
     - rejection_reason: 거절 시 사유 (필수)
@@ -184,10 +184,10 @@ def approve_partner(
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
 
     if not partner:
-        raise HTTPException(status_code=404, detail="파트너를 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     if partner.status != "pending":
-        raise HTTPException(status_code=400, detail="대기 중인 파트너만 승인/거절할 수 있습니다")
+        raise HTTPException(status_code=400, detail="대기 중인 협력사만 승인/거절할 수 있습니다")
 
     if data.action == "approve":
         partner.status = "approved"
@@ -214,14 +214,14 @@ def delete_partner(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    파트너 삭제 (관리자용)
+    협력사 삭제 (관리자용)
 
     - super_admin만 삭제 가능
     """
     partner = db.query(Partner).filter(Partner.id == partner_id).first()
 
     if not partner:
-        raise HTTPException(status_code=404, detail="파트너를 찾을 수 없습니다")
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     # super_admin만 삭제 가능
     if current_admin.role != "super_admin":
@@ -230,4 +230,4 @@ def delete_partner(
     db.delete(partner)
     db.commit()
 
-    return {"success": True, "message": "파트너가 삭제되었습니다"}
+    return {"success": True, "message": "협력사가 삭제되었습니다"}

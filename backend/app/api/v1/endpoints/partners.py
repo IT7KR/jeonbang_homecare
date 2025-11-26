@@ -1,6 +1,6 @@
 """
 Partner API endpoints
-파트너 등록 API
+협력사 등록 API
 """
 
 from fastapi import APIRouter, Depends, BackgroundTasks
@@ -37,7 +37,7 @@ def create_partner(
     db: Session = Depends(get_db),
 ):
     """
-    파트너 등록 신청
+    협력사 등록 신청
 
     - 연락처 및 주소 정보는 암호화되어 저장됨
     - 등록 후 관리자 승인 대기 상태
@@ -46,7 +46,7 @@ def create_partner(
     # work_regions를 dict 리스트로 변환
     work_regions_data = [region.model_dump() for region in data.work_regions]
 
-    # 파트너 데이터 생성 (민감정보 암호화)
+    # 협력사 데이터 생성 (민감정보 암호화)
     new_partner = Partner(
         company_name=data.company_name,
         representative_name=encrypt_value(data.representative_name),
@@ -78,5 +78,5 @@ def create_partner(
     return PartnerCreateResponse(
         success=True,
         partner_id=new_partner.id,
-        message="파트너 등록 신청이 완료되었습니다. 검토 후 연락드리겠습니다.",
+        message="협력사 등록 신청이 완료되었습니다. 검토 후 연락드리겠습니다.",
     )

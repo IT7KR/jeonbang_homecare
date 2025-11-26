@@ -31,7 +31,7 @@ class DashboardStats(BaseModel):
     applications_today: int
     applications_this_week: int
 
-    # 파트너 통계
+    # 협력사 통계
     partners_total: int
     partners_pending: int
     partners_approved: int
@@ -50,7 +50,7 @@ class RecentApplication(BaseModel):
 
 
 class RecentPartner(BaseModel):
-    """최근 파트너"""
+    """최근 협력사"""
 
     id: int
     company_name: str
@@ -105,7 +105,7 @@ def get_dashboard(
         .scalar() or 0
     )
 
-    # 파트너 통계
+    # 협력사 통계
     partners_total = db.query(func.count(Partner.id)).scalar() or 0
 
     partner_status_counts = (
@@ -129,7 +129,7 @@ def get_dashboard(
         .all()
     )
 
-    # 최근 파트너 (5건)
+    # 최근 협력사 (5건)
     recent_partners = (
         db.query(Partner)
         .order_by(Partner.created_at.desc())

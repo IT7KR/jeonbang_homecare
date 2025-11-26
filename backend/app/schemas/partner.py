@@ -1,6 +1,6 @@
 """
 Partner schemas for request/response validation
-파트너 등록 스키마
+협력사 등록 스키마
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -26,7 +26,7 @@ class SelectedRegion(BaseModel):
 
 
 class PartnerCreate(BaseModel):
-    """파트너 등록 요청"""
+    """협력사 등록 요청"""
 
     # 기본 정보
     company_name: str = Field(..., min_length=2, max_length=100, alias="companyName", description="회사/상호명")
@@ -94,7 +94,7 @@ class PartnerCreate(BaseModel):
 
 
 class PartnerResponse(BaseModel):
-    """파트너 응답 (공개용 - 민감정보 제외)"""
+    """협력사 응답 (공개용 - 민감정보 제외)"""
 
     id: int
     company_name: str
@@ -106,7 +106,7 @@ class PartnerResponse(BaseModel):
 
 
 class PartnerDetailResponse(BaseModel):
-    """파트너 상세 응답 (관리자용)"""
+    """협력사 상세 응답 (관리자용)"""
 
     id: int
     company_name: str
@@ -133,7 +133,7 @@ class PartnerDetailResponse(BaseModel):
 
 
 class PartnerCreateResponse(BaseModel):
-    """파트너 등록 응답"""
+    """협력사 등록 응답"""
 
     success: bool
     partner_id: int
@@ -143,7 +143,7 @@ class PartnerCreateResponse(BaseModel):
 # ===== 관리자용 스키마 =====
 
 class PartnerListItem(BaseModel):
-    """파트너 목록 아이템 (관리자용)"""
+    """협력사 목록 아이템 (관리자용)"""
 
     id: int
     company_name: str
@@ -157,7 +157,7 @@ class PartnerListItem(BaseModel):
 
 
 class PartnerListResponse(BaseModel):
-    """파트너 목록 응답 (관리자용)"""
+    """협력사 목록 응답 (관리자용)"""
 
     items: list[PartnerListItem]
     total: int
@@ -167,7 +167,7 @@ class PartnerListResponse(BaseModel):
 
 
 class PartnerUpdate(BaseModel):
-    """파트너 수정 요청 (관리자용)"""
+    """협력사 수정 요청 (관리자용)"""
 
     status: Optional[str] = None
     rejection_reason: Optional[str] = None
@@ -184,7 +184,7 @@ class PartnerUpdate(BaseModel):
 
 
 class PartnerApprove(BaseModel):
-    """파트너 승인/거절 요청"""
+    """협력사 승인/거절 요청"""
 
     action: str  # approve / reject
     rejection_reason: Optional[str] = None

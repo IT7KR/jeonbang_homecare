@@ -1,6 +1,6 @@
 """
 Partner model for service providers
-파트너(협력업체/개인사업자) 모델
+협력사(협력업체/개인사업자) 모델
 
 PK: BIGSERIAL as per CLAUDE.md
 No FK constraints - relationships managed at application level
@@ -15,7 +15,7 @@ from app.core.database import Base
 
 
 class Partner(Base):
-    """파트너 (Partner) - 협력업체/개인사업자"""
+    """협력사 (Partner) - 협력업체/개인사업자"""
 
     __tablename__ = "partners"
 
@@ -46,7 +46,7 @@ class Partner(Base):
     experience = Column(Text, nullable=True)  # 경력 및 자격
     remarks = Column(Text, nullable=True)  # 비고
 
-    # 파트너 상태
+    # 협력사 상태
     # pending: 승인 대기
     # approved: 승인됨
     # rejected: 거절됨
