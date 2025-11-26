@@ -34,8 +34,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **PostgreSQL 15** (확정) - AWS Lightsail Managed DB
 - Docker Compose 기반 배포 (개발/운영 환경 분리)
 - 파일 저장: 로컬 `/uploads` 디렉토리 (Docker Volume)
-- Nginx 리버스 프록시
-- AWS Lightsail (Container 또는 Instance)
+- AWS Lightsail Instance (기존 Apache 서버에 배포)
+
+### 운영 배포 구조
+- 기존 Lightsail Instance의 Apache가 리버스 프록시 역할
+- 서브 경로 배포: `도메인/homecare/` (basePath 사용)
+- 환경변수 `NEXT_PUBLIC_BASE_PATH=/homecare` 설정
 
 ## Docker 개발 환경
 
@@ -55,7 +59,7 @@ cp .env.example .env
 ### 주요 명령어
 ```bash
 # 로그 확인
-./scripts/logs.sh [backend|frontend|db|nginx]
+./scripts/logs.sh [backend|frontend|db]
 
 # 데이터베이스 백업/복원
 ./scripts/backup.sh
@@ -71,7 +75,6 @@ cp .env.example .env
 - API Docs: http://localhost:8000/docs
 - PostgreSQL: localhost:5437
 - Adminer: http://localhost:8080
-- Nginx: http://localhost (80/443)
 
 ### 외부 서비스
 - 알리고 API (SMS 발송)
