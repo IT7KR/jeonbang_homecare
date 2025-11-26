@@ -161,9 +161,9 @@ export default function PartnersPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">파트너 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-900">협력사 관리</h1>
           <p className="text-gray-500 mt-1">
-            총 <span className="font-semibold text-primary">{total}</span>명의 파트너
+            총 <span className="font-semibold text-primary">{total}</span>개의 협력사
           </p>
         </div>
       </div>
@@ -274,7 +274,7 @@ export default function PartnersPage() {
                           <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                             <Users className="w-5 h-5 text-gray-400" />
                           </div>
-                          <p className="text-gray-500">파트너가 없습니다</p>
+                          <p className="text-gray-500">협력사가 없습니다</p>
                         </div>
                       </td>
                     </tr>
@@ -386,12 +386,12 @@ export default function PartnersPage() {
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-100">
               <h3 className="text-lg font-semibold text-gray-900">
-                파트너 승인/거절
+                협력사 승인/거절
               </h3>
             </div>
             <div className="p-6">
               <p className="text-gray-600 mb-5">
-                <strong className="text-gray-900">{approvalTarget.company_name}</strong> 파트너를 승인하시겠습니까?
+                <strong className="text-gray-900">{approvalTarget.company_name}</strong> 협력사를 승인하시겠습니까?
               </p>
 
               <div className="mb-5">

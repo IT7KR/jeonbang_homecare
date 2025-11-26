@@ -21,7 +21,7 @@ import { useAuthStore } from "@/lib/stores/auth";
 const navigation = [
   { name: "대시보드", href: "/admin", icon: LayoutDashboard },
   { name: "신청 관리", href: "/admin/applications", icon: FileText },
-  { name: "파트너 관리", href: "/admin/partners", icon: Users },
+  { name: "협력사 관리", href: "/admin/partners", icon: Users },
   { name: "SMS 관리", href: "/admin/sms", icon: MessageSquare },
   { name: "일정 관리", href: "/admin/schedule", icon: Calendar },
   { name: "설정", href: "/admin/settings", icon: Settings },

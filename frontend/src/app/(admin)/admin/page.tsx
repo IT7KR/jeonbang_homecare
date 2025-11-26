@@ -27,7 +27,7 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   cancelled: { label: "취소", color: "bg-red-50 text-red-600" },
 };
 
-// 파트너 상태 라벨 - 테마 색상 사용
+// 협력사 상태 라벨 - 테마 색상 사용
 const partnerStatusLabels: Record<string, { label: string; color: string }> = {
   pending: { label: "대기중", color: "bg-secondary-50 text-secondary-700" },
   approved: { label: "승인", color: "bg-primary-50 text-primary-700" },
@@ -168,11 +168,11 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* 파트너 */}
+        {/* 협력사 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">파트너</p>
+              <p className="text-sm font-medium text-gray-500">협력사</p>
               <p className="text-3xl font-bold text-purple-600 mt-1">{stats.partners_approved}</p>
             </div>
             <div className="w-11 h-11 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -235,10 +235,10 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* 최근 파트너 */}
+        {/* 최근 협력사 */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900">최근 파트너</h2>
+            <h2 className="font-semibold text-gray-900">최근 협력사</h2>
             <Link
               href="/admin/partners"
               className="text-sm text-primary hover:text-primary-600 flex items-center gap-1 font-medium transition-colors"
@@ -252,7 +252,7 @@ export default function AdminDashboardPage() {
                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
                   <Users className="w-5 h-5 text-gray-400" />
                 </div>
-                <p className="text-gray-500 text-sm">파트너 내역이 없습니다</p>
+                <p className="text-gray-500 text-sm">협력사 내역이 없습니다</p>
               </div>
             ) : (
               recent_partners.map((partner) => (

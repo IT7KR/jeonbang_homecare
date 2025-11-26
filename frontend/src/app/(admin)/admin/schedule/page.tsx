@@ -114,7 +114,7 @@ export default function SchedulePage() {
       const data = await getSchedulePartners(token);
       setPartners(data);
     } catch (err) {
-      console.error("파트너 로드 실패:", err);
+      console.error("협력사 로드 실패:", err);
     }
   };
 
@@ -294,7 +294,7 @@ export default function SchedulePage() {
               onChange={(e) => setPartnerFilter(e.target.value ? Number(e.target.value) : "")}
               className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
             >
-              <option value="">전체 파트너</option>
+              <option value="">전체 협력사</option>
               {partners.map((partner) => (
                 <option key={partner.id} value={partner.id}>
                   {partner.company_name}

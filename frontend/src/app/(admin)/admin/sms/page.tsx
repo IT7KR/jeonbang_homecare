@@ -36,7 +36,7 @@ const TYPE_OPTIONS = [
   { value: "", label: "전체유형" },
   { value: "manual", label: "수동발송" },
   { value: "application_new", label: "신규신청알림" },
-  { value: "partner_new", label: "파트너등록알림" },
+  { value: "partner_new", label: "협력사등록알림" },
 ];
 
 const STATUS_COLORS: Record<string, string> = {
@@ -54,10 +54,10 @@ const STATUS_LABELS: Record<string, string> = {
 const TYPE_LABELS: Record<string, string> = {
   manual: "수동발송",
   application_new: "신규신청알림",
-  partner_new: "파트너등록알림",
+  partner_new: "협력사등록알림",
   manual_retry: "수동발송(재시도)",
   application_new_retry: "신규신청알림(재시도)",
-  partner_new_retry: "파트너등록알림(재시도)",
+  partner_new_retry: "협력사등록알림(재시도)",
 };
 
 export default function SMSPage() {
