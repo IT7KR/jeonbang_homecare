@@ -126,6 +126,8 @@ class ApplicationUpdate(BaseModel):
     estimated_cost: Optional[int] = None
     final_cost: Optional[int] = None
     admin_memo: Optional[str] = None
+    # SMS 발송 옵션
+    send_sms: Optional[bool] = Field(False, description="SMS 알림 발송 여부")
 
     @field_validator("status")
     @classmethod

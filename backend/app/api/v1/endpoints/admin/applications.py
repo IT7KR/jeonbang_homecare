@@ -3,24 +3,33 @@ Admin Application API endpoints
 관리자용 신청 관리 API
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, or_
 from typing import Optional
 from datetime import datetime, timezone
 import math
+import logging
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.core.encryption import decrypt_value
 from app.models.admin import Admin
 from app.models.application import Application
+from app.models.partner import Partner
 from app.schemas.application import (
     ApplicationListResponse,
     ApplicationListItem,
     ApplicationDetailResponse,
     ApplicationUpdate,
 )
+from app.services.sms import (
+    send_partner_assignment_notification,
+    send_schedule_confirmation,
+    send_partner_schedule_notification,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/applications", tags=["Admin - Applications"])
 
@@ -134,9 +143,10 @@ def get_application(
 
 
 @router.put("/{application_id}", response_model=ApplicationDetailResponse)
-def update_application(
+async def update_application(
     application_id: int,
     data: ApplicationUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
@@ -144,18 +154,24 @@ def update_application(
     신청 수정 (관리자용)
 
     - 상태 변경
-    - 파트너 배정
+    - 협력사 배정
     - 일정 설정
     - 비용 설정
     - 관리자 메모
+    - SMS 알림 발송 (선택)
     """
     application = db.query(Application).filter(Application.id == application_id).first()
 
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    # 필드 업데이트 (None이 아닌 값만)
-    update_data = data.model_dump(exclude_unset=True)
+    # 이전 상태 저장 (SMS 발송 여부 판단용)
+    prev_partner_id = application.assigned_partner_id
+    prev_scheduled_date = application.scheduled_date
+    prev_status = application.status
+
+    # 필드 업데이트 (None이 아닌 값만, send_sms 제외)
+    update_data = data.model_dump(exclude_unset=True, exclude={"send_sms"})
 
     for field, value in update_data.items():
         if value is not None:
@@ -174,6 +190,65 @@ def update_application(
 
     db.commit()
     db.refresh(application)
+
+    # SMS 발송 처리 (백그라운드)
+    if data.send_sms:
+        decrypted = decrypt_application(application)
+        customer_phone = decrypted["customer_phone"]
+        customer_name = decrypted["customer_name"]
+        address = decrypted["address"]
+
+        # 협력사 배정 알림
+        if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
+            partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+            if partner:
+                partner_phone = decrypt_value(partner.contact_phone)
+                background_tasks.add_task(
+                    send_partner_assignment_notification,
+                    customer_phone,
+                    application.application_number,
+                    partner.company_name,
+                    partner_phone,
+                )
+                logger.info(f"SMS scheduled: partner assignment for {application.application_number}")
+
+        # 일정 확정 알림 (scheduled 상태로 변경되거나, 일정이 새로 설정된 경우)
+        if (data.status == "scheduled" and prev_status != "scheduled") or \
+           (data.scheduled_date and data.scheduled_date != str(prev_scheduled_date) if prev_scheduled_date else True):
+            if application.scheduled_date:
+                # 협력사 정보 조회
+                partner_name = None
+                partner_phone = None
+                if application.assigned_partner_id:
+                    partner = db.query(Partner).filter(Partner.id == application.assigned_partner_id).first()
+                    if partner:
+                        partner_name = partner.company_name
+                        partner_phone = decrypt_value(partner.contact_phone)
+
+                # 고객에게 알림
+                background_tasks.add_task(
+                    send_schedule_confirmation,
+                    customer_phone,
+                    application.application_number,
+                    str(application.scheduled_date),
+                    application.scheduled_time,
+                    partner_name,
+                )
+
+                # 협력사에게 알림
+                if partner_phone:
+                    background_tasks.add_task(
+                        send_partner_schedule_notification,
+                        partner_phone,
+                        application.application_number,
+                        customer_name,
+                        customer_phone,
+                        address,
+                        str(application.scheduled_date),
+                        application.scheduled_time,
+                        application.selected_services or [],
+                    )
+                logger.info(f"SMS scheduled: schedule confirmation for {application.application_number}")
 
     decrypted = decrypt_application(application)
     return ApplicationDetailResponse(**decrypted)
