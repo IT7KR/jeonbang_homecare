@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
-from app.core.database import engine, Base
+from app.core.database import engine, Base, SessionLocal
 from app.api.v1.router import api_router
 
 
@@ -20,6 +20,15 @@ async def lifespan(app: FastAPI):
     # 개발 환경에서만 테이블 자동 생성 (운영에서는 Alembic 사용)
     if settings.APP_ENV == "development":
         Base.metadata.create_all(bind=engine)
+
+    # 서비스 코드 캐시 초기화 (SMS 발송 시 사용)
+    from app.services.sms import load_service_cache
+    db = SessionLocal()
+    try:
+        load_service_cache(db)
+    finally:
+        db.close()
+
     yield
     # Shutdown (필요시 정리 작업)
 
