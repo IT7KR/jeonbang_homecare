@@ -1,0 +1,108 @@
+# docker-compose.yml - Base configuration
+# Usage:
+#   Development: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   Production:  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: jeonbang-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-jeonbang}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Database password required}
+      POSTGRES_DB: ${DB_NAME:-jeonbang_homecare}
+      TZ: Asia/Seoul
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-jeonbang} -d ${DB_NAME:-jeonbang_homecare}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - jeonbang-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jeonbang-backend
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - DATABASE_URL=postgresql://${DB_USER:-jeonbang}:${DB_PASSWORD}@db:5432/${DB_NAME:-jeonbang_homecare}
+      - SECRET_KEY=${SECRET_KEY:?Secret key required}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT secret key required}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-14}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Encryption key required}
+      - ALIGO_API_KEY=${ALIGO_API_KEY:-}
+      - ALIGO_USER_ID=${ALIGO_USER_ID:-}
+      - ALIGO_SENDER=${ALIGO_SENDER:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3500}
+      - TZ=Asia/Seoul
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - jeonbang-network
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jeonbang-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      - NEXT_PUBLIC_JUSO_API_KEY=${NEXT_PUBLIC_JUSO_API_KEY:-}
+      - TZ=Asia/Seoul
+    depends_on:
+      - backend
+    networks:
+      - jeonbang-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: jeonbang-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - uploads_data:/var/www/uploads:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - jeonbang-network
+
+networks:
+  jeonbang-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: jeonbang-postgres-data
+  uploads_data:
+    name: jeonbang-uploads
+  nginx_logs:
+    name: jeonbang-nginx-logs

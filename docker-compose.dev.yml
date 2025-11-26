@@ -1,0 +1,60 @@
+# docker-compose.dev.yml - Development environment overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  db:
+    ports:
+      - "${DB_PORT:-5437}:5432"  # Expose DB for local tools (DBeaver, pgAdmin, etc.)
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./backend:/app                    # Hot reload
+      - /app/__pycache__                  # Exclude pycache
+      - /app/.pytest_cache               # Exclude pytest cache
+      - uploads_data:/app/uploads
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3500,http://127.0.0.1:3500
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"      # Direct access for debugging
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app                   # Hot reload
+      - /app/node_modules                 # Preserve node_modules
+      - /app/.next                        # Preserve build cache
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - CI=true
+    ports:
+      - "${FRONTEND_PORT:-3500}:3000"     # Direct access for debugging
+    command: sh -c "pnpm install --no-frozen-lockfile && pnpm dev"
+
+  nginx:
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/dev.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads_data:/var/www/uploads:ro
+
+  # Development tools
+  adminer:
+    image: adminer:latest
+    container_name: jeonbang-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+    depends_on:
+      - db
+    networks:
+      - jeonbang-network

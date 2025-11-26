@@ -1,0 +1,22 @@
+#!/bin/bash
+# scripts/generate-secrets.sh - Generate secure random secrets
+
+echo "=========================================="
+echo "  Secure Secrets Generator"
+echo "=========================================="
+echo ""
+echo "Copy these values to your .env file:"
+echo ""
+echo "# Database password (strong password)"
+echo "DB_PASSWORD=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+echo ""
+echo "# Application secret key (32 bytes hex)"
+echo "SECRET_KEY=$(openssl rand -hex 32)"
+echo ""
+echo "# JWT secret key (32 bytes hex)"
+echo "JWT_SECRET_KEY=$(openssl rand -hex 32)"
+echo ""
+echo "# Encryption key for AES-256 (32 bytes hex = 64 characters)"
+echo "ENCRYPTION_KEY=$(openssl rand -hex 32)"
+echo ""
+echo "=========================================="
