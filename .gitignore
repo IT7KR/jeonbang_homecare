@@ -22,8 +22,8 @@ logs/
 *.swo
 *~
 
-# Claude
-.claude
+# Claude Code (개인 설정 - 커밋 제외)
+.claude/
 
 # OS
 .DS_Store
