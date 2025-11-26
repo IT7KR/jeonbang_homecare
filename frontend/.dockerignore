@@ -1,0 +1,23 @@
+# frontend/.dockerignore
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+Dockerfile*
+docker-compose*
+README.md
+docs
+tests
+coverage
+.nyc_output
+*.md
+.husky
+.eslintcache
