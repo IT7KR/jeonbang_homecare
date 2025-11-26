@@ -21,7 +21,7 @@ interface StepByStepServiceSelectorProps {
   categories: Category[];
   selectedServiceIds: number[];
   onSelectionChange: (serviceIds: number[]) => void;
-  mode: 'customer' | 'partner'; // 고객용 vs 파트너용 문구 구분
+  mode: 'customer' | 'partner'; // 고객용 vs 협력사용 문구 구분
 }
 
 export function StepByStepServiceSelector({

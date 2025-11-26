@@ -59,22 +59,22 @@ export function Header() {
       )}
     >
       <div className="container mx-auto px-4">
-        <div className="flex h-[70px] md:h-[100px] lg:h-[120px] items-center justify-between">
+        <div className="flex h-[80px] md:h-[110px] lg:h-[130px] items-center justify-between">
           {/* 로고 */}
           <Link href={ROUTES.HOME} className="flex items-center space-x-2">
-            {/* 반응형: 모바일 60x60, 태블릿 80x80, PC 100x100 */}
+            {/* 반응형: 모바일 70x70, 태블릿 90x90, PC 110x110 */}
             <Image
               src="/logo.png"
               alt="logo"
-              width={100}
-              height={100}
+              width={110}
+              height={110}
               unoptimized
-              className="w-[60px] h-[60px] md:w-[80px] md:h-[80px] lg:w-[100px] lg:h-[100px]"
+              className="w-[70px] h-[70px] md:w-[90px] md:h-[90px] lg:w-[110px] lg:h-[110px]"
             />
           </Link>
 
           {/* 데스크톱 네비게이션 */}
-          <nav className="hidden lg:flex items-center space-x-8">
+          <nav className="hidden lg:flex items-center space-x-10">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
@@ -85,7 +85,7 @@ export function Header() {
                     handleNavClick(item.href, item.isAnchor);
                   }
                 }}
-                className="text-base font-medium text-gray-600 transition-colors hover:text-primary"
+                className="text-lg font-semibold text-gray-700 transition-colors hover:text-primary"
               >
                 {item.label}
               </Link>
@@ -94,7 +94,7 @@ export function Header() {
 
           {/* 데스크톱 CTA */}
           <div className="hidden lg:flex items-center space-x-4">
-            <Button asChild className="h-12 px-8 text-base font-semibold">
+            <Button asChild className="h-14 px-10 text-lg font-bold">
               <Link href={ROUTES.APPLY}>견적 요청하기</Link>
             </Button>
           </div>
@@ -106,10 +106,10 @@ export function Header() {
                 <Menu className="h-6 w-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[300px] sm:w-[350px]">
+            <SheetContent side="right" className="w-[320px] sm:w-[380px]">
               <SheetHeader>
-                <SheetTitle className="text-left">
-                  <span className="text-primary">전방</span> 홈케어
+                <SheetTitle className="text-left text-2xl">
+                  <span className="text-primary font-bold">전방</span> 홈케어
                 </SheetTitle>
               </SheetHeader>
               <nav className="flex flex-col mt-8 space-y-1">
@@ -123,7 +123,7 @@ export function Header() {
                       }
                       handleNavClick(item.href, item.isAnchor);
                     }}
-                    className="text-lg font-medium text-gray-700 transition-colors hover:text-primary hover:bg-gray-50 px-4 py-3 rounded-lg"
+                    className="text-xl font-semibold text-gray-700 transition-colors hover:text-primary hover:bg-gray-50 px-4 py-4 rounded-lg"
                   >
                     {item.label}
                   </Link>
@@ -133,16 +133,16 @@ export function Header() {
 
                 <a
                   href={`tel:${COMPANY_INFO.phone}`}
-                  className="flex items-center space-x-3 text-lg font-medium text-gray-700 hover:text-primary px-4 py-3 rounded-lg hover:bg-gray-50"
+                  className="flex items-center space-x-3 text-xl font-bold text-secondary hover:opacity-80 px-4 py-4 rounded-lg hover:bg-gray-50"
                 >
-                  <Phone className="h-5 w-5" />
+                  <Phone className="h-6 w-6" />
                   <span>{COMPANY_INFO.phone}</span>
                 </a>
 
                 <div className="pt-4">
                   <Button
                     asChild
-                    className="w-full h-12 text-base font-semibold"
+                    className="w-full h-14 text-lg font-bold"
                     size="lg"
                   >
                     <Link href={ROUTES.APPLY} onClick={() => setIsOpen(false)}>

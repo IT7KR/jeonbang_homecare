@@ -110,7 +110,7 @@ export default function AboutPage() {
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-2">신뢰</h3>
                 <p className="text-gray-600">
-                  검증된 협력사 네트워크와 투명한 프로세스로 고객과 파트너
+                  검증된 협력사 네트워크와 투명한 프로세스로 고객과 협력사
                   모두에게 신뢰를 드립니다.
                 </p>
               </CardContent>
@@ -243,7 +243,7 @@ export default function AboutPage() {
           <p className="text-primary-100 mb-8 max-w-2xl mx-auto">
             전원주택 관리가 필요하시다면 지금 바로 서비스를 신청하세요.
             <br className="hidden md:block" />
-            전문 파트너가 되고 싶으시다면 파트너 등록을 진행해주세요.
+            전문 협력사가 되고 싶으시다면 협력사 등록을 진행해주세요.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button
@@ -260,7 +260,7 @@ export default function AboutPage() {
               variant="outline"
               className="border-white text-white hover:bg-white/10"
             >
-              <Link href="/partner">파트너 등록</Link>
+              <Link href="/partner">협력사 등록</Link>
             </Button>
           </div>
         </div>
