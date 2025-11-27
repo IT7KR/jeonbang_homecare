@@ -51,7 +51,7 @@ export function StepIndicator({
                 onClick={() => clickable && onStepClick?.(stepNumber)}
                 disabled={!clickable}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-2 rounded-xl transition-all duration-200",
+                  "flex items-center gap-3 px-5 py-3 rounded-xl transition-all duration-200",
                   status === "completed" && [
                     "cursor-pointer",
                     variant === "primary"
@@ -71,7 +71,7 @@ export function StepIndicator({
                 {/* 번호/체크 아이콘 */}
                 <span
                   className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-[18px] font-bold transition-all",
+                    "w-11 h-11 md:w-12 md:h-12 rounded-full flex items-center justify-center text-lg md:text-xl font-bold transition-all",
                     status === "completed" && [
                       "text-white",
                       variant === "primary" ? "bg-primary" : "bg-secondary",
@@ -85,7 +85,7 @@ export function StepIndicator({
                   )}
                 >
                   {status === "completed" ? (
-                    <Check className="w-5 h-5" strokeWidth={3} />
+                    <Check className="w-5 h-5 md:w-6 md:h-6" strokeWidth={3} />
                   ) : (
                     stepNumber
                   )}
@@ -94,7 +94,7 @@ export function StepIndicator({
                 {/* 라벨 */}
                 <span
                   className={cn(
-                    "text-[16px] font-medium whitespace-nowrap",
+                    "text-lg md:text-xl font-semibold whitespace-nowrap",
                     status === "completed" && [
                       variant === "primary" ? "text-primary" : "text-secondary",
                     ],
@@ -127,17 +127,17 @@ export function StepIndicator({
       {/* 모바일 버전 */}
       <div className="md:hidden">
         {/* 현재 단계 표시 */}
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-[18px] font-bold text-gray-900">
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xl font-bold text-gray-900">
             {steps[currentStep - 1]?.label}
           </span>
-          <span className="text-[16px] text-gray-500">
+          <span className="text-lg text-gray-500">
             {currentStep} / {steps.length}
           </span>
         </div>
 
         {/* 프로그레스 바 */}
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden mb-3">
+        <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden mb-4">
           <div
             className={cn(
               "h-full transition-all duration-300 rounded-full",
@@ -161,7 +161,7 @@ export function StepIndicator({
                 onClick={() => clickable && onStepClick?.(stepNumber)}
                 disabled={!clickable}
                 className={cn(
-                  "w-8 h-8 rounded-full flex items-center justify-center text-[14px] font-bold transition-all",
+                  "w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold transition-all",
                   status === "completed" && [
                     "text-white",
                     variant === "primary" ? "bg-primary" : "bg-secondary",
@@ -178,7 +178,7 @@ export function StepIndicator({
                 aria-label={`${step.label} (${stepNumber}단계)`}
               >
                 {status === "completed" ? (
-                  <Check className="w-4 h-4" strokeWidth={3} />
+                  <Check className="w-5 h-5" strokeWidth={3} />
                 ) : (
                   stepNumber
                 )}
@@ -189,7 +189,7 @@ export function StepIndicator({
 
         {/* 설명 (있는 경우) */}
         {steps[currentStep - 1]?.description && (
-          <p className="mt-3 text-[14px] text-gray-500 text-center">
+          <p className="mt-4 text-base text-gray-500 text-center">
             {steps[currentStep - 1].description}
           </p>
         )}
