@@ -40,7 +40,7 @@ export default function HomePage() {
             src="/main_bg.webp"
             alt="전원주택 일러스트"
             fill
-            className="object-cover object-center opacity-20 lg:opacity-25"
+            className="object-cover object-center opacity-45"
             priority
           />
           {/* 그라데이션 오버레이 */}
@@ -126,7 +126,8 @@ export default function HomePage() {
               <div className="pt-6">
                 <div className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-5 shadow-xl border border-gray-100">
                   <div className="text-left">
-                    <div className="flex items-center gap-2 text-base text-gray-600 mb-1">
+                    <div className="flex items-center gap-2 text-2xl text-gray-600 mb-1">
+                      <Phone className="w-6 h-6 text-primary" />
                       <span className="font-semibold">문의</span>
                     </div>
                     <a
