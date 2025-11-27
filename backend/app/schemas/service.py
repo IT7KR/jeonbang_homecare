@@ -13,6 +13,7 @@ class ServiceTypeResponse(BaseModel):
     category_code: str
     description: str | None = None
     sort_order: int
+    is_active: bool = True
 
     class Config:
         from_attributes = True

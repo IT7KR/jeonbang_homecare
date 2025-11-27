@@ -39,6 +39,7 @@ def get_service_categories(db: Session = Depends(get_db)):
 @router.get("/types", response_model=List[ServiceTypeResponse])
 def get_service_types(
     category_code: str | None = None,
+    include_inactive: bool = True,
     db: Session = Depends(get_db),
 ):
     """
@@ -46,11 +47,17 @@ def get_service_types(
 
     Args:
         category_code: 카테고리 코드 (optional, 필터링용)
+        include_inactive: 비활성화 서비스 포함 여부 (default: True)
+            - True: 모든 서비스 반환 (프론트에서 '준비 중' 표시)
+            - False: 활성화된 서비스만 반환
 
     Returns:
         List[ServiceTypeResponse]: 서비스 타입 목록 (정렬순)
     """
-    query = db.query(ServiceType).filter(ServiceType.is_active == True)
+    query = db.query(ServiceType)
+
+    if not include_inactive:
+        query = query.filter(ServiceType.is_active == True)
 
     if category_code:
         query = query.filter(ServiceType.category_code == category_code)
@@ -63,14 +70,23 @@ def get_service_types(
 
 
 @router.get("", response_model=ServicesListResponse)
-def get_all_services(db: Session = Depends(get_db)):
+def get_all_services(
+    include_inactive: bool = True,
+    db: Session = Depends(get_db),
+):
     """
     전체 서비스 목록 조회 (카테고리 + 서비스 타입)
     캐싱에 적합한 단일 요청으로 모든 서비스 데이터 반환
 
+    Args:
+        include_inactive: 비활성화 서비스 포함 여부 (default: True)
+            - True: 모든 서비스 반환 (프론트에서 '준비 중' 표시)
+            - False: 활성화된 서비스만 반환
+
     Returns:
         ServicesListResponse: 카테고리별 서비스 목록
     """
+    # 카테고리는 항상 활성화된 것만 표시
     categories = (
         db.query(ServiceCategory)
         .filter(ServiceCategory.is_active == True)
@@ -79,12 +95,12 @@ def get_all_services(db: Session = Depends(get_db)):
     )
 
     # 모든 서비스 타입을 한번에 조회 (N+1 방지)
-    all_types = (
-        db.query(ServiceType)
-        .filter(ServiceType.is_active == True)
-        .order_by(ServiceType.sort_order)
-        .all()
-    )
+    # include_inactive=True면 비활성화 서비스도 포함 (프론트에서 '준비 중' 표시)
+    types_query = db.query(ServiceType)
+    if not include_inactive:
+        types_query = types_query.filter(ServiceType.is_active == True)
+
+    all_types = types_query.order_by(ServiceType.sort_order).all()
 
     # category_code로 그룹화
     types_by_category = {}
