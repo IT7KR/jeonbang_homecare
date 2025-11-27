@@ -80,7 +80,7 @@ export function CompanyIntroCards() {
                   />
                 </div>
                 <span
-                  className={`inline-block text-sm font-bold mb-3 px-4 py-1.5 rounded-full ${
+                  className={`inline-block text-lg md:text-xl font-bold mb-4 px-5 py-2 rounded-full ${
                     isHomecare
                       ? "text-primary bg-primary/10"
                       : `${color.text} bg-white/50`
@@ -89,13 +89,13 @@ export function CompanyIntroCards() {
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <h3
-                  className={`text-xl md:text-2xl font-extrabold mb-4 ${
+                  className={`text-2xl md:text-3xl lg:text-4xl font-extrabold mb-5 ${
                     isHomecare ? "text-primary" : "text-gray-900"
                   }`}
                 >
                   {item.title}
                 </h3>
-                <p className="text-base md:text-lg text-gray-600 leading-relaxed mb-6">
+                <p className="text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed mb-8">
                   {item.description}
                 </p>
 
@@ -105,18 +105,18 @@ export function CompanyIntroCards() {
                     href={item.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-bold text-white transition-colors shadow-md ${color.button}`}
+                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md ${color.button}`}
                   >
                     바로가기
-                    <ExternalLink className="h-5 w-5" />
+                    <ExternalLink className="h-6 w-6" />
                   </a>
                 ) : (
                   <button
                     onClick={handleScrollTop}
-                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-base font-bold text-white transition-colors shadow-md ${color.button}`}
+                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md ${color.button}`}
                   >
                     바로가기
-                    <ArrowRight className="h-5 w-5" />
+                    <ArrowRight className="h-6 w-6" />
                   </button>
                 )}
               </div>
