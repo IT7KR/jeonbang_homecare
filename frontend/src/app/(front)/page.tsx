@@ -55,7 +55,9 @@ export default function HomePage() {
                   <div className="w-24 h-24 xl:w-28 xl:h-28 bg-white rounded-xl shadow-lg border border-gray-200 flex items-center justify-center p-2">
                     <QrCode className="w-full h-full text-primary/80" />
                   </div>
-                  <p className="text-sm text-gray-500 mt-2 font-medium">QR 코드로 모바일에서 바로 접속</p>
+                  <p className="text-sm text-gray-500 mt-2 font-medium">
+                    QR 코드로 모바일에서 바로 접속
+                  </p>
                 </div>
               </div>
 
@@ -111,7 +113,7 @@ export default function HomePage() {
                   <div>
                     <div className="flex items-center gap-2 text-base text-gray-600 mb-2">
                       <Phone className="h-5 w-5 text-secondary" />
-                      <span className="font-semibold">궁금하신게 있으신가요?</span>
+                      <span className="font-semibold">문의하기</span>
                     </div>
                     <a
                       href={`tel:${COMPANY_INFO.phone}`}
@@ -119,10 +121,6 @@ export default function HomePage() {
                     >
                       {COMPANY_INFO.phone}
                     </a>
-                    <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
-                      <Clock className="h-4 w-4" />
-                      <span>평일 9:00~18:00 | 토요일 9:00~12:00</span>
-                    </div>
                   </div>
                   <a
                     href={`tel:${COMPANY_INFO.phone}`}
@@ -149,7 +147,7 @@ export default function HomePage() {
               <div className="hidden lg:block absolute top-8 right-8 bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-gray-100">
                 <div className="flex items-center gap-3 text-lg text-gray-600 mb-2">
                   <Phone className="h-6 w-6 text-secondary" />
-                  <span className="font-semibold">궁금하신게 있으신가요?</span>
+                  <span className="font-semibold">문의하기</span>
                 </div>
                 <a
                   href={`tel:${COMPANY_INFO.phone}`}
@@ -157,10 +155,6 @@ export default function HomePage() {
                 >
                   {COMPANY_INFO.phone}
                 </a>
-                <div className="flex items-center gap-2 mt-3 text-base text-gray-500">
-                  <Clock className="h-5 w-5" />
-                  <span>평일 9:00~18:00 | 토요일 9:00~12:00</span>
-                </div>
               </div>
             </div>
           </div>
@@ -550,7 +544,9 @@ export default function HomePage() {
                         <Phone className="h-8 w-8 text-secondary" />
                       </div>
                       <div className="flex-1">
-                        <p className="text-lg md:text-xl text-gray-500">전화 문의</p>
+                        <p className="text-lg md:text-xl text-gray-500">
+                          전화 문의
+                        </p>
                         <a
                           href={`tel:${COMPANY_INFO.phone}`}
                           className="text-2xl md:text-3xl font-bold text-secondary hover:opacity-80 transition-opacity"

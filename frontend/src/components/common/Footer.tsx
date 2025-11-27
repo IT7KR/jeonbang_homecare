@@ -24,7 +24,7 @@ export function Footer() {
               className="inline-flex items-center space-x-2 text-sm font-medium text-primary hover:text-primary/80"
             >
               <Phone className="h-4 w-4" />
-              <span>{COMPANY_INFO.phone}</span>
+              <span className="text-lg">{COMPANY_INFO.phone}</span>
             </a>
           </div>
 
