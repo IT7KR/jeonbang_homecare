@@ -19,6 +19,8 @@ export interface ServiceItem {
   name: string;
   /** 서비스 설명 (선택) */
   description?: string | null;
+  /** 활성화 여부 (false: 준비 중, 선택 불가) */
+  isActive?: boolean;
 }
 
 /**
@@ -69,6 +71,8 @@ export interface ServiceCardProps {
   onClick: () => void;
   /** 비활성화 여부 */
   disabled?: boolean;
+  /** 활성화 여부 (false: 준비 중, 선택 불가) */
+  isActive?: boolean;
   /** 테마 variant */
   variant?: ServiceVariant;
   /** 추가 className */

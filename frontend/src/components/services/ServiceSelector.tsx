@@ -177,13 +177,18 @@ export function ServiceSelector(props: ServiceSelectorProps) {
   const getServices = useCallback(
     (category: CategoryItem | ConstantCategory): ServiceItem[] => {
       if ("code" in category) {
-        // API 데이터
-        return category.services;
+        // API 데이터 - is_active를 isActive로 변환
+        return category.services.map((s) => ({
+          ...s,
+          // API 응답의 is_active를 isActive로 매핑
+          isActive: (s as unknown as { is_active?: boolean }).is_active !== false,
+        }));
       } else {
         // 상수 데이터 - 이름만 있는 경우
         return category.services.map((s) => ({
           code: s,
           name: s,
+          isActive: true,
         }));
       }
     },

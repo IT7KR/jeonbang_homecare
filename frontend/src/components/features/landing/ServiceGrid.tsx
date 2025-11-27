@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -21,26 +21,28 @@ export function ServiceGrid() {
   return (
     <>
       {/* 아이콘 그리드 - 5열 */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3 md:gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 md:gap-6">
         {SERVICE_CATEGORIES.map((category) => (
           <button
             key={category.id}
             onClick={() => setSelectedCategory(category)}
-            className="group flex flex-col items-center p-4 md:p-5 rounded-2xl bg-white border border-gray-100 hover:border-primary/30 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer"
+            className="group flex flex-col items-center p-5 md:p-6 rounded-2xl bg-white border border-gray-100 hover:border-primary/30 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer"
           >
-            <div className="w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden mb-3">
+            {/* 누르기 아이콘 */}
+            <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-primary mb-2 group-hover:animate-bounce" />
+            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden mb-4">
               <Image
                 src={category.icon}
                 alt={category.name}
-                width={64}
-                height={64}
+                width={80}
+                height={80}
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="text-sm md:text-base font-semibold text-gray-900 group-hover:text-primary text-center transition-colors">
+            <span className="text-base md:text-lg lg:text-xl font-bold text-gray-900 group-hover:text-primary text-center transition-colors">
               {category.name}
             </span>
-            <span className="text-xs text-gray-400 mt-1">
+            <span className="text-sm md:text-base text-gray-400 mt-2">
               {category.services.length}개 항목
             </span>
           </button>
@@ -52,25 +54,25 @@ export function ServiceGrid() {
         open={!!selectedCategory}
         onOpenChange={(open) => !open && setSelectedCategory(null)}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               {selectedCategory && (
                 <>
-                  <div className="w-12 h-12 rounded-full overflow-hidden">
+                  <div className="w-16 h-16 rounded-full overflow-hidden">
                     <Image
                       src={selectedCategory.icon}
                       alt={selectedCategory.name}
-                      width={48}
-                      height={48}
+                      width={64}
+                      height={64}
                       className="w-full h-full object-cover"
                     />
                   </div>
                   <div>
-                    <DialogTitle className="text-xl font-bold text-gray-900">
+                    <DialogTitle className="text-2xl md:text-3xl font-bold text-gray-900">
                       {selectedCategory.name}
                     </DialogTitle>
-                    <DialogDescription className="text-sm text-gray-500 mt-0.5">
+                    <DialogDescription className="text-base md:text-lg text-gray-500 mt-1">
                       {selectedCategory.subtitle}
                     </DialogDescription>
                   </div>
@@ -80,18 +82,18 @@ export function ServiceGrid() {
           </DialogHeader>
 
           {selectedCategory && (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-gray-500 mb-3">
+            <div className="mt-6">
+              <p className="text-base md:text-lg font-medium text-gray-500 mb-4">
                 제공 서비스
               </p>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {selectedCategory.services.map((service) => (
                   <li
                     key={service}
-                    className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 hover:bg-primary-50 transition-colors"
+                    className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors"
                   >
-                    <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-                    <span className="text-gray-700 font-medium">{service}</span>
+                    <CheckCircle2 className="h-6 w-6 text-primary flex-shrink-0" />
+                    <span className="text-lg md:text-xl text-gray-700 font-medium">{service}</span>
                   </li>
                 ))}
               </ul>

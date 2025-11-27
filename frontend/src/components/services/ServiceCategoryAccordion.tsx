@@ -203,6 +203,7 @@ export function ServiceCategoryAccordion({
                 description={service.description}
                 isSelected={selectedServices.includes(service.code)}
                 onClick={() => onServiceToggle(service.code)}
+                isActive={service.isActive !== false}
                 variant={variant}
               />
             ))}
