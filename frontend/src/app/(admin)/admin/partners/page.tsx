@@ -15,11 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import {
-  getPartners,
-  approvePartner,
-  PartnerListItem,
-} from "@/lib/api/admin";
+import { getPartners, approvePartner, PartnerListItem } from "@/lib/api/admin";
 
 const STATUS_OPTIONS = [
   { value: "", label: "전체 상태" },
@@ -63,7 +59,9 @@ export default function PartnersPage() {
   const [searchInput, setSearchInput] = useState("");
 
   // Approval modal
-  const [approvalTarget, setApprovalTarget] = useState<PartnerListItem | null>(null);
+  const [approvalTarget, setApprovalTarget] = useState<PartnerListItem | null>(
+    null
+  );
   const [rejectionReason, setRejectionReason] = useState("");
   const [isApproving, setIsApproving] = useState(false);
 
@@ -89,7 +87,9 @@ export default function PartnersPage() {
       setTotalPages(data.total_pages);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
+      setError(
+        err instanceof Error ? err.message : "데이터를 불러올 수 없습니다"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -151,7 +151,9 @@ export default function PartnersPage() {
   const formatPhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(
+        7
+      )}`;
     }
     return phone;
   };
@@ -163,7 +165,8 @@ export default function PartnersPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">협력사 관리</h1>
           <p className="text-gray-500 mt-1">
-            총 <span className="font-semibold text-primary">{total}</span>개의 협력사
+            총 <span className="font-semibold text-primary">{total}</span>개의
+            협력사
           </p>
         </div>
       </div>
@@ -280,7 +283,10 @@ export default function PartnersPage() {
                     </tr>
                   ) : (
                     partners.map((partner) => (
-                      <tr key={partner.id} className="hover:bg-gray-50/50 transition-colors">
+                      <tr
+                        key={partner.id}
+                        className="hover:bg-gray-50/50 transition-colors"
+                      >
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span className="font-semibold text-gray-900">
                             {partner.company_name}
@@ -294,14 +300,16 @@ export default function PartnersPage() {
                         </td>
                         <td className="px-5 py-4 hidden lg:table-cell">
                           <div className="flex flex-wrap gap-1.5 max-w-[180px]">
-                            {partner.service_areas.slice(0, 2).map((area, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
-                              >
-                                {area}
-                              </span>
-                            ))}
+                            {partner.service_areas
+                              .slice(0, 2)
+                              .map((area, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
+                                >
+                                  {area}
+                                </span>
+                              ))}
                             {partner.service_areas.length > 2 && (
                               <span className="inline-block px-2 py-1 bg-primary-50 text-primary-700 text-xs rounded-lg font-medium">
                                 +{partner.service_areas.length - 2}
@@ -312,7 +320,8 @@ export default function PartnersPage() {
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                              STATUS_COLORS[partner.status] || "bg-gray-100 text-gray-600"
+                              STATUS_COLORS[partner.status] ||
+                              "bg-gray-100 text-gray-600"
                             }`}
                           >
                             {STATUS_LABELS[partner.status] || partner.status}
@@ -354,7 +363,10 @@ export default function PartnersPage() {
             <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3">
               <p className="text-sm text-gray-500">
                 <span className="font-medium text-gray-700">{total}</span>명 중{" "}
-                <span className="font-medium text-gray-700">{(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}</span>명
+                <span className="font-medium text-gray-700">
+                  {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)}
+                </span>
+                명
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -391,7 +403,10 @@ export default function PartnersPage() {
             </div>
             <div className="p-6">
               <p className="text-gray-600 mb-5">
-                <strong className="text-gray-900">{approvalTarget.company_name}</strong> 협력사를 승인하시겠습니까?
+                <strong className="text-gray-900">
+                  {approvalTarget.company_name}
+                </strong>{" "}
+                협력사를 승인하시겠습니까?
               </p>
 
               <div className="mb-5">
