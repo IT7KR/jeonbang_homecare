@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Menu, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,23 +13,12 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { NAV_ITEMS, ROUTES, COMPANY_INFO } from "@/lib/constants";
-import { cn } from "@/lib/utils";
 import Image from "next/image";
 
 export function Header() {
   const router = useRouter();
   const pathname = usePathname();
-  const [isScrolled, setIsScrolled] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10);
-    };
-
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
 
   const handleNavClick = (href: string, isAnchor: boolean) => {
     setIsOpen(false);
@@ -50,14 +39,7 @@ export function Header() {
   };
 
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-50 w-full transition-all duration-300",
-        isScrolled
-          ? "bg-background/95 backdrop-blur shadow-sm supports-[backdrop-filter]:bg-background/60"
-          : "bg-transparent"
-      )}
-    >
+    <header className="w-full bg-background">
       <div className="container mx-auto px-4">
         <div className="flex h-[80px] md:h-[110px] lg:h-[130px] items-center justify-between">
           {/* 로고 */}
@@ -91,13 +73,6 @@ export function Header() {
               </Link>
             ))}
           </nav>
-
-          {/* 데스크톱 CTA */}
-          <div className="hidden lg:flex items-center space-x-4">
-            <Button asChild className="h-14 px-10 text-lg font-bold">
-              <Link href={ROUTES.APPLY}>견적 요청하기</Link>
-            </Button>
-          </div>
 
           {/* 모바일 메뉴 버튼 */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
