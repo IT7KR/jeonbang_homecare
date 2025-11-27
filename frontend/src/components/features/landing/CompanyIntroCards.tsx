@@ -35,7 +35,8 @@ export function CompanyIntroCards() {
 
   return (
     <div className="relative max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-6">
+      {/* 모바일/태블릿: 1열, 데스크톱(lg): 3열 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-6">
         {COMPANY_INTRO.items.map((item, index) => {
           const isHomecare = item.id === "homecare";
           const color = colors[index];
@@ -44,11 +45,11 @@ export function CompanyIntroCards() {
             <div key={item.id} className="relative group">
               {/* 카드 사이 연결선 (데스크톱) */}
               {index < COMPANY_INTRO.items.length - 1 && (
-                <div className="hidden md:block absolute top-1/2 left-full w-6 h-0.5 bg-gray-300 -translate-y-1/2" />
+                <div className="hidden lg:block absolute top-1/2 left-full w-6 h-0.5 bg-gray-300 -translate-y-1/2" />
               )}
-              {/* 모바일 연결선 */}
+              {/* 모바일/태블릿 연결선 */}
               {index < COMPANY_INTRO.items.length - 1 && (
-                <div className="md:hidden absolute left-1/2 -bottom-4 w-0.5 h-8 bg-gray-200 -translate-x-1/2" />
+                <div className="lg:hidden absolute left-1/2 -bottom-4 w-0.5 h-8 bg-gray-200 -translate-x-1/2" />
               )}
 
               <div
@@ -60,7 +61,7 @@ export function CompanyIntroCards() {
               >
                 {/* 홈케어 강조 배지 */}
                 {isHomecare && (
-                  <span className="absolute -top-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-primary text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg">
+                  <span className="absolute -top-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 bg-primary text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap">
                     <Sparkles className="h-4 w-4" />
                     현재 서비스
                   </span>
@@ -89,13 +90,13 @@ export function CompanyIntroCards() {
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <h3
-                  className={`text-2xl md:text-3xl lg:text-4xl font-extrabold mb-5 ${
+                  className={`text-2xl md:text-3xl lg:text-4xl font-extrabold mb-5 whitespace-nowrap ${
                     isHomecare ? "text-primary" : "text-gray-900"
                   }`}
                 >
                   {item.title}
                 </h3>
-                <p className="text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
+                <p className="text-lg md:text-xl text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
                   {item.description}
                 </p>
 
@@ -105,18 +106,18 @@ export function CompanyIntroCards() {
                     href={item.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md ${color.button}`}
+                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md whitespace-nowrap ${color.button}`}
                   >
                     바로가기
-                    <ExternalLink className="h-6 w-6" />
+                    <ExternalLink className="h-6 w-6 flex-shrink-0" />
                   </a>
                 ) : (
                   <button
                     onClick={handleScrollTop}
-                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md ${color.button}`}
+                    className={`inline-flex items-center gap-2 px-8 py-4 rounded-full text-lg md:text-xl font-bold text-white transition-colors shadow-md whitespace-nowrap ${color.button}`}
                   >
                     바로가기
-                    <ArrowRight className="h-6 w-6" />
+                    <ArrowRight className="h-6 w-6 flex-shrink-0" />
                   </button>
                 )}
               </div>
