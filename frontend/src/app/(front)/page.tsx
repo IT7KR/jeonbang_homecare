@@ -127,7 +127,7 @@ export default function HomePage() {
                 <div className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-5 shadow-xl border border-gray-100">
                   <div className="text-left">
                     <div className="flex items-center gap-2 text-base text-gray-600 mb-1">
-                      <span className="font-semibold">전방 홈케어</span>
+                      <span className="font-semibold">문의</span>
                     </div>
                     <a
                       href={`tel:${COMPANY_INFO.phone}`}
