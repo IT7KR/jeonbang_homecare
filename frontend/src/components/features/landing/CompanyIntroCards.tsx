@@ -35,7 +35,7 @@ export function CompanyIntroCards() {
 
   return (
     <div className="relative max-w-6xl mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-6">
         {COMPANY_INTRO.items.map((item, index) => {
           const isHomecare = item.id === "homecare";
           const color = colors[index];
@@ -44,7 +44,7 @@ export function CompanyIntroCards() {
             <div key={item.id} className="relative group">
               {/* 카드 사이 연결선 (데스크톱) */}
               {index < COMPANY_INTRO.items.length - 1 && (
-                <div className="hidden md:block absolute top-1/2 left-full w-8 h-0.5 bg-gray-300 -translate-y-1/2" />
+                <div className="hidden md:block absolute top-1/2 left-full w-6 h-0.5 bg-gray-300 -translate-y-1/2" />
               )}
               {/* 모바일 연결선 */}
               {index < COMPANY_INTRO.items.length - 1 && (
@@ -95,7 +95,7 @@ export function CompanyIntroCards() {
                 >
                   {item.title}
                 </h3>
-                <p className="text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed mb-8">
+                <p className="text-lg md:text-xl lg:text-2xl text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
                   {item.description}
                 </p>
 

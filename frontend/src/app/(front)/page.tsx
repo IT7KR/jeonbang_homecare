@@ -66,16 +66,19 @@ export default function HomePage() {
                 {COMPANY_INFO.slogan}
               </p>
 
-              {/* 설명 텍스트 - 글씨 3~4배 크게 */}
+              {/* 설명 텍스트 - 띄어쓰기 단위 줄바꿈 */}
               <p className="text-xl md:text-2xl text-gray-600 max-w-2xl leading-relaxed">
-                전원주택의 모든 관리를 원스톱으로 제공하는{" "}
-                <strong className="text-gray-800 font-bold">
+                <span className="inline">전원주택의 모든 관리를</span>{" "}
+                <span className="inline">원스톱으로 제공하는</span>
+                <br className="hidden sm:inline" />
+                <strong className="text-gray-800 font-bold inline">
+                  {" "}
                   집사 개념의 주택 관리 서비스
                 </strong>
                 입니다.
               </p>
 
-              {/* CTA 카드 - 글씨 크기 증가 */}
+              {/* CTA 카드 - 띄어쓰기 단위 줄바꿈 처리 */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-6">
                 <Link
                   href={ROUTES.APPLY}
@@ -83,10 +86,14 @@ export default function HomePage() {
                 >
                   <div className="flex-1">
                     <h3 className="text-2xl md:text-3xl font-bold mb-2">
-                      견적 요청하기
+                      <span className="whitespace-nowrap">견적</span>{" "}
+                      <span className="whitespace-nowrap">요청하기</span>
                     </h3>
                     <p className="text-white/90 text-base md:text-lg">
-                      전문 상담원이 친절하게 안내드립니다
+                      <span className="whitespace-nowrap">전문 상담원이</span>{" "}
+                      <span className="whitespace-nowrap">
+                        친절하게 안내드립니다
+                      </span>
                     </p>
                   </div>
                   <ClipboardList className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -97,10 +104,16 @@ export default function HomePage() {
                 >
                   <div className="flex-1">
                     <h3 className="text-2xl md:text-3xl font-bold mb-2">
-                      협력사 신청하기
+                      <span className="whitespace-nowrap">협력사</span>{" "}
+                      <span className="whitespace-nowrap">신청하기</span>
                     </h3>
                     <p className="text-white/90 text-base md:text-lg">
-                      전방과 함께 성장할 협력사를 모집합니다
+                      <span className="whitespace-nowrap">
+                        전방과 함께 성장할
+                      </span>{" "}
+                      <span className="whitespace-nowrap">
+                        협력사를 모집합니다
+                      </span>
                     </p>
                   </div>
                   <Building2 className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" />
@@ -113,7 +126,7 @@ export default function HomePage() {
                   <div>
                     <div className="flex items-center gap-2 text-base text-gray-600 mb-2">
                       <Phone className="h-5 w-5 text-secondary" />
-                      <span className="font-semibold">문의하기</span>
+                      <span className="font-semibold">전방 홈케어</span>
                     </div>
                     <a
                       href={`tel:${COMPANY_INFO.phone}`}
@@ -147,7 +160,7 @@ export default function HomePage() {
               <div className="hidden lg:block absolute top-8 right-8 bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-gray-100">
                 <div className="flex items-center gap-3 text-lg text-gray-600 mb-2">
                   <Phone className="h-6 w-6 text-secondary" />
-                  <span className="font-semibold">문의하기</span>
+                  <span className="font-semibold">전방 홈케어</span>
                 </div>
                 <a
                   href={`tel:${COMPANY_INFO.phone}`}
@@ -187,13 +200,18 @@ export default function HomePage() {
                 전방 전원주택 관리 서비스
               </p>
               <h3 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5">
-                고객과 협력사, <span className="text-primary">전방</span>이 함께
-                합니다.
+                <span className="whitespace-nowrap">고객과 협력사,</span>{" "}
+                <span className="text-primary whitespace-nowrap">전방</span>
+                <span className="whitespace-nowrap">이 함께 합니다.</span>
               </h3>
               <p className="text-xl md:text-2xl lg:text-3xl text-gray-600">
-                커뮤니케이션과 서비스 품질 관리를{" "}
-                <span className="text-primary font-bold">전방</span>이
-                해드립니다.
+                <span className="whitespace-nowrap">
+                  커뮤니케이션과 서비스 품질 관리를
+                </span>{" "}
+                <span className="text-primary font-bold whitespace-nowrap">
+                  전방
+                </span>
+                <span className="whitespace-nowrap">이 해드립니다.</span>
               </p>
             </div>
           </div>
@@ -216,7 +234,7 @@ export default function HomePage() {
               <span className="text-primary">전방</span> 홈케어 서비스 구조
             </h2>
             <p className="section-subtitle">
-              전방은 고객과 협력사를 연결하는 신뢰할 수 있는 중개자입니다
+              전방은 고객과 협력사를 연결하는 신뢰할 수 있는 파트너입니다
             </p>
           </div>
 
@@ -306,11 +324,11 @@ export default function HomePage() {
 
           {/* 최하단 메시지 */}
           <p className="text-center mt-12 text-2xl md:text-3xl lg:text-4xl text-gray-700 font-semibold">
-            전방이{" "}
-            <span className="text-primary font-extrabold">
+            <span className="whitespace-nowrap">전방이</span>{" "}
+            <span className="text-primary font-extrabold whitespace-nowrap">
               커뮤니케이션과 서비스 품질 관리
             </span>
-            를 해드립니다.
+            <span className="whitespace-nowrap">를 해드립니다.</span>
           </p>
         </div>
       </section>
@@ -391,8 +409,8 @@ export default function HomePage() {
                     <h3 className="font-extrabold text-xl md:text-2xl lg:text-3xl text-gray-900 mb-4">
                       {role.title}
                     </h3>
-                    {/* 설명 */}
-                    <p className="text-lg md:text-xl text-gray-600 leading-relaxed px-2">
+                    {/* 설명 - 띄어쓰기 단위 줄바꿈 */}
+                    <p className="text-lg md:text-xl text-gray-600 leading-relaxed px-2 whitespace-pre-line">
                       {role.description}
                     </p>
                   </div>
@@ -417,7 +435,7 @@ export default function HomePage() {
                       <h3 className="font-extrabold text-2xl md:text-3xl text-gray-900 mb-3">
                         {role.title}
                       </h3>
-                      <p className="text-lg md:text-xl text-gray-600 leading-relaxed">
+                      <p className="text-lg md:text-xl text-gray-600 leading-relaxed whitespace-pre-line">
                         {role.description}
                       </p>
                     </div>
@@ -554,14 +572,6 @@ export default function HomePage() {
                           {COMPANY_INFO.phone}
                         </a>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="lg"
-                        className="font-bold text-lg px-6 py-3"
-                        asChild
-                      >
-                        <a href={`tel:${COMPANY_INFO.phone}`}>전화하기</a>
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -612,7 +622,7 @@ export default function HomePage() {
             {PARTNER_BENEFITS.map((benefit) => (
               <div
                 key={benefit.title}
-                className="text-center p-8 md:p-10 rounded-2xl bg-white hover:shadow-xl transition-all duration-300 border border-transparent hover:border-secondary/20 shadow-sm"
+                className="text-center p-4 md:p-6 rounded-2xl bg-white hover:shadow-xl transition-all duration-300 border border-transparent hover:border-secondary/20 shadow-sm"
               >
                 <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden mx-auto mb-6">
                   <Image
@@ -626,7 +636,7 @@ export default function HomePage() {
                 <h3 className="font-extrabold text-lg md:text-xl lg:text-2xl text-gray-900 mb-4">
                   {benefit.title}
                 </h3>
-                <p className="text-base md:text-lg text-gray-500 leading-relaxed hidden md:block">
+                <p className="text-base md:text-lg text-gray-500 leading-relaxed hidden md:block whitespace-pre-line">
                   {benefit.description}
                 </p>
               </div>
