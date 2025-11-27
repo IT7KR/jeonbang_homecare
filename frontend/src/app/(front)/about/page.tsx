@@ -33,45 +33,49 @@ export default function AboutPage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-16 lg:py-24">
+      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-20 lg:py-28">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900">
               <span className="text-primary">전방</span> 소개
             </h1>
-            <p className="text-lg text-gray-600">{COMPANY_INTRO.description}</p>
+            <p className="text-xl md:text-2xl text-gray-600">
+              {COMPANY_INTRO.description}
+            </p>
           </div>
         </div>
       </section>
 
       {/* Company Introduction */}
-      <section className="py-16 lg:py-24">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5">
               전방의 사업 영역
             </h2>
-            <p className="text-gray-600">
+            <p className="text-xl md:text-2xl text-gray-600">
               전원생활을 위한 종합 서비스를 제공합니다.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {COMPANY_INTRO.items.map((item) => {
               const IconComponent = iconMap[item.icon] || Home;
               return (
                 <Card
                   key={item.id}
-                  className="text-center border-gray-200 hover:shadow-lg transition-shadow"
+                  className="text-center border-gray-200 hover:shadow-xl transition-shadow"
                 >
-                  <CardContent className="pt-8 pb-6">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-50 rounded-full mb-4">
-                      <IconComponent className="w-8 h-8 text-primary" />
+                  <CardContent className="pt-10 pb-8">
+                    <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-primary-50 rounded-full mb-6">
+                      <IconComponent className="w-10 h-10 md:w-12 md:h-12 text-primary" />
                     </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                       {item.title}
                     </h3>
-                    <p className="text-gray-600">{item.description}</p>
+                    <p className="text-lg md:text-xl text-gray-600">
+                      {item.description}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -81,48 +85,54 @@ export default function AboutPage() {
       </section>
 
       {/* Vision & Values */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-20 lg:py-28 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5">
               비전과 가치
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-8 pb-6 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-4">
-                  <Target className="w-8 h-8 text-blue-600" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <Card className="border-0 shadow-xl">
+              <CardContent className="pt-10 pb-8 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-blue-100 rounded-full mb-6">
+                  <Target className="w-10 h-10 md:w-12 md:h-12 text-blue-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">미션</h3>
-                <p className="text-gray-600">
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+                  미션
+                </h3>
+                <p className="text-lg md:text-xl text-gray-600">
                   전원주택 소유자들이 편안하게 전원생활을 즐길 수 있도록
                   전문적인 관리 서비스를 제공합니다.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-8 pb-6 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4">
-                  <Shield className="w-8 h-8 text-green-600" />
+            <Card className="border-0 shadow-xl">
+              <CardContent className="pt-10 pb-8 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full mb-6">
+                  <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">신뢰</h3>
-                <p className="text-gray-600">
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+                  신뢰
+                </h3>
+                <p className="text-lg md:text-xl text-gray-600">
                   검증된 협력사 네트워크와 투명한 프로세스로 고객과 협력사
                   모두에게 신뢰를 드립니다.
                 </p>
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg">
-              <CardContent className="pt-8 pb-6 text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                  <Handshake className="w-8 h-8 text-orange-600" />
+            <Card className="border-0 shadow-xl">
+              <CardContent className="pt-10 pb-8 text-center">
+                <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-orange-100 rounded-full mb-6">
+                  <Handshake className="w-10 h-10 md:w-12 md:h-12 text-orange-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">상생</h3>
-                <p className="text-gray-600">
+                <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+                  상생
+                </h3>
+                <p className="text-lg md:text-xl text-gray-600">
                   고객, 전방, 협력사 모두가 함께 성장하는 지속 가능한 생태계를
                   만들어갑니다.
                 </p>
@@ -133,32 +143,34 @@ export default function AboutPage() {
       </section>
 
       {/* Core Roles */}
-      <section className="py-16 lg:py-24">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5">
               전방의 역할
             </h2>
-            <p className="text-gray-600">
+            <p className="text-xl md:text-2xl text-gray-600">
               고객과 협력사 사이에서 전문적인 관리 서비스를 제공합니다.
             </p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <div className="space-y-6">
               {CORE_ROLES.map((role, idx) => (
                 <div
                   key={role.step}
-                  className="flex items-start gap-6 p-6 bg-white rounded-lg shadow-sm border border-gray-100"
+                  className="flex items-start gap-6 md:gap-8 p-6 md:p-8 bg-white rounded-2xl shadow-sm border border-gray-100"
                 >
-                  <div className="flex-shrink-0 w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center font-bold text-lg">
+                  <div className="flex-shrink-0 w-14 h-14 md:w-16 md:h-16 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl md:text-2xl">
                     {role.step}
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
                       {role.title}
                     </h3>
-                    <p className="text-gray-600">{role.description}</p>
+                    <p className="text-lg md:text-xl text-gray-600">
+                      {role.description}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -168,61 +180,69 @@ export default function AboutPage() {
       </section>
 
       {/* Contact Info */}
-      <section className="py-16 lg:py-24 bg-gray-50">
+      <section className="py-20 lg:py-28 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5">
               연락처
             </h2>
           </div>
 
-          <div className="max-w-3xl mx-auto">
-            <Card className="border-0 shadow-lg">
-              <CardContent className="p-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-primary-50 rounded-lg">
-                      <Phone className="w-5 h-5 text-primary" />
+          <div className="max-w-4xl mx-auto">
+            <Card className="border-0 shadow-xl">
+              <CardContent className="p-8 md:p-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="flex items-start gap-5">
+                    <div className="p-4 bg-primary-50 rounded-xl">
+                      <Phone className="w-6 h-6 md:w-7 md:h-7 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">전화</h3>
-                      <p className="text-gray-600">{COMPANY_INFO.phone}</p>
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
+                        전화
+                      </h3>
+                      <p className="text-lg md:text-xl text-gray-600">
+                        {COMPANY_INFO.phone}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-primary-50 rounded-lg">
-                      <Mail className="w-5 h-5 text-primary" />
+                  <div className="flex items-start gap-5">
+                    <div className="p-4 bg-primary-50 rounded-xl">
+                      <Mail className="w-6 h-6 md:w-7 md:h-7 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
                         이메일
                       </h3>
-                      <p className="text-gray-600">{COMPANY_INFO.email}</p>
+                      <p className="text-lg md:text-xl text-gray-600">
+                        {COMPANY_INFO.email}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-primary-50 rounded-lg">
-                      <Clock className="w-5 h-5 text-primary" />
+                  <div className="flex items-start gap-5">
+                    <div className="p-4 bg-primary-50 rounded-xl">
+                      <Clock className="w-6 h-6 md:w-7 md:h-7 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
                         운영시간
                       </h3>
-                      <p className="text-gray-600">
+                      <p className="text-lg md:text-xl text-gray-600">
                         {COMPANY_INFO.businessHours}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-4">
-                    <div className="p-3 bg-primary-50 rounded-lg">
-                      <MapPin className="w-5 h-5 text-primary" />
+                  <div className="flex items-start gap-5">
+                    <div className="p-4 bg-primary-50 rounded-xl">
+                      <MapPin className="w-6 h-6 md:w-7 md:h-7 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 mb-1">주소</h3>
-                      <p className="text-gray-600 text-sm">
+                      <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
+                        주소
+                      </h3>
+                      <p className="text-lg md:text-xl text-gray-600">
                         {COMPANY_INFO.address}
                       </p>
                     </div>
@@ -235,22 +255,22 @@ export default function AboutPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-16 lg:py-20 bg-primary text-white">
+      <section className="py-20 lg:py-28 bg-primary text-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
+          <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold mb-6">
             전방 홈케어와 함께하세요
           </h2>
-          <p className="text-primary-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl md:text-2xl text-primary-100 mb-10 max-w-3xl mx-auto">
             전원주택 관리가 필요하시다면 지금 바로 서비스를 신청하세요.
             <br className="hidden md:block" />
             전문 협력사가 되고 싶으시다면 협력사 등록을 진행해주세요.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-5 justify-center">
             <Button
               asChild
               size="lg"
               variant="secondary"
-              className="text-primary"
+              className="text-primary text-lg md:text-xl h-14 px-10"
             >
               <Link href="/apply">서비스 신청</Link>
             </Button>
@@ -258,7 +278,7 @@ export default function AboutPage() {
               asChild
               size="lg"
               variant="outline"
-              className="border-white text-white hover:bg-white/10"
+              className="border-white text-white hover:bg-white/10 text-lg md:text-xl h-14 px-10"
             >
               <Link href="/partner">협력사 등록</Link>
             </Button>
