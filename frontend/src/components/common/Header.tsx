@@ -73,8 +73,8 @@ export function Header() {
             />
           </Link>
 
-          {/* 데스크톱 네비게이션 */}
-          <nav className="hidden lg:flex items-center space-x-10">
+          {/* 데스크톱 네비게이션 - 글씨 2배 크게 */}
+          <nav className="hidden lg:flex items-center space-x-12">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
@@ -85,7 +85,7 @@ export function Header() {
                     handleNavClick(item.href, item.isAnchor);
                   }
                 }}
-                className="text-lg font-semibold text-gray-700 transition-colors hover:text-primary"
+                className="text-xl xl:text-2xl font-bold text-gray-700 transition-colors hover:text-primary"
               >
                 {item.label}
               </Link>
