@@ -87,3 +87,5 @@ coverage/
 *.bak
 *.tmp
 *.temp
+
+*피드백*.pdf
