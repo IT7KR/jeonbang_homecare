@@ -35,25 +35,25 @@ export function CompanyIntroCards() {
 
   return (
     <div className="relative max-w-6xl mx-auto">
-      {/* 모바일/태블릿: 1열, 데스크톱(lg): 3열 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-6">
+      {/* 모바일: 1열, lg(1024px) 이상: 3열 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {COMPANY_INTRO.items.map((item, index) => {
           const isHomecare = item.id === "homecare";
           const color = colors[index];
 
           return (
             <div key={item.id} className="relative group">
-              {/* 카드 사이 연결선 (데스크톱) */}
+              {/* 카드 사이 연결선 (lg 이상) */}
               {index < COMPANY_INTRO.items.length - 1 && (
                 <div className="hidden lg:block absolute top-1/2 left-full w-6 h-0.5 bg-gray-300 -translate-y-1/2" />
               )}
-              {/* 모바일/태블릿 연결선 */}
+              {/* 모바일 연결선 */}
               {index < COMPANY_INTRO.items.length - 1 && (
                 <div className="lg:hidden absolute left-1/2 -bottom-4 w-0.5 h-8 bg-gray-200 -translate-x-1/2" />
               )}
 
               <div
-                className={`relative text-center p-8 md:p-10 rounded-2xl border-2 transition-all duration-300 hover:shadow-xl ${
+                className={`relative text-center p-6 lg:p-6 xl:p-10 rounded-2xl border-2 transition-all duration-300 hover:shadow-xl ${
                   isHomecare
                     ? "bg-primary/5 border-primary ring-4 ring-primary/10 shadow-xl"
                     : `${color.bg} ${color.border} shadow-md`
@@ -96,7 +96,7 @@ export function CompanyIntroCards() {
                 >
                   {item.title}
                 </h3>
-                <p className="text-lg md:text-xl text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
+                <p className="text-base lg:text-base xl:text-xl text-gray-600 leading-relaxed mb-8 whitespace-pre-line">
                   {item.description}
                 </p>
 
