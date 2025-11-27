@@ -41,8 +41,8 @@ export function Header() {
   return (
     <header className="w-full bg-background">
       <div className="container mx-auto px-4">
-        <div className="flex h-[60px] md:h-[70px] lg:h-[100px] items-center justify-between">
-          {/* 로고 */}
+        <div className="flex h-[60px] md:h-[70px] lg:h-[100px] items-center">
+          {/* 로고 - 왼쪽 */}
           <Link href={ROUTES.HOME} className="flex items-center space-x-2">
             {/* 반응형: 모바일 50x50, 태블릿 60x60, PC 85x85 */}
             <Image
@@ -55,8 +55,8 @@ export function Header() {
             />
           </Link>
 
-          {/* 데스크톱 네비게이션 - 글씨 2배 크게 */}
-          <nav className="hidden lg:flex items-center space-x-12">
+          {/* 데스크톱 네비게이션 - 중앙 정렬 */}
+          <nav className="hidden lg:flex flex-1 items-center justify-center space-x-12">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
@@ -73,6 +73,9 @@ export function Header() {
               </Link>
             ))}
           </nav>
+
+          {/* 오른쪽 균형 맞추기 (로고와 동일한 너비) */}
+          <div className="hidden lg:block w-[85px]" />
 
           {/* 모바일 메뉴 버튼 */}
           <Sheet open={isOpen} onOpenChange={setIsOpen}>
