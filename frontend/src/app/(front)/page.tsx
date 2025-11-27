@@ -31,43 +31,46 @@ export default function HomePage() {
   return (
     <div className="flex flex-col">
       {/* ========================================
-          Hero 섹션 (2열 레이아웃)
+          Hero 섹션 (배경 이미지 + 콘텐츠 오버레이)
           ======================================== */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary-50/50 via-white to-secondary-50/20">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 items-center min-h-[500px] lg:min-h-[calc(100vh-140px)]">
-            {/* 좌측: 텍스트 + CTA */}
-            <div className="py-8 lg:py-12 space-y-6">
-              {/* 브랜드 계층 표시 - 글씨 3~4배 크게 */}
-              <div className="inline-flex items-center gap-3 text-xl md:text-2xl text-gray-500 font-semibold">
+      <section className="relative overflow-hidden min-h-[600px] lg:min-h-[calc(100vh-100px)]">
+        {/* 배경 이미지 - 연하게 */}
+        <div className="absolute inset-0">
+          <Image
+            src="/main_bg.webp"
+            alt="전원주택 일러스트"
+            fill
+            className="object-cover object-center opacity-20 lg:opacity-25"
+            priority
+          />
+          {/* 그라데이션 오버레이 */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/80 via-white/60 to-white/90" />
+        </div>
+
+        {/* 콘텐츠 영역 */}
+        <div className="relative z-10 container mx-auto px-4">
+          <div className="flex flex-col items-center justify-center min-h-[600px] lg:min-h-[calc(100vh-100px)] py-12 lg:py-16">
+            {/* 중앙 정렬 콘텐츠 */}
+            <div className="text-center space-y-6 max-w-4xl mx-auto">
+              {/* 브랜드 계층 표시 */}
+              <div className="inline-flex items-center gap-3 text-xl md:text-2xl text-gray-600 font-semibold bg-white/70 backdrop-blur-sm px-6 py-2 rounded-full">
                 <span className="font-bold text-primary">전방</span>
                 <span>|</span>
                 <span>전원생활 토탈 솔루션</span>
               </div>
 
-              {/* 메인 타이틀 + QR 코드 */}
-              <div className="flex items-center gap-6 lg:gap-8">
-                <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-gray-900">
-                  <span className="text-primary">전방</span> 홈케어
-                </h1>
-                {/* QR 코드 - 데스크톱에서만 표시 */}
-                <div className="hidden lg:flex flex-col items-center">
-                  <div className="w-24 h-24 xl:w-28 xl:h-28 bg-white rounded-xl shadow-lg border border-gray-200 flex items-center justify-center p-2">
-                    <QrCode className="w-full h-full text-primary/80" />
-                  </div>
-                  <p className="text-sm text-gray-500 mt-2 font-medium">
-                    QR 코드로 모바일에서 바로 접속
-                  </p>
-                </div>
-              </div>
+              {/* 메인 타이틀 */}
+              <h1 className="text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold tracking-tight text-gray-900 drop-shadow-sm">
+                <span className="text-primary">전방</span> 홈케어
+              </h1>
 
-              {/* 서브 카피 - 글씨 2~3배 크게 */}
+              {/* 서브 카피 */}
               <p className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-700">
                 {COMPANY_INFO.slogan}
               </p>
 
-              {/* 설명 텍스트 - 띄어쓰기 단위 줄바꿈 */}
-              <p className="text-xl md:text-2xl text-gray-600 max-w-2xl leading-relaxed">
+              {/* 설명 텍스트 */}
+              <p className="text-xl md:text-2xl text-gray-600 leading-relaxed">
                 <span className="inline">전원주택의 모든 관리를</span>{" "}
                 <span className="inline">원스톱으로 제공하는</span>
                 <br className="hidden sm:inline" />
@@ -78,8 +81,8 @@ export default function HomePage() {
                 입니다.
               </p>
 
-              {/* CTA 카드 - 띄어쓰기 단위 줄바꿈 처리 */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-6">
+              {/* CTA 카드 */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-8 max-w-2xl mx-auto">
                 <Link
                   href={ROUTES.APPLY}
                   className="big-cta-card big-cta-card-primary group"
@@ -104,8 +107,7 @@ export default function HomePage() {
                 >
                   <div className="flex-1">
                     <h3 className="text-2xl md:text-3xl font-bold mb-2">
-                      <span className="whitespace-nowrap">협력사</span>{" "}
-                      <span className="whitespace-nowrap">신청하기</span>
+                      <span className="whitespace-nowrap">협력사 신청하기</span>
                     </h3>
                     <p className="text-white/90 text-base md:text-lg">
                       <span className="whitespace-nowrap">
@@ -120,54 +122,35 @@ export default function HomePage() {
                 </Link>
               </div>
 
-              {/* 모바일용 전화번호 섹션 - CTA 아래 배치, 글씨 크기 증가 */}
-              <div className="lg:hidden bg-white/95 backdrop-blur-sm rounded-2xl p-5 shadow-lg border border-gray-100 mt-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 text-base text-gray-600 mb-2">
-                      <Phone className="h-5 w-5 text-secondary" />
+              {/* 전화번호 섹션 */}
+              <div className="pt-6">
+                <div className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-5 shadow-xl border border-gray-100">
+                  <div className="text-left">
+                    <div className="flex items-center gap-2 text-base text-gray-600 mb-1">
                       <span className="font-semibold">전방 홈케어</span>
                     </div>
                     <a
                       href={`tel:${COMPANY_INFO.phone}`}
-                      className="text-2xl md:text-3xl font-black text-secondary hover:opacity-80 transition-opacity block"
+                      className="text-2xl md:text-3xl lg:text-4xl font-black text-secondary hover:opacity-80 transition-opacity block"
                     >
                       {COMPANY_INFO.phone}
                     </a>
                   </div>
-                  <a
-                    href={`tel:${COMPANY_INFO.phone}`}
-                    className="flex-shrink-0 w-14 h-14 rounded-full bg-secondary flex items-center justify-center shadow-lg"
-                  >
-                    <Phone className="h-6 w-6 text-white" />
-                  </a>
                 </div>
               </div>
-            </div>
 
-            {/* 우측: 이미지 + 전화번호 */}
-            <div className="relative h-[300px] sm:h-[400px] lg:h-full lg:min-h-[450px]">
-              {/* 배경 이미지 */}
-              <Image
-                src="/main_bg.webp"
-                alt="전원주택 일러스트"
-                fill
-                className="object-contain object-center lg:object-right"
-                priority
-              />
-
-              {/* 전화번호 오버레이 - 데스크톱에서만 표시, 글씨 3배 크게 */}
-              <div className="hidden lg:block absolute top-8 right-8 bg-white/95 backdrop-blur-sm rounded-2xl p-6 shadow-xl border border-gray-100">
-                <div className="flex items-center gap-3 text-lg text-gray-600 mb-2">
-                  <Phone className="h-6 w-6 text-secondary" />
-                  <span className="font-semibold">전방 홈케어</span>
+              {/* QR 코드 - 데스크톱에서만 */}
+              <div className="hidden lg:flex justify-center pt-4">
+                <div className="flex items-center gap-4 bg-white/80 backdrop-blur-sm rounded-xl px-6 py-3">
+                  <div className="w-16 h-16 bg-white rounded-lg shadow border border-gray-200 flex items-center justify-center p-1">
+                    <QrCode className="w-full h-full text-primary/80" />
+                  </div>
+                  <p className="text-sm text-gray-600 font-medium">
+                    QR 코드로
+                    <br />
+                    모바일에서 바로 접속
+                  </p>
                 </div>
-                <a
-                  href={`tel:${COMPANY_INFO.phone}`}
-                  className="text-3xl xl:text-4xl font-black text-secondary hover:opacity-80 transition-opacity block"
-                >
-                  {COMPANY_INFO.phone}
-                </a>
               </div>
             </div>
           </div>
