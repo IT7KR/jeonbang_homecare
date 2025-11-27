@@ -50,7 +50,7 @@ const FAQ_DATA: FAQItem[] = [
     category: "협력사",
     question: "협력사 등록은 어떻게 하나요?",
     answer:
-      "홈페이지의 '협력사 등록' 버튼을 클릭하여 업체 정보, 서비스 가능 분야, 활동 지역 등을 입력해주세요. 심사 후 승인되면 SMS로 안내드립니다.",
+      "홈페이지의 '협력사 신청하기' 버튼을 클릭하여 업체 정보, 서비스 가능 분야, 활동 지역 등을 입력해주세요. 심사 후 승인되면 SMS로 안내드립니다.",
   },
   {
     category: "협력사",
@@ -103,13 +103,13 @@ export default function FAQPage() {
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-16 lg:py-24">
+      <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-20 lg:py-28">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
-            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900">
+          <div className="max-w-4xl mx-auto text-center space-y-6">
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900">
               자주 묻는 질문
             </h1>
-            <p className="text-lg text-gray-600">
+            <p className="text-xl md:text-2xl text-gray-600">
               전방 홈케어 서비스 이용에 대해 궁금하신 점을 확인해보세요.
             </p>
           </div>
@@ -117,11 +117,11 @@ export default function FAQPage() {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 lg:py-24">
+      <section className="py-20 lg:py-28">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-4xl mx-auto">
             {/* Category Tabs */}
-            <div className="flex flex-wrap gap-2 mb-8">
+            <div className="flex flex-wrap gap-3 mb-10">
               {CATEGORIES.map((category) => (
                 <button
                   key={category}
@@ -130,9 +130,9 @@ export default function FAQPage() {
                     setOpenIndex(null);
                   }}
                   className={cn(
-                    "px-4 py-2 rounded-full text-sm font-medium transition-colors",
+                    "px-6 py-3 rounded-full text-lg md:text-xl font-semibold transition-colors",
                     selectedCategory === category
-                      ? "bg-primary text-white"
+                      ? "bg-primary text-white shadow-lg"
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   )}
                 >
@@ -142,34 +142,38 @@ export default function FAQPage() {
             </div>
 
             {/* FAQ List */}
-            <div className="space-y-4">
+            <div className="space-y-5">
               {filteredFAQ.map((item, index) => (
                 <div
                   key={index}
-                  className="border border-gray-200 rounded-lg overflow-hidden"
+                  className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm"
                 >
                   <button
                     onClick={() => toggleFAQ(index)}
-                    className="w-full px-6 py-4 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
+                    className="w-full px-6 md:px-8 py-5 md:py-6 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <span className="text-primary font-bold">Q</span>
-                      <span className="font-medium text-gray-900">
+                    <div className="flex items-center gap-4">
+                      <span className="text-primary font-bold text-xl md:text-2xl">
+                        Q
+                      </span>
+                      <span className="font-semibold text-lg md:text-xl text-gray-900">
                         {item.question}
                       </span>
                     </div>
                     <ChevronDown
                       className={cn(
-                        "w-5 h-5 text-gray-500 transition-transform",
+                        "w-6 h-6 text-gray-500 transition-transform flex-shrink-0",
                         openIndex === index && "rotate-180"
                       )}
                     />
                   </button>
                   {openIndex === index && (
-                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-                      <div className="flex gap-3">
-                        <span className="text-primary font-bold">A</span>
-                        <p className="text-gray-600 leading-relaxed">
+                    <div className="px-6 md:px-8 py-5 md:py-6 bg-gray-50 border-t border-gray-200">
+                      <div className="flex gap-4">
+                        <span className="text-primary font-bold text-xl md:text-2xl">
+                          A
+                        </span>
+                        <p className="text-lg md:text-xl text-gray-600 leading-relaxed">
                           {item.answer}
                         </p>
                       </div>
@@ -183,27 +187,32 @@ export default function FAQPage() {
       </section>
 
       {/* Contact Section */}
-      <section className="py-16 lg:py-20 bg-gray-50">
+      <section className="py-20 lg:py-28 bg-gray-50">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center">
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-4">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-gray-900 mb-6">
               원하는 답을 찾지 못하셨나요?
             </h2>
-            <p className="text-gray-600 mb-8">
+            <p className="text-xl md:text-2xl text-gray-600 mb-10">
               추가 문의사항이 있으시면 전화 또는 서비스 신청을 통해
               문의해주세요.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" variant="outline">
+            <div className="flex flex-col sm:flex-row gap-5 justify-center">
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="text-lg md:text-xl h-14 px-8"
+              >
                 <Link href={`tel:${COMPANY_INFO.phone.replace(/-/g, "")}`}>
-                  <Phone className="mr-2 h-5 w-5" />
+                  <Phone className="mr-2 h-6 w-6" />
                   {COMPANY_INFO.phone}
                 </Link>
               </Button>
-              <Button asChild size="lg">
+              <Button asChild size="lg" className="text-lg md:text-xl h-14 px-8">
                 <Link href="/apply">
                   서비스 문의하기
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-6 w-6" />
                 </Link>
               </Button>
             </div>
