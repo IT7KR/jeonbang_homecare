@@ -41,17 +41,17 @@ export function Header() {
   return (
     <header className="w-full bg-background">
       <div className="container mx-auto px-4">
-        <div className="flex h-[80px] md:h-[110px] lg:h-[130px] items-center justify-between">
+        <div className="flex h-[60px] md:h-[70px] lg:h-[100px] items-center justify-between">
           {/* 로고 */}
           <Link href={ROUTES.HOME} className="flex items-center space-x-2">
-            {/* 반응형: 모바일 70x70, 태블릿 90x90, PC 110x110 */}
+            {/* 반응형: 모바일 50x50, 태블릿 60x60, PC 85x85 */}
             <Image
               src="/logo.png"
               alt="logo"
-              width={110}
-              height={110}
+              width={85}
+              height={85}
               unoptimized
-              className="w-[70px] h-[70px] md:w-[90px] md:h-[90px] lg:w-[110px] lg:h-[110px]"
+              className="w-[50px] h-[50px] md:w-[60px] md:h-[60px] lg:w-[85px] lg:h-[85px]"
             />
           </Link>
 
