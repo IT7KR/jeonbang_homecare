@@ -215,11 +215,11 @@ export function ServiceSelector(props: ServiceSelectorProps) {
       <div className="flex flex-col items-center justify-center py-16 gap-4">
         <Loader2
           className={cn(
-            "w-12 h-12 animate-spin",
+            "w-14 h-14 animate-spin",
             isPrimary ? "text-primary" : "text-secondary"
           )}
         />
-        <p className="text-[18px] text-gray-600">
+        <p className="text-lg md:text-xl text-gray-600">
           서비스 목록을 불러오는 중...
         </p>
       </div>
@@ -230,8 +230,8 @@ export function ServiceSelector(props: ServiceSelectorProps) {
   if (error) {
     return (
       <div className="text-center py-12">
-        <p className="text-[18px] text-red-500">{error}</p>
-        <p className="text-[16px] text-gray-500 mt-2">
+        <p className="text-lg md:text-xl text-red-500">{error}</p>
+        <p className="text-base md:text-lg text-gray-500 mt-2">
           잠시 후 다시 시도해 주세요.
         </p>
       </div>
@@ -266,18 +266,18 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
   // 카테고리 목록 영역
   const CategoriesSection = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* 펼치기/접기 컨트롤 */}
       <div className="flex justify-between items-center">
-        <span className="text-[16px] text-gray-500">
+        <span className="text-base md:text-lg text-gray-500">
           {filteredCategories.length}개 카테고리
         </span>
         <button
           type="button"
           onClick={allExpanded ? collapseAll : expandAll}
           className={cn(
-            "px-4 py-2 rounded-lg",
-            "text-[16px] font-medium",
+            "px-5 py-2.5 rounded-xl",
+            "text-base md:text-lg font-semibold",
             "border-2 transition-colors",
             "hover:shadow-sm",
             "focus:outline-none focus:ring-2 focus:ring-offset-2",
@@ -292,7 +292,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
       {/* 카테고리 목록 */}
       {filteredCategories.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {filteredCategories.map((category, index) => {
             const id = getCategoryId(category);
             const name = category.name;
@@ -319,16 +319,16 @@ export function ServiceSelector(props: ServiceSelectorProps) {
       ) : (
         // 검색 결과 없음
         <div className="text-center py-12">
-          <Search className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-[18px] text-gray-500">
+          <Search className="w-14 h-14 mx-auto mb-4 text-gray-300" />
+          <p className="text-lg md:text-xl text-gray-500">
             "{searchQuery}"에 해당하는 서비스가 없습니다
           </p>
           <button
             type="button"
             onClick={() => setSearchQuery("")}
             className={cn(
-              "mt-4 px-6 py-2 rounded-lg",
-              "text-[16px] font-medium",
+              "mt-4 px-6 py-3 rounded-xl",
+              "text-base md:text-lg font-semibold",
               isPrimary
                 ? "text-primary hover:bg-primary/10"
                 : "text-secondary hover:bg-secondary/10"
@@ -347,7 +347,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
       {showInstructions && (
         <div
           className={cn(
-            "rounded-2xl p-5 border-2",
+            "rounded-2xl p-6 border-2",
             isPrimary
               ? "bg-primary/5 border-primary/20"
               : "bg-secondary/5 border-secondary/20"
@@ -355,14 +355,14 @@ export function ServiceSelector(props: ServiceSelectorProps) {
         >
           <p
             className={cn(
-              "text-[20px] font-bold",
+              "text-xl md:text-2xl font-bold",
               isPrimary ? "text-primary" : "text-secondary"
             )}
           >
             {instructionTitle}
           </p>
           {instructionDescription && (
-            <p className="text-[16px] text-gray-600 mt-2">
+            <p className="text-base md:text-lg text-gray-600 mt-2">
               {instructionDescription}
             </p>
           )}
@@ -412,18 +412,18 @@ export function ServiceSelector(props: ServiceSelectorProps) {
       {selectedServices.length > 0 && (
         <div
           className={cn(
-            "rounded-2xl p-6 text-center",
+            "rounded-2xl p-6 md:p-8 text-center",
             isPrimary ? "bg-primary/10" : "bg-secondary/10"
           )}
         >
-          <p className="text-[20px] font-bold text-gray-900">
+          <p className="text-xl md:text-2xl font-bold text-gray-900">
             총{" "}
             <span className={isPrimary ? "text-primary" : "text-secondary"}>
               {selectedServices.length}개
             </span>{" "}
             서비스가 선택되었습니다
           </p>
-          <p className="text-[16px] text-gray-600 mt-2">
+          <p className="text-base md:text-lg text-gray-600 mt-2">
             아래 정보를 입력하고 신청해 주세요
           </p>
         </div>

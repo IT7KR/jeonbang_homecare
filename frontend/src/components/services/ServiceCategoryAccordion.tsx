@@ -83,7 +83,7 @@ export function ServiceCategoryAccordion({
         aria-expanded={isExpanded}
         aria-controls={`category-content-${id}`}
         className={cn(
-          "w-full px-5 py-4",
+          "w-full px-5 md:px-6 py-4 md:py-5",
           "flex items-center justify-between",
           "transition-colors duration-200",
           "hover:bg-gray-50",
@@ -99,10 +99,10 @@ export function ServiceCategoryAccordion({
           {/* 카테고리 번호 */}
           <div
             className={cn(
-              "w-10 h-10 md:w-11 md:h-11",
+              "w-11 h-11 md:w-12 md:h-12",
               "rounded-full",
               "flex items-center justify-center",
-              "text-[18px] font-bold",
+              "text-lg md:text-xl font-bold",
               selectedCount > 0
                 ? isPrimary
                   ? "bg-primary text-white"
@@ -116,7 +116,7 @@ export function ServiceCategoryAccordion({
           {/* 아이콘 */}
           <div
             className={cn(
-              "w-12 h-12 md:w-13 md:h-13",
+              "w-12 h-12 md:w-14 md:h-14",
               "rounded-xl",
               "flex items-center justify-center",
               selectedCount > 0
@@ -126,20 +126,20 @@ export function ServiceCategoryAccordion({
                 : "bg-gray-100 text-gray-500"
             )}
           >
-            <Icon className="w-6 h-6" />
+            <Icon className="w-6 h-6 md:w-7 md:h-7" />
           </div>
 
           {/* 카테고리 이름 */}
           <div className="text-left">
             <span
               className={cn(
-                "block font-bold text-[20px]",
+                "block font-bold text-xl md:text-2xl",
                 selectedCount > 0 ? "text-gray-900" : "text-gray-700"
               )}
             >
               {name}
             </span>
-            <span className="block text-[14px] text-gray-500 mt-0.5">
+            <span className="block text-sm md:text-base text-gray-500 mt-0.5">
               {services.length}개 항목
             </span>
           </div>
@@ -151,7 +151,7 @@ export function ServiceCategoryAccordion({
             <div
               className={cn(
                 "px-4 py-2 rounded-full",
-                "text-[14px] font-bold",
+                "text-sm md:text-base font-bold",
                 isPrimary
                   ? "bg-primary text-white"
                   : "bg-secondary text-white"
@@ -164,7 +164,7 @@ export function ServiceCategoryAccordion({
           {/* 확장/축소 아이콘 */}
           <div
             className={cn(
-              "w-10 h-10",
+              "w-10 h-10 md:w-11 md:h-11",
               "rounded-full",
               "flex items-center justify-center",
               "transition-colors duration-200",

@@ -21,10 +21,10 @@ export function ServiceSearchInput({
   return (
     <div className={cn("relative", className)}>
       {/* 검색 아이콘 */}
-      <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none">
+      <div className="absolute left-5 top-1/2 -translate-y-1/2 pointer-events-none">
         <Search
           className={cn(
-            "w-6 h-6",
+            "w-6 h-6 md:w-7 md:h-7",
             value
               ? isPrimary
                 ? "text-primary"
@@ -41,8 +41,8 @@ export function ServiceSearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          "w-full h-14 pl-12 pr-12",
-          "text-[18px] text-gray-900 placeholder:text-gray-400",
+          "w-full h-16 md:h-18 pl-14 pr-14",
+          "text-lg md:text-xl text-gray-900 placeholder:text-gray-400",
           "bg-white rounded-xl border-2",
           "transition-all duration-200",
           "focus:outline-none focus:ring-2 focus:ring-offset-2",
@@ -59,8 +59,8 @@ export function ServiceSearchInput({
           type="button"
           onClick={() => onChange("")}
           className={cn(
-            "absolute right-3 top-1/2 -translate-y-1/2",
-            "w-8 h-8 rounded-full",
+            "absolute right-4 top-1/2 -translate-y-1/2",
+            "w-10 h-10 rounded-full",
             "flex items-center justify-center",
             "transition-colors duration-200",
             isPrimary
@@ -69,7 +69,7 @@ export function ServiceSearchInput({
           )}
           aria-label="검색어 지우기"
         >
-          <X className="w-5 h-5" />
+          <X className="w-5 h-5 md:w-6 md:h-6" />
         </button>
       )}
     </div>

@@ -70,7 +70,7 @@ export function ServiceCard({
       <div
         className={cn(
           "flex-shrink-0",
-          "w-8 h-8 md:w-9 md:h-9",
+          "w-9 h-9 md:w-10 md:h-10",
           "rounded-lg border-2",
           "flex items-center justify-center",
           "transition-all duration-200",
@@ -95,7 +95,7 @@ export function ServiceCard({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "text-[18px] leading-tight",
+              "text-lg md:text-xl leading-tight",
               !isActive
                 ? "font-medium text-gray-400"
                 : isSelected
@@ -108,7 +108,7 @@ export function ServiceCard({
 
           {/* 준비 중 배지 */}
           {!isActive && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
               <Clock className="w-3 h-3" />
               준비 중
             </span>
@@ -117,7 +117,7 @@ export function ServiceCard({
 
         {description && (
           <span className={cn(
-            "block mt-1 text-[14px] line-clamp-2",
+            "block mt-1 text-sm md:text-base line-clamp-2",
             !isActive ? "text-gray-400" : "text-gray-500"
           )}>
             {description}

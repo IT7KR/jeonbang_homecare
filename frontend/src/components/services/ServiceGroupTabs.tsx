@@ -82,7 +82,7 @@ export function ServiceGroupTabs({
             <div
               className={cn(
                 "flex-shrink-0",
-                isVertical ? "w-10 h-10" : "w-8 h-8",
+                isVertical ? "w-11 h-11" : "w-9 h-9",
                 "rounded-lg flex items-center justify-center",
                 isActive
                   ? isPrimary
@@ -93,7 +93,7 @@ export function ServiceGroupTabs({
             >
               <Icon
                 className={cn(
-                  isVertical ? "w-5 h-5" : "w-4 h-4",
+                  isVertical ? "w-5 h-5" : "w-5 h-5",
                   isActive
                     ? isPrimary
                       ? "text-primary"
@@ -113,7 +113,7 @@ export function ServiceGroupTabs({
               <span
                 className={cn(
                   "font-semibold",
-                  isVertical ? "text-[16px]" : "text-[14px]",
+                  isVertical ? "text-lg" : "text-base",
                   isActive ? "text-gray-900" : "text-gray-700"
                 )}
               >
@@ -123,7 +123,7 @@ export function ServiceGroupTabs({
               {/* 선택 개수 (항상 표시) */}
               <span
                 className={cn(
-                  "text-[13px]",
+                  "text-sm",
                   count > 0
                     ? isActive
                       ? isPrimary
@@ -141,7 +141,7 @@ export function ServiceGroupTabs({
             {isVertical && count > 0 && (
               <div
                 className={cn(
-                  "ml-auto px-3 py-1 rounded-full text-[13px] font-bold",
+                  "ml-auto px-3 py-1.5 rounded-full text-sm font-bold",
                   isPrimary
                     ? "bg-primary text-white"
                     : "bg-secondary text-white"

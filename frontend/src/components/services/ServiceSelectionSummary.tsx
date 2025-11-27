@@ -48,10 +48,10 @@ export function ServiceSelectionSummary({
         <div
           className={cn(
             "flex-shrink-0",
-            "w-14 h-14 md:w-16 md:h-16",
+            "w-16 h-16 md:w-18 md:h-18",
             "rounded-full",
             "flex items-center justify-center",
-            "text-[24px] md:text-[28px] font-bold",
+            "text-2xl md:text-3xl font-bold",
             "shadow-lg",
             "transition-all duration-300",
             hasSelection
@@ -68,7 +68,7 @@ export function ServiceSelectionSummary({
         <div className="flex-1 min-w-0">
           <p
             className={cn(
-              "text-[20px] md:text-[22px] font-bold",
+              "text-xl md:text-2xl font-bold",
               hasSelection ? "text-gray-900" : "text-gray-500"
             )}
           >
@@ -77,7 +77,7 @@ export function ServiceSelectionSummary({
 
           {/* 선택된 서비스 목록 */}
           {hasSelection && (
-            <p className="mt-1 text-[16px] text-gray-600 line-clamp-2">
+            <p className="mt-1 text-base md:text-lg text-gray-600 line-clamp-2">
               {remainingCount > 0
                 ? `${displayNames.join(", ")} 외 ${remainingCount}개`
                 : selectedNames.join(", ")}
@@ -89,7 +89,7 @@ export function ServiceSelectionSummary({
         {hasSelection && (
           <CheckCircle2
             className={cn(
-              "flex-shrink-0 w-8 h-8",
+              "flex-shrink-0 w-9 h-9 md:w-10 md:h-10",
               isPrimary ? "text-primary" : "text-secondary"
             )}
           />
