@@ -9,14 +9,14 @@ export function CompanyIntroCards() {
     {
       bg: "bg-blue-50",
       icon: "bg-blue-500",
-      text: "text-blue-600",
+      text: "text-blue-500",
       border: "border-transparent",
       button: "bg-blue-500 hover:bg-blue-600",
     },
     {
       bg: "bg-purple-50",
       icon: "bg-purple-500",
-      text: "text-purple-600",
+      text: "text-purple-500",
       border: "border-transparent",
       button: "bg-purple-500 hover:bg-purple-600",
     },
@@ -90,9 +90,7 @@ export function CompanyIntroCards() {
                   {String(index + 1).padStart(2, "0")}
                 </span>
                 <h3
-                  className={`text-2xl md:text-3xl lg:text-4xl font-extrabold mb-5 whitespace-nowrap ${
-                    isHomecare ? "text-primary" : "text-gray-900"
-                  }`}
+                  className={`text-2xl md:text-3xl lg:text-4xl font-extrabold mb-5 whitespace-nowrap ${color.text}`}
                 >
                   {item.title}
                 </h3>
