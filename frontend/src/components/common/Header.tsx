@@ -67,7 +67,7 @@ export function Header() {
                     handleNavClick(item.href, item.isAnchor);
                   }
                 }}
-                className="text-xl xl:text-2xl font-bold text-gray-700 transition-colors hover:text-primary"
+                className="text-xl font-bold text-gray-700 transition-colors hover:text-primary"
               >
                 {item.label}
               </Link>
