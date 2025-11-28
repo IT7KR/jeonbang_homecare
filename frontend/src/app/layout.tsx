@@ -3,6 +3,7 @@ import { Geist_Mono } from "next/font/google";
 import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -80,6 +81,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistMono.variable} antialiased font-pretendard`}>
         <QueryProvider>{children}</QueryProvider>
+        <Toaster />
       </body>
     </html>
   );
