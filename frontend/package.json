@@ -33,7 +33,8 @@
     "tailwind-merge": "^3.4.0",
     "yet-another-react-lightbox": "^3.25.0",
     "zod": "^4.1.13",
-    "zustand": "^5.0.8"
+    "zustand": "^5.0.8",
+    "sonner": "^1.7.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

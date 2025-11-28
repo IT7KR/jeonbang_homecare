@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -35,24 +36,74 @@ const buttonVariants = cva(
   }
 );
 
+export interface ButtonProps
+  extends React.ComponentProps<"button">,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+  isLoading?: boolean;
+  loadingText?: string;
+}
+
+/**
+ * Button 컴포넌트
+ *
+ * @example
+ * // 기본 사용
+ * <Button>클릭</Button>
+ *
+ * // 로딩 상태
+ * <Button isLoading>저장 중...</Button>
+ *
+ * // 로딩 텍스트 지정
+ * <Button isLoading loadingText="처리 중...">저장</Button>
+ *
+ * // 변형
+ * <Button variant="destructive">삭제</Button>
+ * <Button variant="outline">취소</Button>
+ * <Button variant="secondary">협력사</Button>
+ */
 function Button({
   className,
   variant,
   size,
   asChild = false,
+  isLoading = false,
+  loadingText,
+  disabled,
+  children,
   ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean;
-  }) {
+}: ButtonProps) {
   const Comp = asChild ? Slot : "button";
+
+  // asChild가 true일 때는 로딩 상태를 지원하지 않음
+  if (asChild) {
+    return (
+      <Comp
+        data-slot="button"
+        className={cn(buttonVariants({ variant, size, className }))}
+        {...props}
+      >
+        {children}
+      </Comp>
+    );
+  }
 
   return (
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || isLoading}
       {...props}
-    />
+    >
+      {isLoading ? (
+        <>
+          <Loader2 className="animate-spin" />
+          {loadingText || children}
+        </>
+      ) : (
+        children
+      )}
+    </Comp>
   );
 }
 
