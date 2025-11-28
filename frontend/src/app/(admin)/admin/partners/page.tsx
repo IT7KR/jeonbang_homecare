@@ -16,28 +16,12 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { getPartners, approvePartner, PartnerListItem } from "@/lib/api/admin";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "전체 상태" },
-  { value: "pending", label: "대기중" },
-  { value: "approved", label: "승인됨" },
-  { value: "rejected", label: "거절됨" },
-  { value: "inactive", label: "비활성" },
-];
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-secondary-50 text-secondary-700",
-  approved: "bg-primary-50 text-primary-700",
-  rejected: "bg-red-50 text-red-600",
-  inactive: "bg-gray-100 text-gray-600",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "대기중",
-  approved: "승인됨",
-  rejected: "거절됨",
-  inactive: "비활성",
-};
+import {
+  PARTNER_STATUS_OPTIONS,
+  getPartnerStatusLabel,
+  getPartnerStatusColor,
+} from "@/lib/constants/status";
+import { formatDate, formatPhone } from "@/lib/utils";
 
 export default function PartnersPage() {
   const router = useRouter();
@@ -140,24 +124,6 @@ export default function PartnersPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
-  };
-
-  const formatPhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(
-        7
-      )}`;
-    }
-    return phone;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -187,7 +153,7 @@ export default function PartnersPage() {
               }}
               className="min-w-[140px] border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
             >
-              {STATUS_OPTIONS.map((option) => (
+              {PARTNER_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -319,16 +285,13 @@ export default function PartnersPage() {
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span
-                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                              STATUS_COLORS[partner.status] ||
-                              "bg-gray-100 text-gray-600"
-                            }`}
+                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getPartnerStatusColor(partner.status)}`}
                           >
-                            {STATUS_LABELS[partner.status] || partner.status}
+                            {getPartnerStatusLabel(partner.status)}
                           </span>
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">
-                          {formatDate(partner.created_at)}
+                          {formatDate(partner.created_at, { type: "date" })}
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <div className="flex items-center justify-center gap-1">

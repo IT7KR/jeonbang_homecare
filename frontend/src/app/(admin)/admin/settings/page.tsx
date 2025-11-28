@@ -27,7 +27,7 @@ import {
   ProfileData,
   AdminListItem as AdminItem,
 } from "@/lib/api/admin";
-import { formatPhoneNumber } from "@/lib/utils";
+import { formatPhoneInput } from "@/lib/utils";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -390,7 +390,7 @@ export default function SettingsPage() {
                 <input
                   type="tel"
                   value={profilePhone}
-                  onChange={(e) => setProfilePhone(formatPhoneNumber(e.target.value))}
+                  onChange={(e) => setProfilePhone(formatPhoneInput(e.target.value))}
                   placeholder="010-1234-5678"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                 />
@@ -653,7 +653,7 @@ export default function SettingsPage() {
                 <input
                   type="tel"
                   value={newAdminPhone}
-                  onChange={(e) => setNewAdminPhone(formatPhoneNumber(e.target.value))}
+                  onChange={(e) => setNewAdminPhone(formatPhoneInput(e.target.value))}
                   placeholder="010-1234-5678"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                 />
@@ -727,7 +727,7 @@ export default function SettingsPage() {
                 <input
                   type="tel"
                   value={newAdminPhone}
-                  onChange={(e) => setNewAdminPhone(formatPhoneNumber(e.target.value))}
+                  onChange={(e) => setNewAdminPhone(formatPhoneInput(e.target.value))}
                   placeholder="010-1234-5678"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
                 />

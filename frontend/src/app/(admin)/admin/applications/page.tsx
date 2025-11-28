@@ -17,34 +17,12 @@ import {
   getApplications,
   ApplicationListItem,
 } from "@/lib/api/admin";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "전체 상태" },
-  { value: "new", label: "신규" },
-  { value: "consulting", label: "상담중" },
-  { value: "assigned", label: "배정완료" },
-  { value: "scheduled", label: "일정확정" },
-  { value: "completed", label: "완료" },
-  { value: "cancelled", label: "취소" },
-];
-
-const STATUS_COLORS: Record<string, string> = {
-  new: "bg-primary-50 text-primary-700",
-  consulting: "bg-secondary-50 text-secondary-700",
-  assigned: "bg-purple-50 text-purple-700",
-  scheduled: "bg-blue-50 text-blue-700",
-  completed: "bg-gray-100 text-gray-600",
-  cancelled: "bg-red-50 text-red-600",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  new: "신규",
-  consulting: "상담중",
-  assigned: "배정완료",
-  scheduled: "일정확정",
-  completed: "완료",
-  cancelled: "취소",
-};
+import {
+  APPLICATION_STATUS_OPTIONS,
+  getApplicationStatusLabel,
+  getApplicationStatusColor,
+} from "@/lib/constants/status";
+import { formatDate, formatPhone } from "@/lib/utils";
 
 export default function ApplicationsPage() {
   const router = useRouter();
@@ -103,25 +81,6 @@ export default function ApplicationsPage() {
     setPage(1);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatPhone = (phone: string) => {
-    // 010-1234-5678 형식으로 변환
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
-    }
-    return phone;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -150,7 +109,7 @@ export default function ApplicationsPage() {
               }}
               className="min-w-[140px] border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
             >
-              {STATUS_OPTIONS.map((option) => (
+              {APPLICATION_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -277,11 +236,9 @@ export default function ApplicationsPage() {
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span
-                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                              STATUS_COLORS[app.status] || "bg-gray-100 text-gray-600"
-                            }`}
+                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getApplicationStatusColor(app.status)}`}
                           >
-                            {STATUS_LABELS[app.status] || app.status}
+                            {getApplicationStatusLabel(app.status)}
                           </span>
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell">

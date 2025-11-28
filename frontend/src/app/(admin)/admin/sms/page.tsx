@@ -24,13 +24,12 @@ import {
   SMSLogItem,
   SMSStats,
 } from "@/lib/api/admin";
-
-const STATUS_OPTIONS = [
-  { value: "", label: "전체" },
-  { value: "sent", label: "발송완료" },
-  { value: "failed", label: "발송실패" },
-  { value: "pending", label: "대기중" },
-];
+import {
+  SMS_STATUS_OPTIONS,
+  getSMSStatusLabel,
+  getSMSStatusColor,
+} from "@/lib/constants/status";
+import { formatDate, formatPhone } from "@/lib/utils";
 
 const TYPE_OPTIONS = [
   { value: "", label: "전체유형" },
@@ -38,18 +37,6 @@ const TYPE_OPTIONS = [
   { value: "application_new", label: "신규신청알림" },
   { value: "partner_new", label: "협력사등록알림" },
 ];
-
-const STATUS_COLORS: Record<string, string> = {
-  sent: "bg-primary-50 text-primary-700",
-  failed: "bg-red-50 text-red-600",
-  pending: "bg-secondary-50 text-secondary-700",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  sent: "발송완료",
-  failed: "발송실패",
-  pending: "대기중",
-};
 
 const TYPE_LABELS: Record<string, string> = {
   manual: "수동발송",
@@ -214,24 +201,6 @@ export default function SMSPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatPhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
-    }
-    return phone;
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -315,7 +284,7 @@ export default function SMSPage() {
               }}
               className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
             >
-              {STATUS_OPTIONS.map((option) => (
+              {SMS_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -444,11 +413,9 @@ export default function SMSPage() {
                         </td>
                         <td className="px-5 py-4 whitespace-nowrap">
                           <span
-                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${
-                              STATUS_COLORS[log.status] || "bg-gray-100 text-gray-600"
-                            }`}
+                            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(log.status)}`}
                           >
-                            {STATUS_LABELS[log.status] || log.status}
+                            {getSMSStatusLabel(log.status)}
                           </span>
                           {log.result_message && log.status === "failed" && (
                             <p className="text-xs text-red-500 mt-1">{log.result_message}</p>

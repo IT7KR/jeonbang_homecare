@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { formatPhoneInput } from "@/lib/utils/formatters";
 
 interface PhoneInputProps
   extends Omit<React.ComponentProps<"input">, "onChange"> {
@@ -9,28 +10,10 @@ interface PhoneInputProps
   onChange: (value: string) => void;
 }
 
-// 전화번호 포맷팅 함수
-const formatPhoneNumber = (value: string): string => {
-  // 숫자만 추출
-  const numbers = value.replace(/\D/g, "");
-
-  // 최대 11자리 제한
-  const limited = numbers.slice(0, 11);
-
-  // 포맷팅
-  if (limited.length <= 3) {
-    return limited;
-  } else if (limited.length <= 7) {
-    return `${limited.slice(0, 3)}-${limited.slice(3)}`;
-  } else {
-    return `${limited.slice(0, 3)}-${limited.slice(3, 7)}-${limited.slice(7)}`;
-  }
-};
-
 const PhoneInput = React.forwardRef<HTMLInputElement, PhoneInputProps>(
   ({ className, value, onChange, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const formatted = formatPhoneNumber(e.target.value);
+      const formatted = formatPhoneInput(e.target.value);
       onChange(formatted);
     };
 
