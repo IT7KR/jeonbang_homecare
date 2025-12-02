@@ -9,13 +9,12 @@ import {
   MessageSquare,
   CheckCircle,
   XCircle,
-  X,
+  Users,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
   getSMSStats,
   getSMSLogs,
-  sendSMS,
   retrySMS,
   SMSLogItem,
   SMSStats,
@@ -27,12 +26,16 @@ import {
 } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef, FilterOption } from "@/components/admin";
+import { BulkSMSSheet, SMSSendSheet } from "@/components/features/admin/sms";
 
 const TYPE_OPTIONS: FilterOption[] = [
   { value: "", label: "전체유형" },
   { value: "manual", label: "수동발송" },
   { value: "application_new", label: "신규신청알림" },
   { value: "partner_new", label: "협력사등록알림" },
+  { value: "bulk_announcement", label: "복수발송(공지)" },
+  { value: "bulk_status_notify", label: "복수발송(상태별)" },
+  { value: "bulk_manual_select", label: "복수발송(선택)" },
 ];
 
 const TYPE_LABELS: Record<string, string> = {
@@ -42,6 +45,9 @@ const TYPE_LABELS: Record<string, string> = {
   manual_retry: "수동발송(재시도)",
   application_new_retry: "신규신청알림(재시도)",
   partner_new_retry: "협력사등록알림(재시도)",
+  bulk_announcement: "복수발송(공지)",
+  bulk_status_notify: "복수발송(상태별)",
+  bulk_manual_select: "복수발송(선택)",
 };
 
 export default function SMSPage() {
@@ -65,15 +71,12 @@ export default function SMSPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
-  // Send SMS Modal
-  const [showSendModal, setShowSendModal] = useState(false);
-  const [sendPhone, setSendPhone] = useState("");
-  const [sendMessage, setSendMessage] = useState("");
-  const [isSending, setIsSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null);
-
   // Retry state
   const [retryingId, setRetryingId] = useState<number | null>(null);
+
+  // SMS Sheets
+  const [showSendSheet, setShowSendSheet] = useState(false);
+  const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
 
   const loadStats = async () => {
     try {
@@ -130,46 +133,6 @@ export default function SMSPage() {
   const handleSearch = () => {
     setSearchQuery(searchInput);
     setPage(1);
-  };
-
-  const handleSendSMS = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    try {
-      setIsSending(true);
-      setSendResult(null);
-
-      const token = await getValidToken();
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
-      const result = await sendSMS(token, {
-        receiver_phone: sendPhone,
-        message: sendMessage,
-        sms_type: "manual",
-      });
-
-      setSendResult({
-        success: result.success,
-        message: result.message,
-      });
-
-      if (result.success) {
-        setSendPhone("");
-        setSendMessage("");
-        loadStats();
-        loadLogs();
-      }
-    } catch (err) {
-      setSendResult({
-        success: false,
-        message: err instanceof Error ? err.message : "SMS 발송에 실패했습니다",
-      });
-    } finally {
-      setIsSending(false);
-    }
   };
 
   const handleRetry = async (logId: number) => {
@@ -351,118 +314,28 @@ export default function SMSPage() {
     </div>
   );
 
-  // SMS 발송 모달
-  const SendModal = showSendModal && (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-          <h2 className="text-lg font-semibold text-gray-900">SMS 발송</h2>
-          <button
-            onClick={() => {
-              setShowSendModal(false);
-              setSendResult(null);
-            }}
-            className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-gray-500" />
-          </button>
-        </div>
-        <form onSubmit={handleSendSMS} className="p-6 space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              수신번호 <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="tel"
-              value={sendPhone}
-              onChange={(e) => setSendPhone(e.target.value)}
-              placeholder="010-1234-5678"
-              required
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              메시지 <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={sendMessage}
-              onChange={(e) => setSendMessage(e.target.value)}
-              placeholder="메시지를 입력하세요"
-              required
-              rows={5}
-              maxLength={2000}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors resize-none"
-            />
-            <p className="text-xs text-gray-500 mt-1.5">
-              {sendMessage.length}/2000자 (90자 초과시 LMS로 발송)
-            </p>
-          </div>
-
-          {sendResult && (
-            <div
-              className={`p-3.5 rounded-xl text-sm flex items-center gap-2 ${
-                sendResult.success
-                  ? "bg-primary-50 text-primary-700"
-                  : "bg-red-50 text-red-700"
-              }`}
-            >
-              {sendResult.success ? (
-                <CheckCircle size={18} />
-              ) : (
-                <XCircle size={18} />
-              )}
-              {sendResult.message}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => {
-                setShowSendModal(false);
-                setSendResult(null);
-              }}
-              className="px-5 py-2.5 text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium text-sm transition-colors"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              disabled={isSending}
-              className="px-5 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 inline-flex items-center font-medium text-sm transition-colors shadow-sm"
-            >
-              {isSending ? (
-                <>
-                  <Loader2 size={18} className="mr-2 animate-spin" />
-                  발송중...
-                </>
-              ) : (
-                <>
-                  <Send size={18} className="mr-2" />
-                  발송
-                </>
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
   return (
     <AdminListLayout
       // 헤더
       title="SMS 관리"
       subtitle="SMS 발송 내역 및 수동 발송"
       headerAction={
-        <button
-          onClick={() => setShowSendModal(true)}
-          className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
-        >
-          <Send size={18} className="mr-2" />
-          SMS 발송
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkSMSSheet(true)}
+            className="inline-flex items-center px-4 py-2.5 border border-primary text-primary rounded-xl hover:bg-primary-50 font-medium text-sm transition-colors"
+          >
+            <Users size={18} className="mr-2" />
+            복수 발송
+          </button>
+          <button
+            onClick={() => setShowSendSheet(true)}
+            className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
+          >
+            <Send size={18} className="mr-2" />
+            SMS 발송
+          </button>
+        </div>
       }
       // 필터
       statusOptions={SMS_STATUS_OPTIONS}
@@ -490,7 +363,26 @@ export default function SMSPage() {
       onPageChange={setPage}
       // 추가 컨텐츠
       beforeTable={StatsCards}
-      afterPagination={SendModal}
+      afterPagination={
+        <>
+          <SMSSendSheet
+            open={showSendSheet}
+            onOpenChange={setShowSendSheet}
+            onComplete={() => {
+              loadStats();
+              loadLogs();
+            }}
+          />
+          <BulkSMSSheet
+            open={showBulkSMSSheet}
+            onOpenChange={setShowBulkSMSSheet}
+            onComplete={() => {
+              loadStats();
+              loadLogs();
+            }}
+          />
+        </>
+      }
     />
   );
 }
