@@ -6,7 +6,7 @@ PK: BIGSERIAL as per CLAUDE.md
 상태: pending → sent / failed
 """
 
-from sqlalchemy import Column, BigInteger, String, Text, DateTime
+from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -29,6 +29,10 @@ class SMSLog(Base):
     # 관련 데이터 참조 (FK 없음)
     reference_type = Column(String(50), nullable=True)  # application, partner
     reference_id = Column(BigInteger, nullable=True)  # 관련 ID
+
+    # 복수 발송 참조 (FK 없음)
+    bulk_job_id = Column(BigInteger, nullable=True, index=True)  # BulkSMSJob.id
+    batch_index = Column(Integer, nullable=True)  # 배치 번호
 
     # 발송 상태
     # pending: 대기중

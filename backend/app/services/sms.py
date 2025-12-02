@@ -308,6 +308,8 @@ async def send_sms_direct(
     reference_type: Optional[str] = None,
     reference_id: Optional[int] = None,
     db: Optional[Session] = None,
+    bulk_job_id: Optional[int] = None,
+    batch_index: Optional[int] = None,
 ) -> dict:
     """
     SMS 발송 (로그 기록 포함)
@@ -319,6 +321,8 @@ async def send_sms_direct(
         reference_type: 참조 타입 (application, partner)
         reference_id: 참조 ID
         db: 데이터베이스 세션 (로그 기록용)
+        bulk_job_id: 복수 발송 Job ID (복수 발송 시)
+        batch_index: 배치 번호 (복수 발송 시)
 
     Returns:
         발송 결과
@@ -338,6 +342,8 @@ async def send_sms_direct(
                 sms_type=sms_type,
                 reference_type=reference_type,
                 reference_id=reference_id,
+                bulk_job_id=bulk_job_id,
+                batch_index=batch_index,
                 status="sent" if is_success else "failed",
                 result_code=result.get("result_code"),
                 result_message=result.get("message"),

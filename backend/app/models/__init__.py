@@ -5,6 +5,7 @@ from app.models.partner import Partner
 from app.models.service import ServiceCategory, ServiceType
 from app.models.admin import Admin
 from app.models.sms_log import SMSLog
+from app.models.bulk_sms_job import BulkSMSJob
 
 __all__ = [
     "Province",
@@ -16,4 +17,5 @@ __all__ = [
     "ServiceType",
     "Admin",
     "SMSLog",
+    "BulkSMSJob",
 ]
