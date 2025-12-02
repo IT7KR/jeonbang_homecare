@@ -254,6 +254,84 @@ export interface SMSLogListParams {
   search?: string;
 }
 
+// ===== Bulk SMS Types =====
+
+export interface SMSRecipient {
+  id: number;
+  name: string;
+  phone: string; // 마스킹된 번호 (010-****-5678)
+  label: string; // 신청번호 또는 회사명
+  type: "customer" | "partner";
+  status?: string;
+}
+
+export interface SMSRecipientsResponse {
+  items: SMSRecipient[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface SMSRecipientsParams {
+  target_type: "customer" | "partner";
+  status?: string;
+  search?: string;
+  page?: number;
+  page_size?: number;
+}
+
+export interface BulkSMSSendRequest {
+  job_type: "announcement" | "status_notify" | "manual_select";
+  title?: string;
+  target_type: "customer" | "partner";
+  target_filter?: { status?: string };
+  target_ids?: number[];
+  message: string;
+}
+
+export interface BulkSMSJobResponse {
+  job_id: number;
+  status: string;
+  message: string;
+}
+
+export interface FailedRecipient {
+  phone: string;
+  name?: string;
+  error: string;
+}
+
+export interface BulkSMSJobDetail {
+  id: number;
+  job_type: string;
+  title?: string;
+  target_type: string;
+  status: "pending" | "processing" | "completed" | "partial_failed" | "failed";
+  total_count: number;
+  sent_count: number;
+  failed_count: number;
+  progress: number; // 0-100%
+  current_batch: number;
+  total_batches: number;
+  failed_recipients?: FailedRecipient[];
+  created_at: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+export interface BulkSMSJobListResponse {
+  items: BulkSMSJobDetail[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface BulkSMSJobListParams {
+  page?: number;
+  page_size?: number;
+  status?: string;
+}
+
 // ===== Schedule Types =====
 
 export interface ScheduleItem {

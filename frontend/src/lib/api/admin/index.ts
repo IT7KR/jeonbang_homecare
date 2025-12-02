@@ -35,6 +35,16 @@ export type {
   SMSSendRequest,
   SMSSendResponse,
   SMSLogListParams,
+  // Bulk SMS
+  SMSRecipient,
+  SMSRecipientsResponse,
+  SMSRecipientsParams,
+  BulkSMSSendRequest,
+  BulkSMSJobResponse,
+  FailedRecipient,
+  BulkSMSJobDetail,
+  BulkSMSJobListResponse,
+  BulkSMSJobListParams,
   // Schedule
   ScheduleItem,
   ScheduleListResponse,
@@ -82,6 +92,11 @@ export {
   getSMSLogs,
   sendSMS,
   retrySMS,
+  // Bulk SMS
+  getSMSRecipients,
+  createBulkSMSJob,
+  getBulkSMSJob,
+  getBulkSMSJobs,
 } from "./sms";
 
 // Schedule API
