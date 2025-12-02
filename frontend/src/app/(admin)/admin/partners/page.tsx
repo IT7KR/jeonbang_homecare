@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, CheckCircle, XCircle, Users, Loader2 } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Users, Loader2, MessageSquare, X } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { getPartners, approvePartner, PartnerListItem } from "@/lib/api/admin";
 import {
@@ -13,6 +13,8 @@ import {
 } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef } from "@/components/admin";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DirectSMSSheet } from "@/components/features/admin/sms";
 
 export default function PartnersPage() {
   const router = useRouter();
@@ -37,6 +39,10 @@ export default function PartnersPage() {
   const [approvalTarget, setApprovalTarget] = useState<PartnerListItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isApproving, setIsApproving] = useState(false);
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
 
   const loadPartners = async () => {
     try {
@@ -75,6 +81,28 @@ export default function PartnersPage() {
     setPage(1);
   };
 
+  // Selection handlers
+  const handleSelectAll = () => {
+    if (selectedIds.length === partners.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(partners.map((p) => p.id));
+    }
+  };
+
+  const handleToggleSelect = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
   const handleApprove = async (action: "approve" | "reject") => {
     if (!approvalTarget) return;
 
@@ -111,6 +139,20 @@ export default function PartnersPage() {
   };
 
   const columns: ColumnDef<PartnerListItem>[] = [
+    {
+      key: "checkbox",
+      header: "",
+      headerClassName: "w-12",
+      render: (partner) => (
+        <div onClick={(e) => handleToggleSelect(partner.id, e)}>
+          <Checkbox
+            checked={selectedIds.includes(partner.id)}
+            onCheckedChange={() => {}}
+          />
+        </div>
+      ),
+      className: "px-4 py-4 w-12",
+    },
     {
       key: "company_name",
       header: "회사명",
@@ -208,6 +250,30 @@ export default function PartnersPage() {
     },
   ];
 
+  // Floating Action Bar for selected items
+  const SelectionActionBar = selectedIds.length > 0 && (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-lg border border-gray-200">
+      <div className="flex items-center gap-2 pr-3 border-r border-gray-200">
+        <span className="text-sm font-medium text-gray-900">
+          {selectedIds.length}개 선택
+        </span>
+        <button
+          onClick={handleClearSelection}
+          className="p-1 hover:bg-gray-100 rounded-full"
+        >
+          <X size={14} className="text-gray-500" />
+        </button>
+      </div>
+      <button
+        onClick={() => setShowBulkSMSSheet(true)}
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-600 text-sm font-medium transition-colors"
+      >
+        <MessageSquare size={16} />
+        SMS 발송
+      </button>
+    </div>
+  );
+
   // 승인/거절 모달
   const ApprovalModal = approvalTarget && (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -288,6 +354,16 @@ export default function PartnersPage() {
           총 <span className="font-semibold text-primary">{total}</span>개의 협력사
         </p>
       }
+      headerAction={
+        partners.length > 0 && (
+          <button
+            onClick={handleSelectAll}
+            className="text-sm text-gray-600 hover:text-primary"
+          >
+            {selectedIds.length === partners.length ? "전체 해제" : "전체 선택"}
+          </button>
+        )
+      }
       // 필터
       statusOptions={PARTNER_STATUS_OPTIONS}
       statusFilter={statusFilter}
@@ -312,8 +388,22 @@ export default function PartnersPage() {
       pageSize={pageSize}
       onPageChange={setPage}
       unitLabel="개"
-      // 모달
-      afterPagination={ApprovalModal}
+      // 모달 및 추가 컴포넌트
+      afterPagination={
+        <>
+          {ApprovalModal}
+          {SelectionActionBar}
+          <DirectSMSSheet
+            open={showBulkSMSSheet}
+            onOpenChange={setShowBulkSMSSheet}
+            targetType="partner"
+            selectedIds={selectedIds}
+            onComplete={() => {
+              setSelectedIds([]);
+            }}
+          />
+        </>
+      }
     />
   );
 }

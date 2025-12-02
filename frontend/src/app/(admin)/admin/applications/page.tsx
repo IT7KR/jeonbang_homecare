@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, FileText } from "lucide-react";
+import { Eye, FileText, MessageSquare, X } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { getApplications, ApplicationListItem } from "@/lib/api/admin";
 import {
@@ -13,6 +13,8 @@ import {
 } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef } from "@/components/admin";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DirectSMSSheet } from "@/components/features/admin/sms";
 
 export default function ApplicationsPage() {
   const router = useRouter();
@@ -32,6 +34,10 @@ export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
+
+  // Selection
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
 
   const loadApplications = async () => {
     try {
@@ -70,7 +76,43 @@ export default function ApplicationsPage() {
     setPage(1);
   };
 
+  // Selection handlers
+  const handleSelectAll = () => {
+    if (selectedIds.length === applications.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(applications.map((app) => app.id));
+    }
+  };
+
+  const handleToggleSelect = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((i) => i !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
+    }
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
   const columns: ColumnDef<ApplicationListItem>[] = [
+    {
+      key: "checkbox",
+      header: "",
+      headerClassName: "w-12",
+      render: (app) => (
+        <div onClick={(e) => handleToggleSelect(app.id, e)}>
+          <Checkbox
+            checked={selectedIds.includes(app.id)}
+            onCheckedChange={() => {}}
+          />
+        </div>
+      ),
+      className: "px-4 py-4 w-12",
+    },
     {
       key: "application_number",
       header: "신청번호",
@@ -154,6 +196,30 @@ export default function ApplicationsPage() {
     },
   ];
 
+  // Floating Action Bar for selected items
+  const SelectionActionBar = selectedIds.length > 0 && (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-lg border border-gray-200">
+      <div className="flex items-center gap-2 pr-3 border-r border-gray-200">
+        <span className="text-sm font-medium text-gray-900">
+          {selectedIds.length}명 선택
+        </span>
+        <button
+          onClick={handleClearSelection}
+          className="p-1 hover:bg-gray-100 rounded-full"
+        >
+          <X size={14} className="text-gray-500" />
+        </button>
+      </div>
+      <button
+        onClick={() => setShowBulkSMSSheet(true)}
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-600 text-sm font-medium transition-colors"
+      >
+        <MessageSquare size={16} />
+        SMS 발송
+      </button>
+    </div>
+  );
+
   return (
     <AdminListLayout
       // 헤더
@@ -162,6 +228,16 @@ export default function ApplicationsPage() {
         <p>
           총 <span className="font-semibold text-primary">{total}</span>건의 신청
         </p>
+      }
+      headerAction={
+        applications.length > 0 && (
+          <button
+            onClick={handleSelectAll}
+            className="text-sm text-gray-600 hover:text-primary"
+          >
+            {selectedIds.length === applications.length ? "전체 해제" : "전체 선택"}
+          </button>
+        )
       }
       // 필터
       statusOptions={APPLICATION_STATUS_OPTIONS}
@@ -186,6 +262,21 @@ export default function ApplicationsPage() {
       total={total}
       pageSize={pageSize}
       onPageChange={setPage}
+      // 추가 컨텐츠
+      afterPagination={
+        <>
+          {SelectionActionBar}
+          <DirectSMSSheet
+            open={showBulkSMSSheet}
+            onOpenChange={setShowBulkSMSSheet}
+            targetType="customer"
+            selectedIds={selectedIds}
+            onComplete={() => {
+              setSelectedIds([]);
+            }}
+          />
+        </>
+      }
     />
   );
 }
