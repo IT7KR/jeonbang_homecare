@@ -54,12 +54,12 @@ export function ServiceGrid() {
         open={!!selectedCategory}
         onOpenChange={(open) => !open && setSelectedCategory(null)}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <div className="flex items-center gap-4">
               {selectedCategory && (
                 <>
-                  <div className="w-16 h-16 rounded-full overflow-hidden">
+                  <div className="w-14 h-14 md:w-16 md:h-16 rounded-full overflow-hidden flex-shrink-0">
                     <Image
                       src={selectedCategory.icon}
                       alt={selectedCategory.name}
@@ -69,10 +69,10 @@ export function ServiceGrid() {
                     />
                   </div>
                   <div>
-                    <DialogTitle className="text-2xl md:text-3xl font-bold text-gray-900">
+                    <DialogTitle className="text-xl md:text-2xl font-bold text-gray-900">
                       {selectedCategory.name}
                     </DialogTitle>
-                    <DialogDescription className="text-base md:text-lg text-gray-500 mt-1">
+                    <DialogDescription className="text-sm md:text-base text-gray-500 mt-1">
                       {selectedCategory.subtitle}
                     </DialogDescription>
                   </div>
@@ -82,18 +82,18 @@ export function ServiceGrid() {
           </DialogHeader>
 
           {selectedCategory && (
-            <div className="mt-6">
-              <p className="text-base md:text-lg font-medium text-gray-500 mb-4">
+            <div className="mt-4 overflow-y-auto flex-1 overscroll-contain -mr-2 pr-2">
+              <p className="text-sm md:text-base font-medium text-gray-500 mb-3 sticky top-0 bg-white pb-2">
                 제공 서비스
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-2 pb-2">
                 {selectedCategory.services.map((service) => (
                   <li
                     key={service}
-                    className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 hover:bg-primary-50 transition-colors"
                   >
-                    <CheckCircle2 className="h-6 w-6 text-primary flex-shrink-0" />
-                    <span className="text-lg md:text-xl text-gray-700 font-medium">{service}</span>
+                    <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                    <span className="text-base md:text-lg text-gray-700 font-medium">{service}</span>
                   </li>
                 ))}
               </ul>
