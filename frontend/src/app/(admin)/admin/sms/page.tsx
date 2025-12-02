@@ -10,6 +10,7 @@ import {
   CheckCircle,
   XCircle,
   Users,
+  X,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
@@ -78,6 +79,9 @@ export default function SMSPage() {
   const [showSendSheet, setShowSendSheet] = useState(false);
   const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
 
+  // Message detail modal
+  const [selectedLog, setSelectedLog] = useState<SMSLogItem | null>(null);
+
   const loadStats = async () => {
     try {
       const token = await getValidToken();
@@ -116,7 +120,9 @@ export default function SMSPage() {
       setTotalPages(data.total_pages);
       setTotal(data.total);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
+      setError(
+        err instanceof Error ? err.message : "데이터를 불러올 수 없습니다"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -176,9 +182,15 @@ export default function SMSPage() {
       header: "메시지",
       headerClassName: "hidden md:table-cell",
       render: (log) => (
-        <p className="text-sm text-gray-700 max-w-xs truncate" title={log.message}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedLog(log);
+          }}
+          className="text-sm text-gray-700 max-w-xs truncate text-left hover:text-primary transition-colors"
+        >
           {log.message}
-        </p>
+        </button>
       ),
       className: "px-5 py-4 hidden md:table-cell",
     },
@@ -199,7 +211,9 @@ export default function SMSPage() {
       render: (log) => (
         <div>
           <span
-            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(log.status)}`}
+            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(
+              log.status
+            )}`}
           >
             {getSMSStatusLabel(log.status)}
           </span>
@@ -215,13 +229,14 @@ export default function SMSPage() {
       header: "발송일시",
       headerClassName: "hidden sm:table-cell",
       render: (log) => formatDate(log.sent_at || log.created_at),
-      className: "px-5 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell",
+      className:
+        "px-5 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell",
     },
     {
       key: "actions",
       header: "관리",
       headerClassName: "text-center",
-      render: (log) => (
+      render: (log) =>
         log.status === "failed" && (
           <button
             onClick={(e) => {
@@ -238,8 +253,7 @@ export default function SMSPage() {
             )}
             재발송
           </button>
-        )
-      ),
+        ),
       className: "px-5 py-4 whitespace-nowrap text-center",
     },
   ];
@@ -254,7 +268,9 @@ export default function SMSPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">오늘 발송</p>
-            <p className="text-xl font-bold text-gray-900">{stats.today_sent}</p>
+            <p className="text-xl font-bold text-gray-900">
+              {stats.today_sent}
+            </p>
           </div>
         </div>
       </div>
@@ -265,7 +281,9 @@ export default function SMSPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">오늘 실패</p>
-            <p className="text-xl font-bold text-gray-900">{stats.today_failed}</p>
+            <p className="text-xl font-bold text-gray-900">
+              {stats.today_failed}
+            </p>
           </div>
         </div>
       </div>
@@ -276,7 +294,9 @@ export default function SMSPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">이번달 발송</p>
-            <p className="text-xl font-bold text-gray-900">{stats.this_month_sent}</p>
+            <p className="text-xl font-bold text-gray-900">
+              {stats.this_month_sent}
+            </p>
           </div>
         </div>
       </div>
@@ -287,7 +307,9 @@ export default function SMSPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">전체 발송</p>
-            <p className="text-xl font-bold text-gray-900">{stats.total_sent}</p>
+            <p className="text-xl font-bold text-gray-900">
+              {stats.total_sent}
+            </p>
           </div>
         </div>
       </div>
@@ -381,6 +403,80 @@ export default function SMSPage() {
               loadLogs();
             }}
           />
+          {/* 메시지 상세 모달 */}
+          {selectedLog && (
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+              onClick={() => setSelectedLog(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    메시지 상세
+                  </h3>
+                  <button
+                    onClick={() => setSelectedLog(null)}
+                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">수신번호:</span>{" "}
+                      <span className="font-mono font-semibold">
+                        {formatPhone(selectedLog.receiver_phone)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">발송일시:</span>{" "}
+                      <span>
+                        {formatDate(selectedLog.sent_at || selectedLog.created_at)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-gray-500">상태:</span>
+                    <span
+                      className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(
+                        selectedLog.status
+                      )}`}
+                    >
+                      {getSMSStatusLabel(selectedLog.status)}
+                    </span>
+                    <span className="text-gray-500">유형:</span>
+                    <span className="text-gray-700">
+                      {TYPE_LABELS[selectedLog.sms_type] || selectedLog.sms_type}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-2">메시지 내용</p>
+                    <div className="p-4 bg-gray-50 rounded-xl text-sm text-gray-800 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                      {selectedLog.message}
+                    </div>
+                  </div>
+                  {selectedLog.result_message && selectedLog.status === "failed" && (
+                    <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
+                      <span className="font-medium">실패 사유:</span>{" "}
+                      {selectedLog.result_message}
+                    </div>
+                  )}
+                </div>
+                <div className="px-6 py-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setSelectedLog(null)}
+                    className="w-full py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors"
+                  >
+                    닫기
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       }
     />
