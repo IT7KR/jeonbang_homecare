@@ -17,7 +17,12 @@ import { cn } from "@/lib/utils";
 import type { ApplicationFormData } from "@/lib/validations/application";
 import { compressImages } from "@/lib/utils/image";
 import { StepHeader } from "@/components/wizard";
-import { SeniorInput, SeniorTextarea, SeniorLabel, FieldError } from "@/components/forms/senior";
+import {
+  SeniorInput,
+  SeniorTextarea,
+  SeniorLabel,
+  FieldError,
+} from "@/components/forms/senior";
 import { PhoneInput } from "@/components/forms/PhoneInput";
 import { DaumPostcode } from "@/components/forms/DaumPostcode";
 
