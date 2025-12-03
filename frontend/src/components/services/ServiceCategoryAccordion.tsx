@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from "react";
 import { ChevronDown, ChevronUp, MoreHorizontal } from "lucide-react";
 import {
   Leaf,
@@ -41,8 +42,10 @@ const iconMap: Record<string, React.ElementType> = {
  *
  * 카테고리별로 서비스를 그룹화하여 표시합니다.
  * 확장/축소 기능과 선택 카운트를 제공합니다.
+ *
+ * React.memo로 감싸서 불필요한 리렌더를 방지합니다.
  */
-export function ServiceCategoryAccordion({
+export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
   id,
   name,
   index,
@@ -63,11 +66,20 @@ export function ServiceCategoryAccordion({
     selectedServices.includes(s.code)
   ).length;
 
+  // 서비스 토글 핸들러를 useCallback으로 메모이제이션
+  const handleServiceToggle = useCallback(
+    (code: string) => {
+      onServiceToggle(code);
+    },
+    [onServiceToggle]
+  );
+
   return (
     <div
       className={cn(
         "rounded-2xl border-2 overflow-hidden",
-        "transition-all duration-200",
+        // 전환 효과 - 테두리 색상만 전환 (깜빡임 방지)
+        "transition-[border-color,box-shadow] duration-150",
         selectedCount > 0
           ? isPrimary
             ? "border-primary/50 shadow-md"
@@ -85,7 +97,8 @@ export function ServiceCategoryAccordion({
         className={cn(
           "w-full px-5 md:px-6 py-4 md:py-5",
           "flex items-center justify-between",
-          "transition-colors duration-200",
+          // 전환 효과 - 배경색만 전환 (깜빡임 방지)
+          "transition-colors duration-150",
           "hover:bg-gray-50",
           "focus:outline-none focus:ring-2 focus:ring-inset",
           selectedCount > 0
@@ -167,7 +180,8 @@ export function ServiceCategoryAccordion({
               "w-10 h-10 md:w-11 md:h-11",
               "rounded-full",
               "flex items-center justify-center",
-              "transition-colors duration-200",
+              // 전환 효과 - 배경색만 전환 (깜빡임 방지)
+              "transition-colors duration-150",
               isExpanded ? "bg-gray-200" : "bg-gray-100"
             )}
           >
@@ -180,13 +194,12 @@ export function ServiceCategoryAccordion({
         </div>
       </button>
 
-      {/* 서비스 목록 - 확장 시 표시 */}
+      {/* 서비스 목록 - 확장 시 표시 (애니메이션 제거하여 깜빡임 방지) */}
       {isExpanded && (
         <div
           id={`category-content-${id}`}
           className={cn(
             "p-5 border-t-2",
-            "animate-in slide-in-from-top-2 duration-200",
             selectedCount > 0
               ? isPrimary
                 ? "border-primary/20 bg-white"
@@ -202,7 +215,7 @@ export function ServiceCategoryAccordion({
                 name={service.name}
                 description={service.description}
                 isSelected={selectedServices.includes(service.code)}
-                onClick={() => onServiceToggle(service.code)}
+                onClick={() => handleServiceToggle(service.code)}
                 isActive={service.isActive !== false}
                 variant={variant}
               />
@@ -212,6 +225,6 @@ export function ServiceCategoryAccordion({
       )}
     </div>
   );
-}
+});
 
 export default ServiceCategoryAccordion;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SERVICE_GROUPS, type ServiceGroupId } from "@/lib/constants/services";
@@ -55,6 +55,9 @@ export function ServiceSelector(props: ServiceSelectorProps) {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set()
   );
+
+  // 초기화 여부 추적 (그룹별로 한 번만 초기화)
+  const initializedGroupsRef = useRef<Set<ServiceGroupId>>(new Set());
 
   // 데이터 타입 결정
   const isApiData = "categories" in props && props.categories;
@@ -136,16 +139,23 @@ export function ServiceSelector(props: ServiceSelectorProps) {
     }, {} as Record<ServiceGroupId, number>);
   }, [categoriesList, selectedServices, getCategoryId]);
 
-  // 초기 확장 상태 설정 (그룹 변경 시 리셋)
+  // 초기 확장 상태 설정 (그룹별로 한 번만 초기화하여 깜빡임 방지)
   useEffect(() => {
+    // 이미 초기화된 그룹이면 스킵
+    if (initializedGroupsRef.current.has(activeGroup)) {
+      return;
+    }
+
     if (filteredCategories.length > 0) {
       const initialExpanded = new Set<string>();
       filteredCategories.slice(0, 3).forEach((cat) => {
         initialExpanded.add(getCategoryId(cat));
       });
       setExpandedCategories(initialExpanded);
+      // 초기화 완료 표시
+      initializedGroupsRef.current.add(activeGroup);
     }
-  }, [activeGroup, getCategoryId]);
+  }, [activeGroup, filteredCategories, getCategoryId]);
 
   // 카테고리 확장/축소 토글
   const toggleCategory = useCallback((categoryId: string) => {
@@ -208,6 +218,22 @@ export function ServiceSelector(props: ServiceSelectorProps) {
     });
     return names;
   }, [categoriesList, selectedServices, getServices]);
+
+  // 서비스 토글 핸들러를 메모이제이션 (자식 컴포넌트 리렌더 방지)
+  const handleServiceToggle = useCallback(
+    (code: string) => {
+      onServiceToggle(code);
+    },
+    [onServiceToggle]
+  );
+
+  // 카테고리 토글 핸들러를 메모이제이션
+  const handleCategoryToggle = useCallback(
+    (categoryId: string) => () => {
+      toggleCategory(categoryId);
+    },
+    [toggleCategory]
+  );
 
   // 로딩 상태
   if (isLoading) {
@@ -308,9 +334,9 @@ export function ServiceSelector(props: ServiceSelectorProps) {
                 icon={icon}
                 services={services}
                 selectedServices={selectedServices}
-                onServiceToggle={onServiceToggle}
+                onServiceToggle={handleServiceToggle}
                 isExpanded={expandedCategories.has(id)}
-                onToggleExpand={() => toggleCategory(id)}
+                onToggleExpand={handleCategoryToggle(id)}
                 variant={variant}
               />
             );

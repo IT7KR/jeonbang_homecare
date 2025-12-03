@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ServiceSelectionSummaryProps } from "./types";
@@ -9,8 +10,10 @@ import type { ServiceSelectionSummaryProps } from "./types";
  *
  * 현재 선택된 서비스 수와 목록을 시각적으로 표시합니다.
  * 시니어 친화적인 큰 텍스트와 명확한 상태 표시를 제공합니다.
+ *
+ * React.memo로 감싸서 불필요한 리렌더를 방지합니다.
  */
-export function ServiceSelectionSummary({
+export const ServiceSelectionSummary = memo(function ServiceSelectionSummary({
   count,
   selectedNames,
   maxDisplay = 5,
@@ -32,7 +35,8 @@ export function ServiceSelectionSummary({
     <div
       className={cn(
         "rounded-2xl p-5 border-2",
-        "transition-all duration-300",
+        // 전환 효과 - 색상만 전환 (깜빡임 방지)
+        "transition-colors duration-150",
         hasSelection
           ? isPrimary
             ? "bg-primary/10 border-primary"
@@ -53,7 +57,8 @@ export function ServiceSelectionSummary({
             "flex items-center justify-center",
             "text-2xl md:text-3xl font-bold",
             "shadow-lg",
-            "transition-all duration-300",
+            // 전환 효과 - 색상만 전환 (깜빡임 방지)
+            "transition-colors duration-150",
             hasSelection
               ? isPrimary
                 ? "bg-primary text-white"
@@ -97,6 +102,6 @@ export function ServiceSelectionSummary({
       </div>
     </div>
   );
-}
+});
 
 export default ServiceSelectionSummary;

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ServiceCardProps } from "./types";
@@ -11,8 +12,10 @@ import type { ServiceCardProps } from "./types";
  * 체크박스 스타일의 선택 UI로 직관적인 상호작용을 지원합니다.
  *
  * isActive가 false인 경우 "준비 중" 배지를 표시하고 선택 불가능합니다.
+ *
+ * React.memo로 감싸서 불필요한 리렌더를 방지합니다.
  */
-export function ServiceCard({
+export const ServiceCard = memo(function ServiceCard({
   code,
   name,
   description,
@@ -39,8 +42,8 @@ export function ServiceCard({
         "w-full text-left",
         // 터치 타겟
         "touch-target",
-        // 전환 효과
-        "transition-all duration-200",
+        // 전환 효과 - 색상과 테두리만 전환 (깜빡임 방지)
+        "transition-colors duration-150",
         // 포커스 상태
         "focus:outline-none focus:ring-2 focus:ring-offset-2",
         // 준비 중 상태
@@ -58,7 +61,7 @@ export function ServiceCard({
             ]
           : isActive && [
               "border-gray-200 bg-white",
-              "hover:border-gray-300 hover:bg-gray-50 hover:shadow-sm",
+              "hover:border-gray-300 hover:bg-gray-50",
               "focus:ring-gray-400",
             ],
         // 비활성화 상태
@@ -73,7 +76,8 @@ export function ServiceCard({
           "w-9 h-9 md:w-10 md:h-10",
           "rounded-lg border-2",
           "flex items-center justify-center",
-          "transition-all duration-200",
+          // 전환 효과 - 색상만 전환 (깜빡임 방지)
+          "transition-colors duration-150",
           !isActive
             ? "border-gray-300 bg-gray-100"
             : isSelected
@@ -126,6 +130,6 @@ export function ServiceCard({
       </div>
     </button>
   );
-}
+});
 
 export default ServiceCard;
