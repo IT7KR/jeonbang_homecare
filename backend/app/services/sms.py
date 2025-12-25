@@ -5,15 +5,92 @@ SMS Service using Aligo API
 
 import httpx
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 import logging
 
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.encryption import encrypt_value
+from app.core.encryption import encrypt_value, decrypt_value
+from app.core.database import SessionLocal
 
 logger = logging.getLogger(__name__)
+
+
+# ===== SMS 템플릿 조회 =====
+
+def get_template_message(
+    template_key: str,
+    db: Optional[Session] = None,
+    **kwargs,
+) -> Optional[str]:
+    """
+    데이터베이스에서 SMS 템플릿을 조회하고 변수를 치환합니다.
+
+    Args:
+        template_key: 템플릿 키 (예: 'new_application', 'partner_assigned')
+        db: 데이터베이스 세션 (없으면 자동 생성)
+        **kwargs: 템플릿 변수 (예: customer_name="홍길동")
+
+    Returns:
+        변수가 치환된 메시지 문자열, 템플릿이 없거나 비활성이면 None
+    """
+    from app.models.sms_template import SMSTemplate
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        template = db.query(SMSTemplate).filter(
+            SMSTemplate.template_key == template_key,
+            SMSTemplate.is_active == True,
+        ).first()
+
+        if not template:
+            logger.warning(f"SMS template '{template_key}' not found or inactive")
+            return None
+
+        return template.format_message(**kwargs)
+    except Exception as e:
+        logger.error(f"Failed to get SMS template '{template_key}': {e}")
+        return None
+    finally:
+        if close_db:
+            db.close()
+
+
+def get_admin_phones() -> list[str]:
+    """
+    활성 관리자들의 전화번호 목록 조회
+
+    Returns:
+        전화번호 리스트 (phone이 설정된 활성 관리자만)
+    """
+    from app.models.admin import Admin
+
+    db = SessionLocal()
+    try:
+        admins = db.query(Admin).filter(
+            Admin.is_active == True,
+            Admin.phone.isnot(None),
+            Admin.phone != ""
+        ).all()
+
+        # 암호화된 전화번호를 복호화하여 반환
+        phones = []
+        for admin in admins:
+            decrypted_phone = decrypt_value(admin.phone)
+            if decrypted_phone:
+                phones.append(decrypted_phone)
+        logger.info(f"Found {len(phones)} admin(s) for SMS notification")
+        return phones
+    except Exception as e:
+        logger.error(f"Failed to get admin phones: {e}")
+        return []
+    finally:
+        db.close()
 
 # Aligo API Endpoint
 ALIGO_API_URL = "https://apis.aligo.in/send/"
@@ -173,17 +250,28 @@ async def send_application_notification(
     application_number: str,
     customer_phone: str,
     services: list[str],
-) -> dict:
+    preferred_consultation_date: Optional[date] = None,
+    preferred_work_date: Optional[date] = None,
+) -> list[dict]:
     """
-    서비스 신청 알림 SMS 발송 (관리자에게)
+    서비스 신청 알림 SMS 발송 (모든 활성 관리자에게)
 
     Args:
         application_number: 신청번호
         customer_phone: 고객 전화번호
         services: 신청 서비스 목록 (서비스 코드)
+        preferred_consultation_date: 희망 상담일
+        preferred_work_date: 희망 작업일
+
+    Returns:
+        각 관리자별 발송 결과 리스트
     """
-    # 관리자 전화번호 (설정에서 가져오거나 기본값 사용)
-    admin_phone = settings.ALIGO_SENDER  # 대표번호로 알림
+    # 활성 관리자들의 전화번호 조회
+    admin_phones = get_admin_phones()
+
+    if not admin_phones:
+        logger.warning("No admin phones found for notification")
+        return []
 
     # 서비스 코드를 한글 명칭으로 변환
     service_names = [get_service_name(code) for code in services[:3]]
@@ -191,29 +279,50 @@ async def send_application_notification(
     if len(services) > 3:
         services_str += f" 외 {len(services) - 3}건"
 
+    # 희망 일정 정보 구성
+    schedule_info = ""
+    if preferred_consultation_date:
+        schedule_info += f"\n희망상담일: {preferred_consultation_date.strftime('%Y-%m-%d')}"
+    if preferred_work_date:
+        schedule_info += f"\n희망작업일: {preferred_work_date.strftime('%Y-%m-%d')}"
+
     message = f"""[전방홈케어] 신규 서비스 신청
 신청번호: {application_number}
 고객연락처: {customer_phone}
-서비스: {services_str}
+서비스: {services_str}{schedule_info}
 관리자 페이지에서 확인해주세요."""
 
-    return await send_sms(admin_phone, message, "[신규신청]")
+    # 모든 관리자에게 발송
+    results = []
+    for phone in admin_phones:
+        result = await send_sms(phone, message, "[신규신청]")
+        results.append({"phone": phone, "result": result})
+
+    return results
 
 
 async def send_partner_notification(
     company_name: str,
     contact_phone: str,
     service_areas: list[str],
-) -> dict:
+) -> list[dict]:
     """
-    협력사 등록 알림 SMS 발송 (관리자에게)
+    협력사 등록 알림 SMS 발송 (모든 활성 관리자에게)
 
     Args:
         company_name: 회사/상호명
         contact_phone: 연락처
         service_areas: 서비스 분야 (서비스 코드)
+
+    Returns:
+        각 관리자별 발송 결과 리스트
     """
-    admin_phone = settings.ALIGO_SENDER
+    # 활성 관리자들의 전화번호 조회
+    admin_phones = get_admin_phones()
+
+    if not admin_phones:
+        logger.warning("No admin phones found for notification")
+        return []
 
     # 서비스 코드를 한글 명칭으로 변환
     service_names = [get_service_name(code) for code in service_areas[:3]]
@@ -227,7 +336,13 @@ async def send_partner_notification(
 서비스: {services_str}
 관리자 페이지에서 확인해주세요."""
 
-    return await send_sms(admin_phone, message, "[협력사등록]")
+    # 모든 관리자에게 발송
+    results = []
+    for phone in admin_phones:
+        result = await send_sms(phone, message, "[협력사등록]")
+        results.append({"phone": phone, "result": result})
+
+    return results
 
 
 async def send_partner_assignment_notification(
@@ -299,6 +414,128 @@ async def send_partner_schedule_notification(
 서비스: {services_str}"""
 
     return await send_sms(partner_phone, message, "[작업일정]")
+
+
+async def send_partner_approval_notification(
+    partner_phone: str,
+    partner_name: str,
+    approved: bool,
+    rejection_reason: Optional[str] = None,
+) -> dict:
+    """
+    협력사 승인/거절 알림 SMS 발송 (협력사에게)
+
+    Args:
+        partner_phone: 협력사 연락처
+        partner_name: 협력사명/대표자명
+        approved: 승인 여부
+        rejection_reason: 거절 사유 (거절 시)
+
+    Returns:
+        발송 결과
+    """
+    if approved:
+        message = f"""[전방홈케어] 협력사 등록 승인
+{partner_name}님, 협력사 등록이 승인되었습니다.
+앞으로 전방홈케어와 함께해주세요.
+감사합니다."""
+    else:
+        reason = f"\n사유: {rejection_reason}" if rejection_reason else ""
+        message = f"""[전방홈케어] 협력사 등록 반려
+{partner_name}님, 죄송합니다.
+협력사 등록이 반려되었습니다.{reason}
+문의사항이 있으시면 연락주세요."""
+
+    return await send_sms(partner_phone, message, "[협력사안내]")
+
+
+async def send_application_cancelled_notification(
+    customer_phone: str,
+    application_number: str,
+    cancel_reason: Optional[str] = None,
+) -> dict:
+    """
+    신청 취소 알림 SMS 발송 (고객에게)
+
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        cancel_reason: 취소 사유
+
+    Returns:
+        발송 결과
+    """
+    reason = f"\n사유: {cancel_reason}" if cancel_reason else ""
+    message = f"""[전방홈케어] 신청 취소 안내
+신청번호: {application_number}
+해당 신청이 취소되었습니다.{reason}
+문의사항이 있으시면 연락주세요."""
+
+    return await send_sms(customer_phone, message, "[신청취소]")
+
+
+async def send_completion_notification(
+    customer_phone: str,
+    application_number: str,
+    partner_name: Optional[str] = None,
+) -> dict:
+    """
+    작업 완료 알림 SMS 발송 (고객에게)
+
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        partner_name: 협력사명
+
+    Returns:
+        발송 결과
+    """
+    partner_str = f"\n담당: {partner_name}" if partner_name else ""
+    message = f"""[전방홈케어] 작업 완료 안내
+신청번호: {application_number}{partner_str}
+서비스가 완료되었습니다.
+이용해주셔서 감사합니다."""
+
+    return await send_sms(customer_phone, message, "[완료안내]")
+
+
+async def send_schedule_changed_notification(
+    customer_phone: str,
+    partner_phone: Optional[str],
+    application_number: str,
+    old_date: str,
+    new_date: str,
+    new_time: Optional[str] = None,
+) -> dict:
+    """
+    일정 변경 알림 SMS 발송 (고객 및 협력사에게)
+
+    Args:
+        customer_phone: 고객 연락처
+        partner_phone: 협력사 연락처 (없으면 고객에게만)
+        application_number: 신청번호
+        old_date: 기존 일정
+        new_date: 변경된 일정
+        new_time: 변경된 시간
+
+    Returns:
+        발송 결과
+    """
+    time_str = new_time or "시간 미정"
+    message = f"""[전방홈케어] 일정 변경 안내
+신청번호: {application_number}
+기존일정: {old_date}
+변경일정: {new_date} {time_str}
+변경된 일정을 확인해주세요."""
+
+    # 고객에게 발송
+    customer_result = await send_sms(customer_phone, message, "[일정변경]")
+
+    # 협력사에게도 발송
+    if partner_phone:
+        await send_sms(partner_phone, message, "[일정변경]")
+
+    return customer_result
 
 
 async def send_sms_direct(
