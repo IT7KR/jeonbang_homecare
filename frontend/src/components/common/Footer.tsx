@@ -22,8 +22,9 @@ export function Footer() {
             <a
               href={`tel:${COMPANY_INFO.phone}`}
               className="inline-flex items-center space-x-2 text-sm font-medium text-primary hover:text-primary/80"
+              aria-label={`전화 문의: ${COMPANY_INFO.phone}`}
             >
-              <Phone className="h-4 w-4" />
+              <Phone className="h-4 w-4" aria-hidden="true" />
               <span className="text-lg">{COMPANY_INFO.phone}</span>
             </a>
           </div>
@@ -41,7 +42,7 @@ export function Footer() {
               >
                 <Link href={ROUTES.APPLY}>
                   견적 요청하기
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                 </Link>
               </Button>
               <Button
@@ -51,7 +52,7 @@ export function Footer() {
               >
                 <Link href={ROUTES.PARTNER}>
                   협력사 신청하기
-                  <ArrowRight className="ml-2 h-5 w-5" />
+                  <ArrowRight className="ml-2 h-5 w-5" aria-hidden="true" />
                 </Link>
               </Button>
             </div>
@@ -65,7 +66,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm">
               <li>
                 <Link
-                  href="/terms"
+                  href={ROUTES.TERMS}
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   이용약관
@@ -73,7 +74,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/privacy"
+                  href={ROUTES.PRIVACY}
                   className="text-muted-foreground hover:text-primary transition-colors"
                 >
                   개인정보처리방침

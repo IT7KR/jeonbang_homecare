@@ -2,5 +2,6 @@
 export { PartnerStep1Service } from "./PartnerStep1Service";
 export { PartnerStep2Basic } from "./PartnerStep2Basic";
 export { PartnerStep3Contact } from "./PartnerStep3Contact";
+export { PartnerStep4Additional } from "./PartnerStep4Additional";
 export { PartnerStep4Confirm } from "./PartnerStep4Confirm";
 export { PartnerSuccess } from "./PartnerSuccess";

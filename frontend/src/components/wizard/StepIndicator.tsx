@@ -17,6 +17,7 @@ export function StepIndicator({
   variant = "primary",
   onStepClick,
   className,
+  showEstimatedTime = false,
 }: StepIndicatorProps) {
   const getStepStatus = (stepNumber: number): StepStatus => {
     if (completedSteps.includes(stepNumber)) return "completed";
@@ -128,12 +129,31 @@ export function StepIndicator({
       <div className="md:hidden">
         {/* 현재 단계 표시 */}
         <div className="flex items-center justify-between mb-4">
-          <span className="text-xl font-bold text-gray-900">
-            {steps[currentStep - 1]?.label}
-          </span>
-          <span className="text-lg text-gray-500">
-            {currentStep} / {steps.length}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-xl font-bold text-gray-900">
+              {steps[currentStep - 1]?.label}
+            </span>
+            {/* 예상 소요시간 표시 */}
+            {showEstimatedTime && steps[currentStep - 1]?.estimatedTime && (
+              <span className="text-[14px] text-gray-500 mt-0.5">
+                ⏱ {steps[currentStep - 1].estimatedTime}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-lg text-gray-500">
+              {currentStep} / {steps.length}
+            </span>
+            {/* 진행률 표시 */}
+            <span
+              className={cn(
+                "text-[14px] font-medium",
+                variant === "primary" ? "text-primary" : "text-secondary"
+              )}
+            >
+              {Math.round((currentStep / steps.length) * 100)}% 완료
+            </span>
+          </div>
         </div>
 
         {/* 프로그레스 바 */}

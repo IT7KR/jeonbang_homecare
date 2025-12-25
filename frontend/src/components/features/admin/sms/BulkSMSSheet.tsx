@@ -17,6 +17,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
+import { useConfirm } from "@/hooks";
 import { createBulkSMSJob, BulkSMSJobDetail } from "@/lib/api/admin";
 import { RecipientSelector } from "./RecipientSelector";
 import { BulkSMSProgress } from "./BulkSMSProgress";
@@ -58,6 +59,7 @@ export function BulkSMSSheet({
   onComplete,
 }: BulkSMSSheetProps) {
   const { getValidToken } = useAuthStore();
+  const { confirm } = useConfirm();
 
   // Current step
   const [step, setStep] = useState<Step>(
@@ -94,9 +96,13 @@ export function BulkSMSSheet({
 
     if (selectedIds.length === 0 && !statusFilter) {
       // Sending to ALL - confirm
-      if (!confirm(`전체 ${targetType === "customer" ? "고객" : "협력사"} ${recipientTotal}명에게 발송하시겠습니까?`)) {
-        return;
-      }
+      const confirmed = await confirm({
+        title: "전체 발송 확인",
+        description: `전체 ${targetType === "customer" ? "고객" : "협력사"} ${recipientTotal}명에게 발송하시겠습니까?`,
+        type: "info",
+        confirmText: "발송",
+      });
+      if (!confirmed) return;
     }
 
     try {

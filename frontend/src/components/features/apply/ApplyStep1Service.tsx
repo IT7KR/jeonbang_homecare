@@ -1,9 +1,7 @@
 "use client";
 
-import { Briefcase } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 import type { ApplicationFormData } from "@/lib/validations/application";
-import { StepHeader } from "@/components/wizard";
 import { ServiceSelector, type CategoryItem } from "@/components/services";
 import { FieldError } from "@/components/forms/senior";
 
@@ -35,35 +33,25 @@ export function ApplyStep1Service({
   };
 
   return (
-    <div className="wizard-step-content">
-      <StepHeader
-        stepNumber={1}
-        totalSteps={3}
-        title="어떤 서비스가 필요하신가요?"
-        description="필요한 서비스를 선택해 주세요. 여러 개 선택 가능합니다."
-        icon={<Briefcase className="w-full h-full" />}
+    <div className="space-y-4">
+      <ServiceSelector
+        categories={categories}
+        selectedServices={selectedServices}
+        onServiceToggle={handleServiceToggle}
+        isLoading={isLoading}
+        error={error}
         variant="primary"
+        showInstructions={false}
+        seniorMode={false}
+        compactMode={true}
+        enableGroupTabs={true}
+        enableSearch={false}
+        enableDesktopLayout={false}
+        enableQuickNav={false}
       />
 
-      <div className="space-y-6">
-        <ServiceSelector
-          categories={categories}
-          selectedServices={selectedServices}
-          onServiceToggle={handleServiceToggle}
-          isLoading={isLoading}
-          error={error}
-          variant="primary"
-          showInstructions={true}
-          instructionTitle="아래에서 원하시는 서비스를 선택해 주세요"
-          instructionDescription="각 카테고리를 펼쳐서 세부 서비스를 선택할 수 있습니다."
-          enableGroupTabs={true}
-          enableSearch={true}
-          enableDesktopLayout={true}
-        />
-
-        {/* 폼 유효성 에러 */}
-        {formError && <FieldError message={formError} variant="primary" />}
-      </div>
+      {/* 폼 유효성 에러 */}
+      {formError && <FieldError message={formError} variant="primary" />}
     </div>
   );
 }

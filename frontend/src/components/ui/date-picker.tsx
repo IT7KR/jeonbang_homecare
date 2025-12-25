@@ -20,6 +20,10 @@ interface DatePickerProps {
   placeholder?: string
   className?: string
   disabled?: boolean
+  /** 선택 가능한 최소 날짜 (이전 날짜는 선택 불가) */
+  fromDate?: Date
+  /** 선택 가능한 최대 날짜 (이후 날짜는 선택 불가) */
+  toDate?: Date
 }
 
 export function DatePicker({
@@ -28,7 +32,21 @@ export function DatePicker({
   placeholder = "날짜를 선택하세요",
   className,
   disabled = false,
+  fromDate,
+  toDate,
 }: DatePickerProps) {
+  // 날짜 범위 제한을 위한 disabled 설정
+  const disabledDates = React.useMemo(() => {
+    const matchers: Array<{ before: Date } | { after: Date }> = [];
+    if (fromDate) {
+      matchers.push({ before: fromDate });
+    }
+    if (toDate) {
+      matchers.push({ after: toDate });
+    }
+    return matchers.length > 0 ? matchers : undefined;
+  }, [fromDate, toDate]);
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -51,6 +69,7 @@ export function DatePicker({
           selected={date}
           onSelect={onDateChange}
           initialFocus
+          disabled={disabledDates}
         />
       </PopoverContent>
     </Popover>

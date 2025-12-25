@@ -21,19 +21,19 @@ export function StepHeader({
   return (
     <header
       className={cn(
-        "mb-8 md:mb-10",
+        "mb-6 md:mb-8",
         // 애니메이션
         "animate-in fade-in-0 slide-in-from-top-2 duration-300",
         className
       )}
     >
       {/* 스텝 번호 뱃지 */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-2 mb-4">
         <span
           className={cn(
             "inline-flex items-center justify-center",
-            "px-5 py-2 rounded-full",
-            "text-lg md:text-xl font-bold",
+            "px-3 py-1.5 rounded-full",
+            "text-sm md:text-base font-bold",
             variant === "primary"
               ? "bg-primary/10 text-primary"
               : "bg-secondary/10 text-secondary"
@@ -44,21 +44,21 @@ export function StepHeader({
       </div>
 
       {/* 제목 영역 */}
-      <div className="flex items-start gap-5">
+      <div className="flex items-start gap-4">
         {/* 아이콘 (있는 경우) */}
         {icon && (
           <div
             className={cn(
               "flex-shrink-0",
-              "w-16 h-16 md:w-20 md:h-20",
-              "rounded-2xl",
+              "w-12 h-12 md:w-14 md:h-14",
+              "rounded-xl",
               "flex items-center justify-center",
               variant === "primary"
                 ? "bg-primary/10 text-primary"
                 : "bg-secondary/10 text-secondary"
             )}
           >
-            <span className="w-8 h-8 md:w-10 md:h-10">{icon}</span>
+            <span className="w-6 h-6 md:w-7 md:h-7">{icon}</span>
           </div>
         )}
 
@@ -66,8 +66,8 @@ export function StepHeader({
         <div className="flex-1 min-w-0">
           <h1
             className={cn(
-              "text-2xl md:text-3xl lg:text-4xl font-extrabold",
-              "mb-3",
+              "text-xl md:text-2xl font-bold",
+              "mb-2",
               variant === "primary" ? "text-gray-900" : "text-gray-900"
             )}
           >
@@ -75,7 +75,7 @@ export function StepHeader({
           </h1>
 
           {description && (
-            <p className="text-lg md:text-xl text-gray-600">{description}</p>
+            <p className="text-base text-gray-600">{description}</p>
           )}
         </div>
       </div>

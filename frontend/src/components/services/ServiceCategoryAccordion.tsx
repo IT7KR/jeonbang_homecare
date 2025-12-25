@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ServiceCard } from "./ServiceCard";
+import { ServiceCheckboxItem } from "./ServiceCheckboxItem";
 import type { ServiceCategoryAccordionProps } from "./types";
 
 // 아이콘 매핑
@@ -56,6 +57,8 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
   isExpanded,
   onToggleExpand,
   variant = "primary",
+  seniorMode = false,
+  compactMode = false,
   className,
 }: ServiceCategoryAccordionProps) {
   const isPrimary = variant === "primary";
@@ -77,27 +80,25 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 overflow-hidden",
-        // 전환 효과 - 테두리 색상만 전환 (깜빡임 방지)
+        "rounded-xl border overflow-hidden",
         "transition-[border-color,box-shadow] duration-150",
         selectedCount > 0
           ? isPrimary
-            ? "border-primary/50 shadow-md"
-            : "border-secondary/50 shadow-md"
+            ? "border-primary/40 shadow-sm"
+            : "border-secondary/40 shadow-sm"
           : "border-gray-200",
         className
       )}
     >
-      {/* 카테고리 헤더 - 항상 표시, 클릭 가능 */}
+      {/* 카테고리 헤더 - 컴팩트 */}
       <button
         type="button"
         onClick={onToggleExpand}
         aria-expanded={isExpanded}
         aria-controls={`category-content-${id}`}
         className={cn(
-          "w-full px-5 md:px-6 py-4 md:py-5",
-          "flex items-center justify-between",
-          // 전환 효과 - 배경색만 전환 (깜빡임 방지)
+          "w-full flex items-center justify-between",
+          "px-4 py-3",
           "transition-colors duration-150",
           "hover:bg-gray-50",
           "focus:outline-none focus:ring-2 focus:ring-inset",
@@ -108,98 +109,75 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
             : "bg-white focus:ring-gray-400"
         )}
       >
-        <div className="flex items-center gap-4">
-          {/* 카테고리 번호 */}
-          <div
-            className={cn(
-              "w-11 h-11 md:w-12 md:h-12",
-              "rounded-full",
-              "flex items-center justify-center",
-              "text-lg md:text-xl font-bold",
-              selectedCount > 0
-                ? isPrimary
-                  ? "bg-primary text-white"
-                  : "bg-secondary text-white"
-                : "bg-gray-200 text-gray-600"
-            )}
-          >
-            {index + 1}
-          </div>
-
+        <div className="flex items-center gap-3">
           {/* 아이콘 */}
           <div
             className={cn(
-              "w-12 h-12 md:w-14 md:h-14",
-              "rounded-xl",
-              "flex items-center justify-center",
+              "w-10 h-10 rounded-lg flex items-center justify-center",
               selectedCount > 0
                 ? isPrimary
-                  ? "bg-primary/20 text-primary"
-                  : "bg-secondary/20 text-secondary"
+                  ? "bg-primary/15 text-primary"
+                  : "bg-secondary/15 text-secondary"
                 : "bg-gray-100 text-gray-500"
             )}
           >
-            <Icon className="w-6 h-6 md:w-7 md:h-7" />
+            <Icon className="w-5 h-5" />
           </div>
 
           {/* 카테고리 이름 */}
           <div className="text-left">
             <span
               className={cn(
-                "block font-bold text-xl md:text-2xl",
+                "block text-base font-semibold",
                 selectedCount > 0 ? "text-gray-900" : "text-gray-700"
               )}
             >
               {name}
             </span>
-            <span className="block text-sm md:text-base text-gray-500 mt-0.5">
+            <span className="block text-xs text-gray-500">
               {services.length}개 항목
             </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* 선택 카운트 뱃지 */}
           {selectedCount > 0 && (
             <div
               className={cn(
-                "px-4 py-2 rounded-full",
-                "text-sm md:text-base font-bold",
+                "px-2.5 py-1 rounded-full text-xs font-semibold",
                 isPrimary
                   ? "bg-primary text-white"
                   : "bg-secondary text-white"
               )}
             >
-              {selectedCount}개 선택
+              {selectedCount}개
             </div>
           )}
 
           {/* 확장/축소 아이콘 */}
           <div
             className={cn(
-              "w-10 h-10 md:w-11 md:h-11",
-              "rounded-full",
-              "flex items-center justify-center",
-              // 전환 효과 - 배경색만 전환 (깜빡임 방지)
+              "w-8 h-8 rounded-full flex items-center justify-center",
               "transition-colors duration-150",
               isExpanded ? "bg-gray-200" : "bg-gray-100"
             )}
           >
             {isExpanded ? (
-              <ChevronUp className="w-6 h-6 text-gray-600" />
+              <ChevronUp className="w-4 h-4 text-gray-600" />
             ) : (
-              <ChevronDown className="w-6 h-6 text-gray-600" />
+              <ChevronDown className="w-4 h-4 text-gray-600" />
             )}
           </div>
         </div>
       </button>
 
-      {/* 서비스 목록 - 확장 시 표시 (애니메이션 제거하여 깜빡임 방지) */}
+      {/* 서비스 목록 - 확장 시 표시 */}
       {isExpanded && (
         <div
           id={`category-content-${id}`}
           className={cn(
-            "p-5 border-t-2",
+            "border-t p-3",
             selectedCount > 0
               ? isPrimary
                 ? "border-primary/20 bg-white"
@@ -207,19 +185,36 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
               : "border-gray-100 bg-gray-50/50"
           )}
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {services.map((service) => (
-              <ServiceCard
-                key={service.code}
-                code={service.code}
-                name={service.name}
-                description={service.description}
-                isSelected={selectedServices.includes(service.code)}
-                onClick={() => handleServiceToggle(service.code)}
-                isActive={service.isActive !== false}
-                variant={variant}
-              />
-            ))}
+          <div className={cn(
+            "grid grid-cols-2 gap-2",
+            // 컴팩트 모드가 아닐 때만 반응형 3열 허용
+            !compactMode && "lg:grid-cols-3"
+          )}>
+            {services.map((service) =>
+              compactMode ? (
+                <ServiceCheckboxItem
+                  key={service.code}
+                  code={service.code}
+                  name={service.name}
+                  isSelected={selectedServices.includes(service.code)}
+                  onClick={() => handleServiceToggle(service.code)}
+                  isActive={service.isActive !== false}
+                  variant={variant}
+                />
+              ) : (
+                <ServiceCard
+                  key={service.code}
+                  code={service.code}
+                  name={service.name}
+                  description={service.description}
+                  isSelected={selectedServices.includes(service.code)}
+                  onClick={() => handleServiceToggle(service.code)}
+                  isActive={service.isActive !== false}
+                  variant={variant}
+                  seniorMode={seniorMode}
+                />
+              )
+            )}
           </div>
         </div>
       )}

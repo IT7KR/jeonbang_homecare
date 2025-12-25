@@ -18,7 +18,7 @@ export interface SeniorLabelProps {
   /** 선택 항목 여부 */
   optional?: boolean;
   /** 힌트 텍스트 */
-  hint?: string;
+  hint?: ReactNode;
   /** 테마 variant */
   variant?: SeniorFormVariant;
   /** 추가 className */
@@ -119,13 +119,15 @@ export interface SeniorInputProps
   /** 선택 항목 여부 */
   optional?: boolean;
   /** 힌트 텍스트 */
-  hint?: string;
+  hint?: ReactNode;
   /** 에러 메시지 */
   error?: string;
   /** 테마 variant */
   variant?: SeniorFormVariant;
   /** 컨테이너 className */
   containerClassName?: string;
+  /** 좌측 아이콘 */
+  leftIcon?: ReactNode;
 }
 
 /**
@@ -142,11 +144,24 @@ export interface SeniorTextareaProps
   /** 선택 항목 여부 */
   optional?: boolean;
   /** 힌트 텍스트 */
-  hint?: string;
+  hint?: ReactNode;
   /** 에러 메시지 */
   error?: string;
   /** 테마 variant */
   variant?: SeniorFormVariant;
   /** 컨테이너 className */
   containerClassName?: string;
+  /**
+   * 접이식 모드 활성화
+   * 기본 줄 수로 시작하고, 펼치기 버튼으로 확장
+   */
+  collapsible?: boolean;
+  /** 접힌 상태의 줄 수 (collapsible=true일 때) */
+  collapsedRows?: number;
+  /** 펼쳐진 상태의 줄 수 (collapsible=true일 때) */
+  expandedRows?: number;
+  /** 펼치기 버튼 텍스트 */
+  expandLabel?: string;
+  /** 접기 버튼 텍스트 */
+  collapseLabel?: string;
 }

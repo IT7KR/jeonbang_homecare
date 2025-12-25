@@ -29,9 +29,15 @@ export function AgreementCheckbox({
 
   return (
     <div className={cn("space-y-2", className)}>
-      <div
+      <button
+        type="button"
+        role="checkbox"
+        aria-checked={checked}
+        aria-describedby={error ? `${id}-error` : undefined}
+        disabled={disabled}
+        onClick={() => !disabled && onChange(!checked)}
         className={cn(
-          "flex items-start gap-4 p-4 rounded-xl",
+          "w-full flex items-start gap-4 p-4 rounded-xl text-left",
           "border-2 transition-all duration-200",
           "cursor-pointer",
           checked
@@ -42,19 +48,18 @@ export function AgreementCheckbox({
           error && "border-red-300 bg-red-50",
           disabled && "opacity-50 cursor-not-allowed"
         )}
-        onClick={() => !disabled && onChange(!checked)}
       >
-        {/* 체크박스 */}
+        {/* 체크박스 아이콘 */}
         <div className="flex-shrink-0 pt-0.5">
           <input
             type="checkbox"
             id={id}
             name={name}
             checked={checked}
-            onChange={(e) => onChange(e.target.checked)}
+            readOnly
             disabled={disabled}
             required={required}
-            aria-describedby={error ? `${id}-error` : undefined}
+            tabIndex={-1}
             className="sr-only"
           />
           <div
@@ -124,7 +129,7 @@ export function AgreementCheckbox({
             </a>
           )}
         </div>
-      </div>
+      </button>
 
       {/* 에러 메시지 */}
       <FieldError message={error} fieldId={id} variant={variant} />

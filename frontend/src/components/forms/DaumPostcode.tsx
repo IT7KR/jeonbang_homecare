@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks";
 
 declare global {
   interface Window {
@@ -38,7 +39,8 @@ interface DaumPostcodeProps {
   value: string;
   onChange: (address: string, zonecode?: string) => void;
   placeholder?: string;
-  className?: string;
+  className?: string; // Container class
+  triggerClassName?: string; // Button/Input class
   error?: string;
 }
 
@@ -47,6 +49,7 @@ export function DaumPostcode({
   onChange,
   placeholder = "주소를 검색하세요",
   className,
+  triggerClassName,
   error,
 }: DaumPostcodeProps) {
   const [isScriptLoaded, setIsScriptLoaded] = useState(false);
@@ -67,7 +70,7 @@ export function DaumPostcode({
 
   const handleSearch = () => {
     if (!isScriptLoaded || !window.daum) {
-      alert("주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
+      toast.warning("주소 검색 서비스를 불러오는 중입니다. 잠시 후 다시 시도해주세요.");
       return;
     }
 
@@ -88,7 +91,12 @@ export function DaumPostcode({
     <div className={cn("space-y-2", className)}>
       {/* 선택된 주소 표시 */}
       {value ? (
-        <div className="flex items-center gap-2 p-3 bg-primary-50 border border-primary/20 rounded-lg">
+        <div
+          className={cn(
+            "flex items-center gap-2 p-3 bg-primary-50 border border-primary/20 rounded-lg",
+            triggerClassName
+          )}
+        >
           <MapPin className="h-5 w-5 text-primary flex-shrink-0" />
           <span className="flex-1 text-gray-900">{value}</span>
           <button
@@ -106,7 +114,10 @@ export function DaumPostcode({
           type="button"
           variant="outline"
           onClick={handleSearch}
-          className="w-full h-12 justify-start text-gray-400 font-normal hover:text-gray-600"
+          className={cn(
+            "w-full h-12 justify-start text-gray-400 font-normal hover:text-gray-600",
+            triggerClassName
+          )}
         >
           <Search className="h-5 w-5 mr-2" />
           {placeholder}

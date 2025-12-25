@@ -39,7 +39,10 @@ export function ServiceSelector(props: ServiceSelectorProps) {
     enableGroupTabs = false,
     enableSearch = false,
     enableDesktopLayout = false,
+    enableQuickNav = true,
     defaultGroup = "outdoor",
+    seniorMode = false,
+    compactMode = false,
     className,
   } = props;
 
@@ -51,7 +54,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
   // 검색 상태
   const [searchQuery, setSearchQuery] = useState("");
 
-  // 확장된 카테고리 상태 (기본: 처음 3개)
+  // 확장된 카테고리 상태 (기본: 처음 3개, 시니어 모드에서는 전체)
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
     new Set()
   );
@@ -86,6 +89,20 @@ export function ServiceSelector(props: ServiceSelectorProps) {
     const group = SERVICE_GROUPS.find((g) => g.id === activeGroup);
     if (!group) return categoriesList;
 
+    // Others 그룹인 경우: others에 명시된 것 + 다른 그룹 어디에도 속하지 않은 것(미분류) 포함
+    if (activeGroup === "others") {
+      const otherGroupsIds = new Set(
+        SERVICE_GROUPS.filter((g) => g.id !== "others").flatMap(
+          (g) => g.categoryIds
+        )
+      );
+
+      return categoriesList.filter((cat) => {
+        const catId = getCategoryId(cat);
+        return group.categoryIds.includes(catId) || !otherGroupsIds.has(catId);
+      });
+    }
+
     return categoriesList.filter((cat) => {
       const catId = getCategoryId(cat);
       return group.categoryIds.includes(catId);
@@ -116,11 +133,31 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
   // 그룹별 선택 개수 계산
   const groupSelectedCounts = useMemo(() => {
+    // 다른 그룹(others 제외)에 속한 ID 집합 미리 계산
+    const otherGroupsIds = new Set(
+      SERVICE_GROUPS.filter((g) => g.id !== "others").flatMap(
+        (g) => g.categoryIds
+      )
+    );
+
     return SERVICE_GROUPS.reduce((acc, group) => {
-      const groupCategories = categoriesList.filter((cat) => {
-        const catId = getCategoryId(cat);
-        return group.categoryIds.includes(catId);
-      });
+      let groupCategories;
+
+      if (group.id === "others") {
+        // Others: 명시적 포함 + 미분류 항목
+        groupCategories = categoriesList.filter((cat) => {
+          const catId = getCategoryId(cat);
+          return (
+            group.categoryIds.includes(catId) || !otherGroupsIds.has(catId)
+          );
+        });
+      } else {
+        // 일반 그룹
+        groupCategories = categoriesList.filter((cat) => {
+          const catId = getCategoryId(cat);
+          return group.categoryIds.includes(catId);
+        });
+      }
 
       let count = 0;
       groupCategories.forEach((cat) => {
@@ -148,14 +185,20 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
     if (filteredCategories.length > 0) {
       const initialExpanded = new Set<string>();
-      filteredCategories.slice(0, 3).forEach((cat) => {
+      // 개선: 시니어 모드에서도 초기에는 상위 2개만 펼쳐서 스크롤 부담 감소
+      const categoriesToExpand = filteredCategories.slice(
+        0,
+        seniorMode ? 2 : 3
+      );
+
+      categoriesToExpand.forEach((cat) => {
         initialExpanded.add(getCategoryId(cat));
       });
       setExpandedCategories(initialExpanded);
       // 초기화 완료 표시
       initializedGroupsRef.current.add(activeGroup);
     }
-  }, [activeGroup, filteredCategories, getCategoryId]);
+  }, [activeGroup, filteredCategories, getCategoryId, seniorMode]);
 
   // 카테고리 확장/축소 토글
   const toggleCategory = useCallback((categoryId: string) => {
@@ -191,7 +234,8 @@ export function ServiceSelector(props: ServiceSelectorProps) {
         return category.services.map((s) => ({
           ...s,
           // API 응답의 is_active를 isActive로 매핑
-          isActive: (s as unknown as { is_active?: boolean }).is_active !== false,
+          isActive:
+            (s as unknown as { is_active?: boolean }).is_active !== false,
         }));
       } else {
         // 상수 데이터 - 이름만 있는 경우
@@ -292,24 +336,68 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
   // 카테고리 목록 영역
   const CategoriesSection = () => (
-    <div className="space-y-5">
-      {/* 펼치기/접기 컨트롤 */}
+    <div className="space-y-3">
+      {/* 퀵 네비게이션 (가로 칩 목록) - 옵션으로 제어 */}
+      {enableQuickNav && filteredCategories.length > 1 && (
+        <div className="flex overflow-x-auto pb-2 gap-2 scrollbar-hide -mx-1 px-1">
+          {filteredCategories.map((cat) => {
+            const id = getCategoryId(cat);
+            const isExpanded = expandedCategories.has(id);
+            return (
+              <button
+                key={`nav-${id}`}
+                type="button"
+                onClick={() => {
+                  if (!isExpanded) toggleCategory(id);
+                  // 해당 ID를 가진 요소로 스크롤
+                  setTimeout(() => {
+                    const el = document.getElementById(`category-${id}`);
+                    if (el) {
+                      const offset = 100; // 상단 여백 (헤더 고려)
+                      const bodyRect =
+                        document.body.getBoundingClientRect().top;
+                      const elementRect = el.getBoundingClientRect().top;
+                      const elementPosition = elementRect - bodyRect;
+                      const offsetPosition = elementPosition - offset;
+
+                      window.scrollTo({
+                        top: offsetPosition,
+                        behavior: "smooth",
+                      });
+                    }
+                  }, 50);
+                }}
+                className={cn(
+                  "flex-shrink-0 px-3 py-1.5 rounded-full text-sm font-semibold border transition-all",
+                  isExpanded
+                    ? isPrimary
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-secondary/10 border-secondary text-secondary"
+                    : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
+                )}
+              >
+                {cat.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 펼치기/접기 컨트롤 - 컴팩트 */}
       <div className="flex justify-between items-center">
-        <span className="text-base md:text-lg text-gray-500">
+        <span className="text-sm text-gray-500">
           {filteredCategories.length}개 카테고리
         </span>
         <button
           type="button"
           onClick={allExpanded ? collapseAll : expandAll}
           className={cn(
-            "px-5 py-2.5 rounded-xl",
-            "text-base md:text-lg font-semibold",
-            "border-2 transition-colors",
-            "hover:shadow-sm",
-            "focus:outline-none focus:ring-2 focus:ring-offset-2",
+            "px-3 py-1.5 rounded-lg",
+            "text-sm font-medium",
+            "border transition-colors",
             isPrimary
-              ? "border-primary/30 text-primary hover:bg-primary/5 focus:ring-primary"
-              : "border-secondary/30 text-secondary hover:bg-secondary/5 focus:ring-secondary"
+              ? "border-primary/30 text-primary hover:bg-primary/5"
+              : "border-secondary/30 text-secondary hover:bg-secondary/5"
           )}
         >
           {allExpanded ? "모두 접기" : "모두 펼치기"}
@@ -318,7 +406,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
       {/* 카테고리 목록 */}
       {filteredCategories.length > 0 ? (
-        <div className="space-y-5">
+        <div className="space-y-3">
           {filteredCategories.map((category, index) => {
             const id = getCategoryId(category);
             const name = category.name;
@@ -328,7 +416,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
             return (
               <ServiceCategoryAccordion
                 key={id}
-                id={id}
+                id={`category-${id}`}
                 name={name}
                 index={index}
                 icon={icon}
@@ -338,6 +426,8 @@ export function ServiceSelector(props: ServiceSelectorProps) {
                 isExpanded={expandedCategories.has(id)}
                 onToggleExpand={handleCategoryToggle(id)}
                 variant={variant}
+                seniorMode={seniorMode}
+                compactMode={compactMode}
               />
             );
           })}
@@ -402,7 +492,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
         variant={variant}
       />
 
-      {/* 메인 콘텐츠 - 반응형 레이아웃 */}
+      {/* 레이아웃: 데스크톱 2단 또는 기본 세로 스택 */}
       {enableDesktopLayout && (enableGroupTabs || enableSearch) ? (
         <>
           {/* 모바일: 세로 스택 */}
@@ -434,26 +524,6 @@ export function ServiceSelector(props: ServiceSelectorProps) {
         </div>
       )}
 
-      {/* 하단 요약 (선택 시) */}
-      {selectedServices.length > 0 && (
-        <div
-          className={cn(
-            "rounded-2xl p-6 md:p-8 text-center",
-            isPrimary ? "bg-primary/10" : "bg-secondary/10"
-          )}
-        >
-          <p className="text-xl md:text-2xl font-bold text-gray-900">
-            총{" "}
-            <span className={isPrimary ? "text-primary" : "text-secondary"}>
-              {selectedServices.length}개
-            </span>{" "}
-            서비스가 선택되었습니다
-          </p>
-          <p className="text-base md:text-lg text-gray-600 mt-2">
-            아래 정보를 입력하고 신청해 주세요
-          </p>
-        </div>
-      )}
     </div>
   );
 }

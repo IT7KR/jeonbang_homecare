@@ -51,6 +51,7 @@ export interface AdminListLayoutProps<T> {
   emptyIcon: ReactNode;
   emptyMessage: string;
   onRowClick?: (item: T) => void;
+  getRowClassName?: (item: T) => string; // 행별 스타일링
 
   // 페이지네이션
   page: number;
@@ -201,6 +202,7 @@ function DataTable<T>({
   emptyIcon,
   emptyMessage,
   onRowClick,
+  getRowClassName,
 }: {
   columns: ColumnDef<T>[];
   data: T[];
@@ -208,6 +210,7 @@ function DataTable<T>({
   emptyIcon: ReactNode;
   emptyMessage: string;
   onRowClick?: (item: T) => void;
+  getRowClassName?: (item: T) => string;
 }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -241,7 +244,7 @@ function DataTable<T>({
               data.map((item) => (
                 <tr
                   key={keyExtractor(item)}
-                  className={`hover:bg-gray-50/50 transition-colors ${onRowClick ? "cursor-pointer" : ""}`}
+                  className={`hover:bg-gray-50/50 transition-colors ${onRowClick ? "cursor-pointer" : ""} ${getRowClassName?.(item) || ""}`}
                   onClick={() => onRowClick?.(item)}
                 >
                   {columns.map((col) => (
@@ -337,6 +340,7 @@ export function AdminListLayout<T>({
   emptyIcon,
   emptyMessage,
   onRowClick,
+  getRowClassName,
   page,
   totalPages,
   total,
@@ -381,6 +385,7 @@ export function AdminListLayout<T>({
             emptyIcon={emptyIcon}
             emptyMessage={emptyMessage}
             onRowClick={onRowClick}
+            getRowClassName={getRowClassName}
           />
 
           <Pagination

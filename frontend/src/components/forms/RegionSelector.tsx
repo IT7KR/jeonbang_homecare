@@ -21,12 +21,23 @@ import {
 import { type SelectedRegion, formatSelectedRegions } from "@/lib/constants/regions";
 import { cn } from "@/lib/utils";
 
+/**
+ * 빠른 선택용 프리셋 지역
+ * 양평군, 가평군이 주 서비스 지역
+ */
+const QUICK_SELECT_PRESETS = [
+  { provinceCode: "41830", provinceName: "양평군", label: "양평군 전체" },
+  { provinceCode: "41820", provinceName: "가평군", label: "가평군 전체" },
+];
+
 interface RegionSelectorProps {
   value: SelectedRegion[];
   onChange: (regions: SelectedRegion[]) => void;
   placeholder?: string;
   className?: string;
   error?: string;
+  /** 시니어 친화적 빠른 선택 모드 */
+  quickSelectMode?: boolean;
 }
 
 export function RegionSelector({
@@ -35,9 +46,11 @@ export function RegionSelector({
   placeholder = "활동 지역을 선택하세요",
   className,
   error,
+  quickSelectMode = false,
 }: RegionSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expandedProvince, setExpandedProvince] = useState<string | null>(null);
+  const [showDetailedSelector, setShowDetailedSelector] = useState(false);
 
   // API에서 지역 데이터 가져오기
   const {
@@ -205,55 +218,191 @@ export function RegionSelector({
     setIsOpen(false);
   };
 
+  // 빠른 선택 프리셋 처리
+  const handleQuickSelect = (preset: typeof QUICK_SELECT_PRESETS[0]) => {
+    const existing = value.find((r) => r.provinceCode === preset.provinceCode);
+
+    if (existing?.isAllDistricts) {
+      // 이미 전체 선택됨 → 해제
+      onChange(value.filter((r) => r.provinceCode !== preset.provinceCode));
+    } else {
+      // 전체 선택으로 추가/변경
+      const newRegion: SelectedRegion = {
+        provinceCode: preset.provinceCode,
+        provinceName: preset.provinceName,
+        districtCodes: [],
+        districtNames: [],
+        isAllDistricts: true,
+      };
+      const filtered = value.filter((r) => r.provinceCode !== preset.provinceCode);
+      onChange([...filtered, newRegion]);
+    }
+  };
+
+  // 빠른 선택 프리셋이 선택되었는지 확인
+  const isPresetSelected = (preset: typeof QUICK_SELECT_PRESETS[0]) => {
+    const region = value.find((r) => r.provinceCode === preset.provinceCode);
+    return region?.isAllDistricts ?? false;
+  };
+
   return (
-    <div className={cn("space-y-2", className)}>
-      {/* 선택된 지역 표시 또는 선택 버튼 */}
-      {value.length > 0 ? (
-        <div className="space-y-2">
-          {/* 선택된 지역 태그들 */}
-          <div className="flex flex-wrap gap-2">
-            {value.map((region) => (
-              <div
-                key={region.provinceCode}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary rounded-lg text-sm"
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                <span>
-                  {region.isAllDistricts
-                    ? `${region.provinceName} 전체`
-                    : `${region.provinceName} ${region.districtNames.join(", ")}`}
-                </span>
+    <div className={cn("space-y-3", className)}>
+      {/* 빠른 선택 모드 UI */}
+      {quickSelectMode && (
+        <div className="space-y-4">
+          {/* 빠른 선택 버튼들 */}
+          <div className="flex flex-wrap gap-3">
+            {QUICK_SELECT_PRESETS.map((preset) => {
+              const selected = isPresetSelected(preset);
+              return (
                 <button
+                  key={preset.provinceCode}
                   type="button"
-                  onClick={() => handleRemoveRegion(region.provinceCode)}
-                  className="ml-1 hover:text-secondary/70"
+                  onClick={() => handleQuickSelect(preset)}
+                  className={cn(
+                    "flex items-center gap-2",
+                    "px-5 py-3 rounded-xl",
+                    "text-[16px] font-medium",
+                    "border-2 transition-all duration-200",
+                    "min-h-[56px]",
+                    selected
+                      ? "bg-secondary text-white border-secondary"
+                      : "bg-white text-gray-700 border-gray-200 hover:border-secondary hover:text-secondary"
+                  )}
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <MapPin className="w-5 h-5" />
+                  <span>{preset.label}</span>
+                  {selected && <Check className="w-5 h-5 ml-1" />}
                 </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          {/* 추가/수정 버튼 */}
-          <Button
+
+          {/* 직접 선택하기 토글 */}
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setIsOpen(!isOpen)}
-            className="text-gray-600"
+            onClick={() => setShowDetailedSelector(!showDetailedSelector)}
+            className={cn(
+              "flex items-center gap-2",
+              "text-[14px] font-medium",
+              "text-secondary hover:text-secondary/80",
+              "transition-colors duration-200"
+            )}
           >
-            {isOpen ? "닫기" : "지역 추가/수정"}
-          </Button>
+            {showDetailedSelector ? (
+              <>
+                <ChevronDown className="w-4 h-4" />
+                다른 지역 닫기
+              </>
+            ) : (
+              <>
+                <ChevronRight className="w-4 h-4" />
+                다른 지역 직접 선택하기
+              </>
+            )}
+          </button>
+
+          {/* 직접 선택 모드에서만 기존 UI 표시 */}
+          {showDetailedSelector && (
+            <div className="pt-2">
+              {/* 선택된 지역 중 프리셋 외의 지역만 표시 */}
+              {value.filter(
+                (r) => !QUICK_SELECT_PRESETS.some((p) => p.provinceCode === r.provinceCode)
+              ).length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {value
+                    .filter(
+                      (r) => !QUICK_SELECT_PRESETS.some((p) => p.provinceCode === r.provinceCode)
+                    )
+                    .map((region) => (
+                      <div
+                        key={region.provinceCode}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary rounded-lg text-sm"
+                      >
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>
+                          {region.isAllDistricts
+                            ? `${region.provinceName} 전체`
+                            : `${region.provinceName} ${region.districtNames.join(", ")}`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveRegion(region.provinceCode)}
+                          className="ml-1 hover:text-secondary/70"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* 지역 추가 버튼 */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsOpen(!isOpen)}
+                className="text-gray-600"
+              >
+                {isOpen ? "닫기" : "지역 선택하기"}
+              </Button>
+            </div>
+          )}
         </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full h-12 justify-start text-gray-400 font-normal hover:text-gray-600"
-        >
-          <MapPin className="h-5 w-5 mr-2" />
-          {placeholder}
-        </Button>
+      )}
+
+      {/* 기본 모드 UI (quickSelectMode가 아닐 때) */}
+      {!quickSelectMode && (
+        <>
+          {value.length > 0 ? (
+            <div className="space-y-2">
+              {/* 선택된 지역 태그들 */}
+              <div className="flex flex-wrap gap-2">
+                {value.map((region) => (
+                  <div
+                    key={region.provinceCode}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary/10 text-secondary rounded-lg text-sm"
+                  >
+                    <MapPin className="h-3.5 w-3.5" />
+                    <span>
+                      {region.isAllDistricts
+                        ? `${region.provinceName} 전체`
+                        : `${region.provinceName} ${region.districtNames.join(", ")}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRegion(region.provinceCode)}
+                      className="ml-1 hover:text-secondary/70"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {/* 추가/수정 버튼 */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsOpen(!isOpen)}
+                className="text-gray-600"
+              >
+                {isOpen ? "닫기" : "지역 추가/수정"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOpen(!isOpen)}
+              className="w-full h-12 justify-start text-gray-400 font-normal hover:text-gray-600"
+            >
+              <MapPin className="h-5 w-5 mr-2" />
+              {placeholder}
+            </Button>
+          )}
+        </>
       )}
 
       {/* 지역 선택 패널 */}

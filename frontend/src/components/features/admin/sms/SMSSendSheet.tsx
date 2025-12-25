@@ -33,6 +33,8 @@ interface SMSSendSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete?: () => void;
+  /** true일 경우 단일 수신자만 선택 가능 */
+  singleSelect?: boolean;
 }
 
 type Tab = "customer" | "partner";
@@ -49,6 +51,7 @@ export function SMSSendSheet({
   open,
   onOpenChange,
   onComplete,
+  singleSelect = false,
 }: SMSSendSheetProps) {
   const { getValidToken } = useAuthStore();
 
@@ -146,15 +149,14 @@ export function SMSSendSheet({
         )
       );
     } else {
-      setSelectedRecipients([
-        ...selectedRecipients,
-        {
-          id: recipient.id,
-          name: recipient.name,
-          phone: recipient.phone,
-          type: recipient.type,
-        },
-      ]);
+      // singleSelect 모드일 경우 기존 선택 초기화 후 새로운 수신자만 선택
+      const newRecipient = {
+        id: recipient.id,
+        name: recipient.name,
+        phone: recipient.phone,
+        type: recipient.type,
+      };
+      setSelectedRecipients(singleSelect ? [newRecipient] : [...selectedRecipients, newRecipient]);
     }
   };
 
@@ -417,12 +419,15 @@ export function SMSSendSheet({
                   <span className="text-sm font-medium text-gray-700">
                     선택됨: {selectedRecipients.length}명
                   </span>
-                  <button
-                    onClick={() => setSelectedRecipients([])}
-                    className="text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    전체 해제
-                  </button>
+                  {/* 복수 선택 모드일 때만 전체 해제 버튼 표시 */}
+                  {!singleSelect && (
+                    <button
+                      onClick={() => setSelectedRecipients([])}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      전체 해제
+                    </button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
                   {selectedRecipients.slice(0, 10).map((r) => (
@@ -444,7 +449,7 @@ export function SMSSendSheet({
                       </button>
                     </span>
                   ))}
-                  {selectedRecipients.length > 10 && (
+                  {!singleSelect && selectedRecipients.length > 10 && (
                     <span className="text-xs text-gray-500 px-2 py-1">
                       +{selectedRecipients.length - 10}명
                     </span>

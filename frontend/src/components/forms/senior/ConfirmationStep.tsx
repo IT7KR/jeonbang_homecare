@@ -160,7 +160,7 @@ function ConfirmationItemRow({
 
       {/* 라벨 및 값 */}
       <div className="flex-1 min-w-0">
-        <dt className="text-[14px] font-medium text-gray-500 mb-1">
+        <dt className="text-[16px] font-semibold text-gray-600 mb-1.5">
           {item.label}
         </dt>
         <dd className="text-[18px] font-medium break-words">{renderValue()}</dd>

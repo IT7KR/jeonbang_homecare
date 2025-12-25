@@ -2,11 +2,13 @@
 
 import { UseFormReturn } from "react-hook-form";
 import { User, MapPin, Mail } from "lucide-react";
-import { cn } from "@/lib/utils";
 import type { PartnerFormData } from "@/lib/validations/partner";
 import type { SelectedRegion } from "@/lib/constants/regions";
-import { StepHeader } from "@/components/wizard";
-import { SeniorInput, SeniorLabel, FieldError } from "@/components/forms/senior";
+import {
+  SeniorInput,
+  SeniorLabel,
+  FieldError,
+} from "@/components/forms/senior";
 import { PhoneInput } from "@/components/forms/PhoneInput";
 import { DaumPostcode } from "@/components/forms/DaumPostcode";
 import { RegionSelector } from "@/components/forms/RegionSelector";
@@ -28,17 +30,7 @@ export function PartnerStep3Contact({ form }: PartnerStep3ContactProps) {
   };
 
   return (
-    <div className="wizard-step-content">
-      <StepHeader
-        stepNumber={3}
-        totalSteps={4}
-        title="연락처와 활동 지역을 알려주세요"
-        description="고객이 연락할 수 있는 정보와 서비스 가능 지역을 입력해 주세요."
-        icon={<User className="w-full h-full" />}
-        variant="secondary"
-      />
-
-      <div className="space-y-8">
+    <div className="space-y-6">
         {/* 연락처 섹션 */}
         <section className="space-y-5">
           <div className="flex items-center gap-3 pb-3 border-b-2 border-gray-100">
@@ -67,29 +59,17 @@ export function PartnerStep3Contact({ form }: PartnerStep3ContactProps) {
               />
             </div>
 
-            <div>
-              <SeniorLabel htmlFor="contactEmail" optional variant="secondary">
-                이메일
-              </SeniorLabel>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <input
-                  id="contactEmail"
-                  type="email"
-                  placeholder="example@email.com"
-                  className={cn(
-                    "input-senior w-full pl-12",
-                    errors.contactEmail && "border-red-300 bg-red-50"
-                  )}
-                  {...register("contactEmail")}
-                />
-              </div>
-              <FieldError
-                message={errors.contactEmail?.message}
-                fieldId="contactEmail"
-                variant="secondary"
-              />
-            </div>
+            <SeniorInput
+              id="contactEmail"
+              label="이메일"
+              type="email"
+              placeholder="example@email.com"
+              optional
+              variant="secondary"
+              leftIcon={<Mail className="h-5 w-5" />}
+              error={errors.contactEmail?.message}
+              {...register("contactEmail")}
+            />
           </div>
         </section>
 
@@ -110,7 +90,8 @@ export function PartnerStep3Contact({ form }: PartnerStep3ContactProps) {
                 setValue("address", address, { shouldValidate: true })
               }
               placeholder="클릭하여 주소 검색"
-              className="input-senior w-full mt-2"
+              className="w-full"
+              triggerClassName="input-senior text-left justify-start font-normal text-gray-400"
               error={errors.address?.message}
             />
           </div>
@@ -134,8 +115,8 @@ export function PartnerStep3Contact({ form }: PartnerStep3ContactProps) {
 
           <div className="rounded-xl bg-secondary/5 p-4 border border-secondary/20 mb-4">
             <p className="text-[16px] text-gray-700">
-              <span className="font-bold text-secondary">안내:</span>{" "}
-              서비스 제공이 가능한 지역을 선택해 주세요. 복수 선택이 가능합니다.
+              <span className="font-bold text-secondary">안내:</span> 서비스
+              제공이 가능한 지역을 선택해 주세요. 복수 선택이 가능합니다.
             </p>
           </div>
 
@@ -146,7 +127,6 @@ export function PartnerStep3Contact({ form }: PartnerStep3ContactProps) {
             error={errors.workRegions?.message}
           />
         </section>
-      </div>
     </div>
   );
 }

@@ -20,7 +20,7 @@ type ToasterProps = React.ComponentProps<typeof SonnerToaster>;
 export function Toaster({ ...props }: ToasterProps) {
   return (
     <SonnerToaster
-      position="top-center"
+      position="bottom-center"
       expand={false}
       richColors
       closeButton

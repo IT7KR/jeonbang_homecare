@@ -24,6 +24,7 @@ export const ServiceCard = memo(function ServiceCard({
   disabled = false,
   isActive = true,
   variant = "primary",
+  seniorMode = false,
   className,
 }: ServiceCardProps) {
   const isPrimary = variant === "primary";
@@ -40,8 +41,8 @@ export const ServiceCard = memo(function ServiceCard({
         // 기본 스타일
         "service-card",
         "w-full text-left",
-        // 터치 타겟
-        "touch-target",
+        // 시니어 모드: 더 넓은 터치 영역
+        seniorMode ? "min-h-[72px] p-4 md:p-5" : "touch-target",
         // 전환 효과 - 색상과 테두리만 전환 (깜빡임 방지)
         "transition-colors duration-150",
         // 포커스 상태
@@ -73,7 +74,8 @@ export const ServiceCard = memo(function ServiceCard({
       <div
         className={cn(
           "flex-shrink-0",
-          "w-9 h-9 md:w-10 md:h-10",
+          // 시니어 모드: 더 큰 체크박스
+          seniorMode ? "w-11 h-11 md:w-12 md:h-12" : "w-9 h-9 md:w-10 md:h-10",
           "rounded-lg border-2",
           "flex items-center justify-center",
           // 전환 효과 - 색상만 전환 (깜빡임 방지)
@@ -88,9 +90,9 @@ export const ServiceCard = memo(function ServiceCard({
         )}
       >
         {!isActive ? (
-          <Clock className="w-4 h-4 text-gray-400" />
+          <Clock className={cn(seniorMode ? "w-5 h-5" : "w-4 h-4", "text-gray-400")} />
         ) : (
-          isSelected && <Check className="w-5 h-5" strokeWidth={3} />
+          isSelected && <Check className={cn(seniorMode ? "w-6 h-6" : "w-5 h-5")} strokeWidth={3} />
         )}
       </div>
 
@@ -99,7 +101,9 @@ export const ServiceCard = memo(function ServiceCard({
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "text-lg md:text-xl leading-tight",
+              "leading-tight",
+              // 시니어 모드: 더 큰 텍스트
+              seniorMode ? "text-[19px] md:text-[21px]" : "text-lg md:text-xl",
               !isActive
                 ? "font-medium text-gray-400"
                 : isSelected
@@ -112,8 +116,11 @@ export const ServiceCard = memo(function ServiceCard({
 
           {/* 준비 중 배지 */}
           {!isActive && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-200 text-gray-500">
-              <Clock className="w-3 h-3" />
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-full font-medium bg-gray-200 text-gray-500",
+              seniorMode ? "px-3 py-1.5 text-sm" : "px-2.5 py-1 text-xs"
+            )}>
+              <Clock className={cn(seniorMode ? "w-4 h-4" : "w-3 h-3")} />
               준비 중
             </span>
           )}
@@ -121,7 +128,9 @@ export const ServiceCard = memo(function ServiceCard({
 
         {description && (
           <span className={cn(
-            "block mt-1 text-sm md:text-base line-clamp-2",
+            "block mt-1 line-clamp-2",
+            // 시니어 모드: 더 큰 설명 텍스트
+            seniorMode ? "text-[15px] md:text-[16px]" : "text-sm md:text-base",
             !isActive ? "text-gray-400" : "text-gray-500"
           )}>
             {description}

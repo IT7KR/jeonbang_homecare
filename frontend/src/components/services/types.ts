@@ -75,8 +75,35 @@ export interface ServiceCardProps {
   isActive?: boolean;
   /** 테마 variant */
   variant?: ServiceVariant;
+  /** 시니어 친화 모드 (가독성 향상) */
+  seniorMode?: boolean;
   /** 추가 className */
   className?: string;
+}
+
+/**
+ * ServiceCheckboxItem 컴포넌트 Props (컴팩트 모드용)
+ *
+ * - 높이: 48px (고정)
+ * - 체크박스: 24px (원형)
+ * - 텍스트: 16px (1줄, truncate)
+ * - 설명 없음 (이름만)
+ */
+export interface ServiceCheckboxItemProps {
+  /** 서비스 코드 */
+  code: string;
+  /** 서비스 이름 */
+  name: string;
+  /** 선택 여부 */
+  isSelected: boolean;
+  /** 클릭 핸들러 */
+  onClick: () => void;
+  /** 비활성화 여부 */
+  disabled?: boolean;
+  /** 활성화 여부 (false: 준비 중, 선택 불가) */
+  isActive?: boolean;
+  /** 테마 variant */
+  variant?: ServiceVariant;
 }
 
 /**
@@ -103,6 +130,15 @@ export interface ServiceCategoryAccordionProps {
   onToggleExpand: () => void;
   /** 테마 variant */
   variant?: ServiceVariant;
+  /** 시니어 친화 모드 (가독성 향상) */
+  seniorMode?: boolean;
+  /**
+   * 컴팩트 모드 (스크롤 최소화용)
+   * - ServiceCard 대신 ServiceCheckboxItem 사용
+   * - 2열 그리드 레이아웃
+   * - 높이: 72px → 48px per item
+   */
+  compactMode?: boolean;
   /** 추가 className */
   className?: string;
 }
@@ -183,8 +219,24 @@ export interface ServiceSelectorBaseProps {
   enableSearch?: boolean;
   /** 데스크톱 2단 레이아웃 활성화 (768px+) */
   enableDesktopLayout?: boolean;
+  /** 퀵 네비게이션 (카테고리 칩) 활성화 */
+  enableQuickNav?: boolean;
   /** 기본 활성 그룹 */
   defaultGroup?: ServiceGroupId;
+  /**
+   * 시니어 친화 모드 활성화
+   * - 전체 카테고리 기본 펼침
+   * - 카테고리/서비스 터치 영역 및 가독성 향상
+   * - 텍스트 크기 증가
+   */
+  seniorMode?: boolean;
+  /**
+   * 컴팩트 모드 활성화 (스크롤 최소화)
+   * - ServiceCard 대신 ServiceCheckboxItem 사용
+   * - 모바일/데스크톱 모두 2열 그리드
+   * - 스크롤 높이 ~68% 감소
+   */
+  compactMode?: boolean;
   /** 추가 className */
   className?: string;
 }

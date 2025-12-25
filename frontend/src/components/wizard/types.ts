@@ -35,6 +35,8 @@ export interface StepIndicatorProps {
     label: string;
     description?: string;
     icon?: ReactNode;
+    /** 예상 소요시간 (예: "약 1분") */
+    estimatedTime?: string;
   }>;
   /** 현재 스텝 (1부터 시작) */
   currentStep: number;
@@ -46,6 +48,8 @@ export interface StepIndicatorProps {
   onStepClick?: (step: number) => void;
   /** 추가 className */
   className?: string;
+  /** 예상 시간 표시 여부 */
+  showEstimatedTime?: boolean;
 }
 
 /**
@@ -88,6 +92,8 @@ export interface WizardNavigationProps {
   variant?: WizardVariant;
   /** 추가 className */
   className?: string;
+  /** 진행률 퍼센트 표시 여부 */
+  showProgressPercentage?: boolean;
 }
 
 /**

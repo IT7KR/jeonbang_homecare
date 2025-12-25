@@ -1,13 +1,12 @@
 "use client";
 
 import { UseFormReturn } from "react-hook-form";
-import { CheckCircle2, Phone, MapPin, FileText, Briefcase, Image as ImageIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Phone, MapPin, FileText, Briefcase, Image as ImageIcon, Calendar } from "lucide-react";
 import type { ApplicationFormData } from "@/lib/validations/application";
 import type { CategoryItem } from "@/components/services";
-import { StepHeader } from "@/components/wizard";
 import { ConfirmationStep, AgreementCheckbox } from "@/components/forms/senior";
 import type { ConfirmationSection } from "@/components/forms/senior/types";
+import { ROUTES } from "@/lib/constants";
 
 interface ApplyStep3ConfirmProps {
   form: UseFormReturn<ApplicationFormData>;
@@ -16,7 +15,7 @@ interface ApplyStep3ConfirmProps {
 }
 
 /**
- * 서비스 신청 마법사 - Step 3: 확인 및 동의
+ * 서비스 신청 마법사 - Step 4: 확인 및 동의
  */
 export function ApplyStep3Confirm({
   form,
@@ -86,9 +85,19 @@ export function ApplyStep3Confirm({
       title: "요청 내용",
       items: [
         {
-          label: "요청 사항",
+          label: "전달 사항",
           value: values.description || "",
           icon: <FileText className="w-5 h-5" />,
+        },
+        {
+          label: "희망 상담일",
+          value: values.preferredConsultationDate || "미지정",
+          icon: <Calendar className="w-5 h-5" />,
+        },
+        {
+          label: "희망 작업일",
+          value: values.preferredWorkDate || "미지정",
+          icon: <Calendar className="w-5 h-5" />,
         },
         {
           label: "첨부 사진",
@@ -105,26 +114,19 @@ export function ApplyStep3Confirm({
   // 스텝 이동 핸들러 (섹션 인덱스 → 스텝 번호)
   const handleEdit = (sectionIndex: number) => {
     // 섹션 0 (서비스) → 스텝 1
-    // 섹션 1, 2, 3 (정보) → 스텝 2
+    // 섹션 1, 2 (고객정보, 주소) → 스텝 2
+    // 섹션 3 (요청내용) → 스텝 3
     if (sectionIndex === 0) {
       onEditStep(1);
-    } else {
+    } else if (sectionIndex <= 2) {
       onEditStep(2);
+    } else {
+      onEditStep(3);
     }
   };
 
   return (
-    <div className="wizard-step-content">
-      <StepHeader
-        stepNumber={3}
-        totalSteps={3}
-        title="신청 내용을 확인해 주세요"
-        description="아래 내용이 맞는지 확인하시고, 동의 후 제출해 주세요."
-        icon={<CheckCircle2 className="w-full h-full" />}
-        variant="primary"
-      />
-
-      <div className="space-y-8">
+    <div className="space-y-6">
         {/* 확인 섹션 */}
         <ConfirmationStep
           sections={confirmationSections}
@@ -166,18 +168,18 @@ export function ApplyStep3Confirm({
           required
           error={errors.agreePrivacy?.message}
           variant="primary"
+          viewDetailsLink={ROUTES.PRIVACY}
         />
 
         {/* 안내 문구 */}
         <div className="rounded-xl bg-gray-50 p-5 text-center">
-          <p className="text-[16px] text-gray-600">
+          <p className="text-base text-gray-600">
             제출 후{" "}
             <span className="font-bold text-primary">빠른 시일 내에</span>{" "}
             담당자가 연락드리겠습니다.
           </p>
         </div>
       </div>
-    </div>
   );
 }
 

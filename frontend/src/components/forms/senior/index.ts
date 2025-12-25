@@ -5,6 +5,7 @@ export { AgreementCheckbox } from "./AgreementCheckbox";
 export { ConfirmationStep } from "./ConfirmationStep";
 export { SeniorInput } from "./SeniorInput";
 export { SeniorTextarea } from "./SeniorTextarea";
+export { CollapsibleSection } from "./CollapsibleSection";
 
 // 타입 Export
 export type {
@@ -18,3 +19,4 @@ export type {
   SeniorInputProps,
   SeniorTextareaProps,
 } from "./types";
+export type { CollapsibleSectionProps } from "./CollapsibleSection";

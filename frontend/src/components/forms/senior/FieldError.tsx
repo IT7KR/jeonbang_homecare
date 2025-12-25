@@ -23,15 +23,15 @@ export function FieldError({
       role="alert"
       aria-live="polite"
       className={cn(
-        "flex items-start gap-2",
-        "mt-2 p-3 rounded-lg",
+        "flex items-start gap-1.5",
+        "mt-1.5 p-2 rounded-lg",
         "bg-red-50 border border-red-200",
         "animate-in fade-in-0 slide-in-from-top-1 duration-200",
         className
       )}
     >
-      <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-      <p className="text-[16px] text-red-600 font-medium">{message}</p>
+      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+      <p className="text-sm text-red-600 font-medium">{message}</p>
     </div>
   );
 }
