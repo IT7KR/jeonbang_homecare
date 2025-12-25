@@ -14,6 +14,7 @@ class ServiceTypeResponse(BaseModel):
     description: str | None = None
     sort_order: int
     is_active: bool = True
+    booking_status: str = "AVAILABLE"
 
     class Config:
         from_attributes = True

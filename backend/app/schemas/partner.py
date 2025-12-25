@@ -8,6 +8,8 @@ from typing import Optional
 from datetime import datetime
 import re
 
+from app.core.validators import validate_no_xss
+
 
 # 전화번호 정규식
 PHONE_REGEX = re.compile(r"^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$")
@@ -92,6 +94,20 @@ class PartnerCreate(BaseModel):
             raise ValueError("최소 1개 이상의 활동 지역을 선택해주세요")
         return v
 
+    @field_validator(
+        "company_name",
+        "representative_name",
+        "address",
+        "address_detail",
+        "introduction",
+        "experience",
+        "remarks",
+    )
+    @classmethod
+    def validate_xss(cls, v: Optional[str]) -> Optional[str]:
+        """XSS 위험 패턴 검증"""
+        return validate_no_xss(v)
+
 
 class PartnerResponse(BaseModel):
     """협력사 응답 (공개용 - 민감정보 제외)"""
@@ -121,6 +137,7 @@ class PartnerDetailResponse(BaseModel):
     introduction: Optional[str]
     experience: Optional[str]
     remarks: Optional[str]
+    business_registration_file: Optional[str]  # 사업자등록증 파일 경로
     status: str
     approved_by: Optional[int]
     approved_at: Optional[datetime]
@@ -182,12 +199,19 @@ class PartnerUpdate(BaseModel):
                 raise ValueError(f"유효하지 않은 상태: {v}")
         return v
 
+    @field_validator("rejection_reason", "admin_memo")
+    @classmethod
+    def validate_xss(cls, v: Optional[str]) -> Optional[str]:
+        """XSS 위험 패턴 검증"""
+        return validate_no_xss(v)
+
 
 class PartnerApprove(BaseModel):
     """협력사 승인/거절 요청"""
 
     action: str  # approve / reject
     rejection_reason: Optional[str] = None
+    send_sms: bool = True  # SMS 발송 여부 (기본: True)
 
     @field_validator("action")
     @classmethod
@@ -195,3 +219,9 @@ class PartnerApprove(BaseModel):
         if v not in ["approve", "reject"]:
             raise ValueError("action은 'approve' 또는 'reject'만 가능합니다")
         return v
+
+    @field_validator("rejection_reason")
+    @classmethod
+    def validate_rejection_xss(cls, v: Optional[str]) -> Optional[str]:
+        """거절 사유 XSS 검증"""
+        return validate_no_xss(v)

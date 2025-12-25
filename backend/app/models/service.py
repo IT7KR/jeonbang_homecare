@@ -41,7 +41,8 @@ class ServiceType(Base):
     category_code = Column(String(30), nullable=False, index=True)  # 카테고리 코드 (FK 없음)
     description = Column(Text, nullable=True)  # 서비스 설명
     sort_order = Column(Integer, default=0)  # 카테고리 내 정렬 순서
-    is_active = Column(Boolean, default=True)  # 활성화 여부
+    is_active = Column(Boolean, default=True)  # 활성화 여부 (삭제/숨김)
+    booking_status = Column(String(20), default="AVAILABLE", nullable=False)  # 예약 상태: AVAILABLE, PREPARING, PAUSED
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

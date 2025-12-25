@@ -41,6 +41,10 @@ class Application(Base):
     # 사진 첨부 (파일 경로 목록)
     photos = Column(JSONB, nullable=True, default=list)  # ["/uploads/app/xxx.jpg", ...]
 
+    # 희망 일정 (선택)
+    preferred_consultation_date = Column(Date, nullable=True)  # 희망 상담일
+    preferred_work_date = Column(Date, nullable=True)  # 희망 작업일
+
     # 신청 상태
     # new: 신규신청
     # consulting: 상담중
@@ -51,14 +55,17 @@ class Application(Base):
     status = Column(String(20), nullable=False, default="new", index=True)
 
     # 배정 정보 (FK 없음)
-    assigned_partner_id = Column(BigInteger, nullable=True, index=True)  # Partner.id
+    # NOTE: 1:N 배정 지원을 위해 ApplicationPartnerAssignment 테이블로 이전됨
+    # 이 필드들은 하위 호환성을 위해 유지하며, 단일 배정 시 계속 사용 가능
+    # 다중 배정이 있는 경우 assignments 관계를 통해 조회
+    assigned_partner_id = Column(BigInteger, nullable=True, index=True)  # Partner.id (레거시/단일배정)
     assigned_admin_id = Column(BigInteger, nullable=True)  # Admin.id
 
-    # 일정 정보
+    # 일정 정보 (레거시/단일배정 - 다중배정 시 ApplicationPartnerAssignment 사용)
     scheduled_date = Column(Date, nullable=True)
     scheduled_time = Column(String(20), nullable=True)  # "오전" / "오후" / "14:00"
 
-    # 견적 및 비용
+    # 견적 및 비용 (레거시/단일배정 - 다중배정 시 각 배정별로 관리)
     estimated_cost = Column(Integer, nullable=True)  # 견적 금액
     final_cost = Column(Integer, nullable=True)  # 최종 금액
 

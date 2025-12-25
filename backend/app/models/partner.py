@@ -46,6 +46,9 @@ class Partner(Base):
     experience = Column(Text, nullable=True)  # 경력 및 자격
     remarks = Column(Text, nullable=True)  # 비고
 
+    # 사업자등록증 파일 경로
+    business_registration_file = Column(String(500), nullable=True)  # /uploads/partners/{id}/xxx.pdf
+
     # 협력사 상태
     # pending: 승인 대기
     # approved: 승인됨

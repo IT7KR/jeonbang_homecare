@@ -9,6 +9,13 @@ from app.schemas.application import (
     ApplicationResponse,
     ApplicationDetailResponse,
     ApplicationCreateResponse,
+    AssignmentSummary,
+)
+from app.schemas.application_assignment import (
+    AssignmentCreate,
+    AssignmentUpdate,
+    AssignmentResponse,
+    AssignmentListResponse,
 )
 from app.schemas.partner import (
     PartnerCreate,
@@ -34,6 +41,12 @@ __all__ = [
     "ApplicationResponse",
     "ApplicationDetailResponse",
     "ApplicationCreateResponse",
+    "AssignmentSummary",
+    # Assignment
+    "AssignmentCreate",
+    "AssignmentUpdate",
+    "AssignmentResponse",
+    "AssignmentListResponse",
     # Partner
     "PartnerCreate",
     "PartnerResponse",

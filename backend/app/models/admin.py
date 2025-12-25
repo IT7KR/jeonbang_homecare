@@ -18,7 +18,7 @@ class Admin(Base):
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     name = Column(String(100), nullable=False)
-    phone = Column(String(20), nullable=True)  # SMS 알림 수신용
+    phone = Column(String(500), nullable=True)  # SMS 알림 수신용 (암호화)
     role = Column(String(20), nullable=False, default="super_admin")  # 모든 관리자는 최고관리자
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
