@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     ALIGO_USER_ID: str = ""
     ALIGO_SENDER: str = ""
 
+    # File Upload
+    UPLOAD_DIR: str = "/app/uploads"
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:3500"
 

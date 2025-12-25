@@ -53,6 +53,14 @@ class MonthlyStats(BaseModel):
 
 def decrypt_application_for_schedule(app: Application, partner: Optional[Partner] = None) -> dict:
     """일정용 신청 정보 복호화"""
+    # scheduled_date가 date 객체인 경우 문자열로 변환
+    scheduled_date_str = None
+    if app.scheduled_date:
+        if isinstance(app.scheduled_date, date):
+            scheduled_date_str = app.scheduled_date.isoformat()
+        else:
+            scheduled_date_str = str(app.scheduled_date)
+
     return {
         "id": app.id,
         "application_number": app.application_number,
@@ -61,7 +69,7 @@ def decrypt_application_for_schedule(app: Application, partner: Optional[Partner
         "address": decrypt_value(app.address),
         "selected_services": app.selected_services or [],
         "status": app.status,
-        "scheduled_date": app.scheduled_date,
+        "scheduled_date": scheduled_date_str,
         "scheduled_time": app.scheduled_time,
         "assigned_partner_id": app.assigned_partner_id,
         "assigned_partner_name": decrypt_value(partner.company_name) if partner else None,
@@ -152,7 +160,11 @@ def get_monthly_stats(
     # 날짜별 일정 수
     by_date: dict[str, int] = {}
     for app in applications:
-        date_str = app.scheduled_date
+        # scheduled_date가 date 객체인 경우 문자열로 변환
+        if isinstance(app.scheduled_date, date):
+            date_str = app.scheduled_date.isoformat()
+        else:
+            date_str = str(app.scheduled_date)
         by_date[date_str] = by_date.get(date_str, 0) + 1
 
     return MonthlyStats(

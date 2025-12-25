@@ -66,6 +66,11 @@ def get_service_types(
         ServiceType.category_code, ServiceType.sort_order
     ).all()
 
+    # 준비 중인 서비스 비활성화 처리 (프론트엔드 UI용)
+    for service in service_types:
+        if service.booking_status == 'PREPARING':
+            service.is_active = False
+
     return service_types
 
 
@@ -101,6 +106,11 @@ def get_all_services(
         types_query = types_query.filter(ServiceType.is_active == True)
 
     all_types = types_query.order_by(ServiceType.sort_order).all()
+
+    # 준비 중인 서비스 비활성화 처리 (프론트엔드 UI용)
+    for service in all_types:
+        if service.booking_status == 'PREPARING':
+            service.is_active = False
 
     # category_code로 그룹화
     types_by_category = {}

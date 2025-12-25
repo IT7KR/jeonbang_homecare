@@ -6,7 +6,6 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
@@ -20,6 +19,9 @@ async def lifespan(app: FastAPI):
     # 개발 환경에서만 테이블 자동 생성 (운영에서는 Alembic 사용)
     if settings.APP_ENV == "development":
         Base.metadata.create_all(bind=engine)
+
+    # 업로드 디렉토리 생성
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
     # 서비스 코드 캐시 초기화 (SMS 발송 시 사용)
     from app.services.sms import load_service_cache
@@ -60,10 +62,5 @@ async def health_check():
 
 
 # API v1 라우터 등록
+# 파일 서빙은 /api/v1/files/{token} 엔드포인트로 토큰 기반 접근
 app.include_router(api_router, prefix="/api/v1")
-
-# 정적 파일 서빙 (업로드된 파일)
-# /uploads/* 경로로 접근 가능
-UPLOAD_DIR = "/app/uploads"
-if os.path.exists(UPLOAD_DIR):
-    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")

@@ -14,19 +14,53 @@ import logging
 from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.core.encryption import decrypt_value
+from app.core.file_token import get_file_url
 from app.models.admin import Admin
 from app.models.application import Application
+from app.models.application_note import ApplicationNote
+from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
 from app.schemas.application import (
     ApplicationListResponse,
     ApplicationListItem,
     ApplicationDetailResponse,
     ApplicationUpdate,
+    BulkAssignRequest,
+    BulkAssignResponse,
+    BulkAssignResult,
+    ScheduleConflict,
+    AssignmentSummary,
+)
+from app.schemas.application_assignment import (
+    AssignmentCreate,
+    AssignmentUpdate,
+    AssignmentResponse,
+    AssignmentListResponse,
+)
+from app.schemas.application_note import (
+    ApplicationNoteCreate,
+    ApplicationNoteResponse,
+    ApplicationNotesListResponse,
 )
 from app.services.sms import (
     send_partner_assignment_notification,
     send_schedule_confirmation,
     send_partner_schedule_notification,
+    send_application_cancelled_notification,
+    send_completion_notification,
+    send_schedule_changed_notification,
+)
+from app.services.application_status import (
+    check_status_transition,
+    ASSIGNABLE_STATUSES,
+)
+from app.services.audit import (
+    log_status_change,
+    log_assignment,
+    log_schedule_change,
+    log_cost_change,
+    log_bulk_assignment,
+    log_change,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,7 +79,9 @@ def decrypt_application(app: Application) -> dict:
         "address_detail": decrypt_value(app.address_detail) if app.address_detail else None,
         "selected_services": app.selected_services or [],
         "description": app.description,
-        "photos": app.photos or [],
+        "photos": [get_file_url(photo) for photo in (app.photos or [])],
+        "preferred_consultation_date": app.preferred_consultation_date,
+        "preferred_work_date": app.preferred_work_date,
         "status": app.status,
         "assigned_partner_id": app.assigned_partner_id,
         "assigned_admin_id": app.assigned_admin_id,
@@ -112,6 +148,8 @@ def get_applications(
             status=decrypted["status"],
             assigned_partner_id=decrypted["assigned_partner_id"],
             scheduled_date=decrypted["scheduled_date"],
+            preferred_consultation_date=decrypted["preferred_consultation_date"],
+            preferred_work_date=decrypted["preferred_work_date"],
             created_at=decrypted["created_at"],
         ))
 
@@ -124,6 +162,149 @@ def get_applications(
     )
 
 
+@router.post("/bulk-assign", response_model=BulkAssignResponse)
+async def bulk_assign_applications(
+    data: BulkAssignRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청 일괄 배정 (관리자용)
+
+    - 다수의 신청을 한 협력사에 일괄 배정
+    - 배정 가능 상태(new, consulting)의 신청만 배정
+    - SMS 알림 발송 옵션
+    """
+    # 협력사 검증
+    partner = db.query(Partner).filter(Partner.id == data.partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
+    if partner.status != "approved":
+        raise HTTPException(status_code=400, detail="승인된 협력사만 배정할 수 있습니다")
+
+    partner_phone = decrypt_value(partner.contact_phone)
+    results: list[BulkAssignResult] = []
+    success_count = 0
+
+    for app_id in data.application_ids:
+        application = db.query(Application).filter(Application.id == app_id).first()
+
+        if not application:
+            results.append(BulkAssignResult(
+                application_id=app_id,
+                application_number="",
+                success=False,
+                message="신청을 찾을 수 없습니다"
+            ))
+            continue
+
+        # 배정 가능 상태 확인
+        if application.status not in ASSIGNABLE_STATUSES:
+            results.append(BulkAssignResult(
+                application_id=app_id,
+                application_number=application.application_number,
+                success=False,
+                message=f"배정 불가 상태입니다 (현재: {application.status})"
+            ))
+            continue
+
+        # 서비스 영역 매칭 확인
+        if application.selected_services and partner.service_areas:
+            app_services = set(application.selected_services)
+            partner_services = set(partner.service_areas)
+            if not app_services.intersection(partner_services):
+                results.append(BulkAssignResult(
+                    application_id=app_id,
+                    application_number=application.application_number,
+                    success=False,
+                    message="협력사가 해당 서비스를 제공하지 않습니다"
+                ))
+                continue
+
+        # 배정 처리
+        prev_partner_id = application.assigned_partner_id
+        application.assigned_partner_id = data.partner_id
+        application.status = "assigned"
+        application.assigned_admin_id = current_admin.id
+
+        # SMS 발송 (백그라운드)
+        if data.send_sms and data.partner_id != prev_partner_id:
+            decrypted = decrypt_application(application)
+            background_tasks.add_task(
+                send_partner_assignment_notification,
+                decrypted["customer_phone"],
+                application.application_number,
+                partner.company_name,
+                partner_phone,
+            )
+
+        results.append(BulkAssignResult(
+            application_id=app_id,
+            application_number=application.application_number,
+            success=True,
+            message="배정 완료"
+        ))
+        success_count += 1
+
+        # 개별 신청에 대한 배정 audit log
+        log_bulk_assignment(
+            db=db,
+            entity_type="application",
+            entity_id=app_id,
+            partner_id=data.partner_id,
+            partner_name=partner.company_name,
+            total_count=len(data.application_ids),
+            success_count=success_count,
+            admin=current_admin,
+        )
+
+    db.commit()
+
+    if success_count > 0:
+        logger.info(f"Bulk assignment: {success_count}/{len(data.application_ids)} to partner {partner.company_name}")
+
+    return BulkAssignResponse(
+        total=len(data.application_ids),
+        success_count=success_count,
+        failed_count=len(data.application_ids) - success_count,
+        results=results,
+        partner_name=partner.company_name
+    )
+
+
+def get_assignments_for_application(db: Session, application_id: int) -> list[AssignmentSummary]:
+    """신청에 연결된 배정 목록 조회 (협력사 정보 포함)"""
+    assignments = (
+        db.query(ApplicationPartnerAssignment)
+        .filter(ApplicationPartnerAssignment.application_id == application_id)
+        .order_by(ApplicationPartnerAssignment.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for assignment in assignments:
+        # 협력사 정보 조회
+        partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+        partner_name = partner.company_name if partner else "알 수 없음"
+        partner_company = partner.company_name if partner else None
+
+        result.append(AssignmentSummary(
+            id=assignment.id,
+            partner_id=assignment.partner_id,
+            partner_name=partner_name,
+            partner_company=partner_company,
+            assigned_services=assignment.assigned_services or [],
+            status=assignment.status,
+            scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
+            scheduled_time=assignment.scheduled_time,
+            estimated_cost=assignment.estimated_cost,
+            final_cost=assignment.final_cost,
+        ))
+
+    return result
+
+
 @router.get("/{application_id}", response_model=ApplicationDetailResponse)
 def get_application(
     application_id: int,
@@ -132,6 +313,8 @@ def get_application(
 ):
     """
     신청 상세 조회 (관리자용)
+
+    - 1:N 배정 정보 포함 (assignments 필드)
     """
     application = db.query(Application).filter(Application.id == application_id).first()
 
@@ -139,7 +322,11 @@ def get_application(
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
     decrypted = decrypt_application(application)
-    return ApplicationDetailResponse(**decrypted)
+
+    # 배정 목록 조회 (1:N)
+    assignments = get_assignments_for_application(db, application_id)
+
+    return ApplicationDetailResponse(**decrypted, assignments=assignments)
 
 
 @router.put("/{application_id}", response_model=ApplicationDetailResponse)
@@ -165,10 +352,35 @@ async def update_application(
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    # 이전 상태 저장 (SMS 발송 여부 판단용)
+    # 이전 상태 저장 (SMS 발송 및 Audit 로그용)
     prev_partner_id = application.assigned_partner_id
     prev_scheduled_date = application.scheduled_date
     prev_status = application.status
+    prev_estimated_cost = application.estimated_cost
+    prev_final_cost = application.final_cost
+
+    # 상태 변경 시 유효성 검증
+    if data.status and data.status != prev_status:
+        check_status_transition(prev_status, data.status)
+
+    # 협력사 배정 시 검증
+    if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
+        # 협력사 존재 및 상태 확인
+        partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+        if not partner:
+            raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
+        if partner.status != "approved":
+            raise HTTPException(status_code=400, detail="승인된 협력사만 배정할 수 있습니다")
+
+        # 서비스 영역 매칭 확인
+        if application.selected_services and partner.service_areas:
+            app_services = set(application.selected_services)
+            partner_services = set(partner.service_areas)
+            if not app_services.intersection(partner_services):
+                raise HTTPException(
+                    status_code=400,
+                    detail="협력사가 해당 서비스를 제공하지 않습니다"
+                )
 
     # 필드 업데이트 (None이 아닌 값만, send_sms 제외)
     update_data = data.model_dump(exclude_unset=True, exclude={"send_sms"})
@@ -190,6 +402,59 @@ async def update_application(
 
     db.commit()
     db.refresh(application)
+
+    # Audit Log 기록
+    # 상태 변경 로그
+    if data.status and data.status != prev_status:
+        log_status_change(
+            db=db,
+            entity_type="application",
+            entity_id=application.id,
+            old_status=prev_status,
+            new_status=data.status,
+            admin=current_admin,
+        )
+
+    # 협력사 배정 로그
+    if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
+        partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+        if partner:
+            log_assignment(
+                db=db,
+                entity_type="application",
+                entity_id=application.id,
+                partner_id=data.assigned_partner_id,
+                partner_name=partner.company_name,
+                admin=current_admin,
+            )
+
+    # 일정 변경 로그
+    if data.scheduled_date and str(data.scheduled_date) != str(prev_scheduled_date) if prev_scheduled_date else data.scheduled_date:
+        log_schedule_change(
+            db=db,
+            entity_type="application",
+            entity_id=application.id,
+            scheduled_date=str(data.scheduled_date),
+            scheduled_time=data.scheduled_time,
+            admin=current_admin,
+        )
+
+    # 금액 변경 로그
+    cost_changed = (
+        (data.estimated_cost is not None and data.estimated_cost != prev_estimated_cost) or
+        (data.final_cost is not None and data.final_cost != prev_final_cost)
+    )
+    if cost_changed:
+        log_cost_change(
+            db=db,
+            entity_type="application",
+            entity_id=application.id,
+            old_estimated_cost=prev_estimated_cost,
+            new_estimated_cost=data.estimated_cost if data.estimated_cost is not None else prev_estimated_cost,
+            old_final_cost=prev_final_cost,
+            new_final_cost=data.final_cost if data.final_cost is not None else prev_final_cost,
+            admin=current_admin,
+        )
 
     # SMS 발송 처리 (백그라운드)
     if data.send_sms:
@@ -250,8 +515,75 @@ async def update_application(
                     )
                 logger.info(f"SMS scheduled: schedule confirmation for {application.application_number}")
 
+        # 취소 알림
+        if data.status == "cancelled" and prev_status != "cancelled":
+            background_tasks.add_task(
+                send_application_cancelled_notification,
+                customer_phone,
+                application.application_number,
+                data.admin_memo,  # 취소 사유로 admin_memo 사용
+            )
+            logger.info(f"SMS scheduled: cancellation for {application.application_number}")
+
+        # 완료 알림
+        if data.status == "completed" and prev_status != "completed":
+            partner_name = None
+            if application.assigned_partner_id:
+                partner = db.query(Partner).filter(Partner.id == application.assigned_partner_id).first()
+                if partner:
+                    partner_name = partner.company_name
+            background_tasks.add_task(
+                send_completion_notification,
+                customer_phone,
+                application.application_number,
+                partner_name,
+            )
+            logger.info(f"SMS scheduled: completion for {application.application_number}")
+
     decrypted = decrypt_application(application)
-    return ApplicationDetailResponse(**decrypted)
+
+    # 일정 충돌 검사 (경고만, 차단하지 않음)
+    schedule_conflicts: list[ScheduleConflict] = []
+    if application.scheduled_date and application.assigned_partner_id:
+        conflict_apps = db.query(Application).filter(
+            Application.assigned_partner_id == application.assigned_partner_id,
+            Application.scheduled_date == application.scheduled_date,
+            Application.id != application_id,
+            Application.status.in_(["assigned", "scheduled"])
+        ).all()
+
+        for conflict_app in conflict_apps:
+            # 같은 시간대인 경우에만 충돌로 간주
+            if application.scheduled_time and conflict_app.scheduled_time:
+                if application.scheduled_time == conflict_app.scheduled_time:
+                    conflict_decrypted = decrypt_application(conflict_app)
+                    schedule_conflicts.append(ScheduleConflict(
+                        application_id=conflict_app.id,
+                        application_number=conflict_app.application_number,
+                        customer_name=conflict_decrypted["customer_name"],
+                        scheduled_time=conflict_app.scheduled_time
+                    ))
+            else:
+                # 시간이 지정되지 않은 경우 같은 날 다른 신청이 있으면 경고
+                conflict_decrypted = decrypt_application(conflict_app)
+                schedule_conflicts.append(ScheduleConflict(
+                    application_id=conflict_app.id,
+                    application_number=conflict_app.application_number,
+                    customer_name=conflict_decrypted["customer_name"],
+                    scheduled_time=conflict_app.scheduled_time
+                ))
+
+    if schedule_conflicts:
+        logger.warning(f"Schedule conflicts detected for {application.application_number}: {len(schedule_conflicts)} conflicts")
+
+    # 배정 목록 조회 (1:N)
+    assignments = get_assignments_for_application(db, application_id)
+
+    return ApplicationDetailResponse(
+        **decrypted,
+        schedule_conflicts=schedule_conflicts if schedule_conflicts else None,
+        assignments=assignments
+    )
 
 
 @router.delete("/{application_id}")
@@ -279,3 +611,463 @@ def delete_application(
     db.commit()
 
     return {"success": True, "message": "신청이 삭제되었습니다"}
+
+
+# ==================== 관리자 메모 API ====================
+
+
+@router.get("/{application_id}/notes", response_model=ApplicationNotesListResponse)
+def get_application_notes(
+    application_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청 관리자 메모 목록 조회
+
+    - 최신순 정렬
+    - 히스토리 형태로 제공
+    """
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    query = db.query(ApplicationNote).filter(ApplicationNote.application_id == application_id)
+    total = query.count()
+
+    notes = (
+        query.order_by(desc(ApplicationNote.created_at))
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+        .all()
+    )
+
+    return ApplicationNotesListResponse(
+        items=[ApplicationNoteResponse.model_validate(note) for note in notes],
+        total=total,
+    )
+
+
+@router.post("/{application_id}/notes", response_model=ApplicationNoteResponse)
+def create_application_note(
+    application_id: int,
+    data: ApplicationNoteCreate,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청 관리자 메모 추가
+
+    - 히스토리 방식으로 계속 추가됨 (덮어쓰기 아님)
+    - 작성자 정보 자동 기록
+    """
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    note = ApplicationNote(
+        application_id=application_id,
+        admin_id=current_admin.id,
+        admin_name=current_admin.name,
+        content=data.content,
+    )
+
+    db.add(note)
+    db.commit()
+    db.refresh(note)
+
+    logger.info(f"Note added to application {application.application_number} by {current_admin.name}")
+
+    return ApplicationNoteResponse.model_validate(note)
+
+
+@router.delete("/{application_id}/notes/{note_id}")
+def delete_application_note(
+    application_id: int,
+    note_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청 관리자 메모 삭제
+
+    - 본인이 작성한 메모만 삭제 가능
+    - super_admin은 모든 메모 삭제 가능
+    """
+    note = db.query(ApplicationNote).filter(
+        ApplicationNote.id == note_id,
+        ApplicationNote.application_id == application_id
+    ).first()
+
+    if not note:
+        raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다")
+
+    # 권한 확인
+    if note.admin_id != current_admin.id and current_admin.role != "super_admin":
+        raise HTTPException(status_code=403, detail="본인이 작성한 메모만 삭제할 수 있습니다")
+
+    db.delete(note)
+    db.commit()
+
+    return {"success": True, "message": "메모가 삭제되었습니다"}
+
+
+# ==================== 협력사 배정 API (1:N) ====================
+
+
+@router.get("/{application_id}/assignments", response_model=AssignmentListResponse)
+def get_application_assignments(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청의 협력사 배정 목록 조회
+
+    - 1:N 배정 지원
+    - 협력사 정보 포함
+    """
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    assignments = (
+        db.query(ApplicationPartnerAssignment)
+        .filter(ApplicationPartnerAssignment.application_id == application_id)
+        .order_by(ApplicationPartnerAssignment.created_at.desc())
+        .all()
+    )
+
+    items = []
+    for assignment in assignments:
+        partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+        items.append(AssignmentResponse(
+            id=assignment.id,
+            application_id=assignment.application_id,
+            partner_id=assignment.partner_id,
+            assigned_services=assignment.assigned_services or [],
+            status=assignment.status,
+            scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
+            scheduled_time=assignment.scheduled_time,
+            estimated_cost=assignment.estimated_cost,
+            final_cost=assignment.final_cost,
+            assigned_by=assignment.assigned_by,
+            assigned_at=assignment.assigned_at,
+            note=assignment.note,
+            created_at=assignment.created_at,
+            updated_at=assignment.updated_at,
+            completed_at=assignment.completed_at,
+            cancelled_at=assignment.cancelled_at,
+            partner_name=partner.company_name if partner else None,
+            partner_phone=decrypt_value(partner.contact_phone) if partner else None,
+            partner_company=partner.company_name if partner else None,
+        ))
+
+    return AssignmentListResponse(items=items, total=len(items))
+
+
+@router.post("/{application_id}/assignments", response_model=AssignmentResponse)
+async def create_application_assignment(
+    application_id: int,
+    data: AssignmentCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    신청에 협력사 배정 추가
+
+    - 1:N 배정 지원 (여러 협력사 배정 가능)
+    - 서비스 영역 매칭 검증
+    - SMS 알림 발송 옵션
+    """
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    # 협력사 검증
+    partner = db.query(Partner).filter(Partner.id == data.partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
+    if partner.status != "approved":
+        raise HTTPException(status_code=400, detail="승인된 협력사만 배정할 수 있습니다")
+
+    # 서비스 영역 매칭 확인
+    if data.assigned_services and partner.service_areas:
+        assigned_services = set(data.assigned_services)
+        partner_services = set(partner.service_areas)
+        if not assigned_services.issubset(partner_services):
+            unmatched = assigned_services - partner_services
+            raise HTTPException(
+                status_code=400,
+                detail=f"협력사가 해당 서비스를 제공하지 않습니다: {', '.join(unmatched)}"
+            )
+
+    # 신청의 선택 서비스에 포함되어 있는지 확인
+    app_services = set(application.selected_services or [])
+    if not set(data.assigned_services).issubset(app_services):
+        raise HTTPException(
+            status_code=400,
+            detail="배정 서비스가 신청의 선택 서비스에 포함되어 있지 않습니다"
+        )
+
+    # 배정 생성
+    assignment = ApplicationPartnerAssignment(
+        application_id=application_id,
+        partner_id=data.partner_id,
+        assigned_services=data.assigned_services,
+        scheduled_date=data.scheduled_date,
+        scheduled_time=data.scheduled_time,
+        estimated_cost=data.estimated_cost,
+        note=data.note,
+        assigned_by=current_admin.id,
+    )
+
+    db.add(assignment)
+
+    # 신청 상태 업데이트 (배정이 있으면 assigned 이상)
+    if application.status in ["new", "consulting"]:
+        application.status = "assigned"
+        application.assigned_admin_id = current_admin.id
+
+    # 레거시 필드 업데이트 (첫 번째 배정인 경우)
+    existing_assignments = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.application_id == application_id
+    ).count()
+    if existing_assignments == 0:
+        application.assigned_partner_id = data.partner_id
+        if data.scheduled_date:
+            application.scheduled_date = data.scheduled_date
+        if data.scheduled_time:
+            application.scheduled_time = data.scheduled_time
+        if data.estimated_cost:
+            application.estimated_cost = data.estimated_cost
+
+    db.commit()
+    db.refresh(assignment)
+
+    # Audit Log
+    log_assignment(
+        db=db,
+        entity_type="application",
+        entity_id=application_id,
+        partner_id=data.partner_id,
+        partner_name=partner.company_name,
+        admin=current_admin,
+    )
+
+    # SMS 발송
+    if data.send_sms:
+        decrypted = decrypt_application(application)
+        partner_phone = decrypt_value(partner.contact_phone)
+        background_tasks.add_task(
+            send_partner_assignment_notification,
+            decrypted["customer_phone"],
+            application.application_number,
+            partner.company_name,
+            partner_phone,
+        )
+        logger.info(f"SMS scheduled: assignment created for {application.application_number}")
+
+    logger.info(f"Assignment created: app={application.application_number}, partner={partner.company_name}")
+
+    return AssignmentResponse(
+        id=assignment.id,
+        application_id=assignment.application_id,
+        partner_id=assignment.partner_id,
+        assigned_services=assignment.assigned_services or [],
+        status=assignment.status,
+        scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
+        scheduled_time=assignment.scheduled_time,
+        estimated_cost=assignment.estimated_cost,
+        final_cost=assignment.final_cost,
+        assigned_by=assignment.assigned_by,
+        assigned_at=assignment.assigned_at,
+        note=assignment.note,
+        created_at=assignment.created_at,
+        updated_at=assignment.updated_at,
+        completed_at=assignment.completed_at,
+        cancelled_at=assignment.cancelled_at,
+        partner_name=partner.company_name,
+        partner_phone=decrypt_value(partner.contact_phone),
+        partner_company=partner.company_name,
+    )
+
+
+@router.put("/{application_id}/assignments/{assignment_id}", response_model=AssignmentResponse)
+async def update_application_assignment(
+    application_id: int,
+    assignment_id: int,
+    data: AssignmentUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정 수정
+
+    - 상태, 일정, 비용 등 수정
+    - SMS 알림 발송 옵션
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
+
+    application = db.query(Application).filter(Application.id == application_id).first()
+    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+
+    prev_status = assignment.status
+    prev_scheduled_date = assignment.scheduled_date
+
+    # 필드 업데이트
+    update_data = data.model_dump(exclude_unset=True, exclude={"send_sms"})
+    for field, value in update_data.items():
+        if value is not None:
+            if field == "status":
+                if value == "completed" and assignment.status != "completed":
+                    assignment.completed_at = datetime.now(timezone.utc)
+                elif value == "cancelled" and assignment.status != "cancelled":
+                    assignment.cancelled_at = datetime.now(timezone.utc)
+            setattr(assignment, field, value)
+
+    db.commit()
+    db.refresh(assignment)
+
+    # Audit Log
+    if data.status and data.status != prev_status:
+        log_status_change(
+            db=db,
+            entity_type="assignment",
+            entity_id=assignment.id,
+            old_status=prev_status,
+            new_status=data.status,
+            admin=current_admin,
+        )
+
+    if data.scheduled_date and str(data.scheduled_date) != str(prev_scheduled_date) if prev_scheduled_date else data.scheduled_date:
+        log_schedule_change(
+            db=db,
+            entity_type="assignment",
+            entity_id=assignment.id,
+            scheduled_date=str(data.scheduled_date),
+            scheduled_time=data.scheduled_time,
+            admin=current_admin,
+        )
+
+    # SMS 발송
+    if data.send_sms and application and partner:
+        decrypted = decrypt_application(application)
+        partner_phone = decrypt_value(partner.contact_phone)
+
+        # 일정 확정 알림
+        if data.status == "scheduled" and prev_status != "scheduled":
+            background_tasks.add_task(
+                send_schedule_confirmation,
+                decrypted["customer_phone"],
+                application.application_number,
+                str(assignment.scheduled_date) if assignment.scheduled_date else "",
+                assignment.scheduled_time,
+                partner.company_name,
+            )
+            # 협력사에게도 알림
+            background_tasks.add_task(
+                send_partner_schedule_notification,
+                partner_phone,
+                application.application_number,
+                decrypted["customer_name"],
+                decrypted["customer_phone"],
+                decrypted["address"],
+                str(assignment.scheduled_date) if assignment.scheduled_date else "",
+                assignment.scheduled_time,
+                assignment.assigned_services or [],
+            )
+
+    logger.info(f"Assignment updated: id={assignment_id}")
+
+    return AssignmentResponse(
+        id=assignment.id,
+        application_id=assignment.application_id,
+        partner_id=assignment.partner_id,
+        assigned_services=assignment.assigned_services or [],
+        status=assignment.status,
+        scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
+        scheduled_time=assignment.scheduled_time,
+        estimated_cost=assignment.estimated_cost,
+        final_cost=assignment.final_cost,
+        assigned_by=assignment.assigned_by,
+        assigned_at=assignment.assigned_at,
+        note=assignment.note,
+        created_at=assignment.created_at,
+        updated_at=assignment.updated_at,
+        completed_at=assignment.completed_at,
+        cancelled_at=assignment.cancelled_at,
+        partner_name=partner.company_name if partner else None,
+        partner_phone=decrypt_value(partner.contact_phone) if partner else None,
+        partner_company=partner.company_name if partner else None,
+    )
+
+
+@router.delete("/{application_id}/assignments/{assignment_id}")
+def delete_application_assignment(
+    application_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정 삭제
+
+    - 배정 취소 (soft delete가 아닌 실제 삭제)
+    - 다른 배정이 없으면 신청 상태도 조정
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
+
+    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+    partner_name = partner.company_name if partner else "Unknown"
+
+    # Audit Log
+    log_change(
+        db=db,
+        entity_type="assignment",
+        entity_id=assignment_id,
+        action="delete",
+        old_value={
+            "partner_id": assignment.partner_id,
+            "partner_name": partner_name,
+            "assigned_services": assignment.assigned_services,
+        },
+        summary=f"배정 삭제: {partner_name}",
+        admin=current_admin,
+    )
+
+    db.delete(assignment)
+
+    # 남은 배정 확인
+    remaining = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.application_id == application_id
+    ).count()
+
+    # 모든 배정이 삭제되면 레거시 필드 초기화
+    if remaining == 0:
+        application = db.query(Application).filter(Application.id == application_id).first()
+        if application:
+            application.assigned_partner_id = None
+            # 상태는 그대로 유지 (사용자가 수동으로 변경)
+
+    db.commit()
+
+    logger.info(f"Assignment deleted: id={assignment_id}, partner={partner_name}")
+
+    return {"success": True, "message": "배정이 삭제되었습니다"}

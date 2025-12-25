@@ -11,6 +11,7 @@ from passlib.context import CryptContext
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
+from app.core.encryption import encrypt_value, decrypt_value
 from app.models.admin import Admin
 
 router = APIRouter(prefix="/settings", tags=["Admin - Settings"])
@@ -77,7 +78,14 @@ def get_profile(
     """
     현재 관리자 프로필 조회
     """
-    return ProfileResponse.model_validate(current_admin)
+    return ProfileResponse(
+        id=current_admin.id,
+        email=current_admin.email,
+        name=current_admin.name,
+        phone=decrypt_value(current_admin.phone),
+        role=current_admin.role,
+        is_active=current_admin.is_active,
+    )
 
 
 @router.put("/profile", response_model=ProfileResponse)
@@ -92,12 +100,19 @@ def update_profile(
     if data.name is not None:
         current_admin.name = data.name
     if data.phone is not None:
-        current_admin.phone = data.phone
+        current_admin.phone = encrypt_value(data.phone) if data.phone else None
 
     db.commit()
     db.refresh(current_admin)
 
-    return ProfileResponse.model_validate(current_admin)
+    return ProfileResponse(
+        id=current_admin.id,
+        email=current_admin.email,
+        name=current_admin.name,
+        phone=decrypt_value(current_admin.phone),
+        role=current_admin.role,
+        is_active=current_admin.is_active,
+    )
 
 
 @router.put("/password")
@@ -142,7 +157,7 @@ def get_admins(
             id=admin.id,
             email=admin.email,
             name=admin.name,
-            phone=admin.phone,
+            phone=decrypt_value(admin.phone),
             role=admin.role,
             is_active=admin.is_active,
             last_login_at=admin.last_login_at.isoformat() if admin.last_login_at else None,
@@ -175,7 +190,7 @@ def create_admin(
         email=data.email,
         password_hash=pwd_context.hash(data.password),
         name=data.name,
-        phone=data.phone,
+        phone=encrypt_value(data.phone) if data.phone else None,
         role="super_admin",
         is_active=True,
     )
@@ -187,7 +202,7 @@ def create_admin(
         id=admin.id,
         email=admin.email,
         name=admin.name,
-        phone=admin.phone,
+        phone=decrypt_value(admin.phone),
         role=admin.role,
         is_active=admin.is_active,
         last_login_at=admin.last_login_at.isoformat() if admin.last_login_at else None,
@@ -216,7 +231,7 @@ def update_admin(
     if data.name is not None:
         admin.name = data.name
     if data.phone is not None:
-        admin.phone = data.phone
+        admin.phone = encrypt_value(data.phone) if data.phone else None
     if data.is_active is not None:
         admin.is_active = data.is_active
 
@@ -227,7 +242,7 @@ def update_admin(
         id=admin.id,
         email=admin.email,
         name=admin.name,
-        phone=admin.phone,
+        phone=decrypt_value(admin.phone),
         role=admin.role,
         is_active=admin.is_active,
         last_login_at=admin.last_login_at.isoformat() if admin.last_login_at else None,
