@@ -15,6 +15,7 @@ import {
   ChevronDown,
   MessageSquare,
   Home,
+  QrCode,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 
@@ -24,6 +25,7 @@ const navigation = [
   { name: "협력사 관리", href: "/admin/partners", icon: Users },
   { name: "SMS 관리", href: "/admin/sms", icon: MessageSquare },
   { name: "일정 관리", href: "/admin/schedule", icon: Calendar },
+  { name: "QR코드 생성", href: "/admin/qr-code", icon: QrCode },
   { name: "설정", href: "/admin/settings", icon: Settings },
 ];
 
@@ -34,7 +36,8 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accessToken, admin, checkAuth, logout, _hasHydrated } = useAuthStore();
+  const { accessToken, admin, checkAuth, logout, _hasHydrated } =
+    useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -116,7 +119,9 @@ export default function AdminLayout({
             </div>
             <div>
               <span className="font-bold text-gray-900">전방홈케어</span>
-              <span className="text-[10px] text-primary font-medium ml-1.5 bg-primary-50 px-1.5 py-0.5 rounded">관리자</span>
+              <span className="text-[10px] text-primary font-medium ml-1.5 bg-primary-50 px-1.5 py-0.5 rounded">
+                관리자
+              </span>
             </div>
           </Link>
           <button
@@ -130,10 +135,13 @@ export default function AdminLayout({
         {/* Navigation */}
         <nav className="mt-4 px-3">
           <div className="mb-2 px-3">
-            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">메뉴</span>
+            <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
+              메뉴
+            </span>
           </div>
           {navigation.map((item) => {
-            const isActive = pathname === item.href ||
+            const isActive =
+              pathname === item.href ||
               (item.href !== "/admin" && pathname.startsWith(item.href));
             return (
               <Link
@@ -146,11 +154,13 @@ export default function AdminLayout({
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
-                <div className={`flex items-center justify-center w-9 h-9 rounded-lg mr-3 transition-colors ${
-                  isActive
-                    ? "bg-white/20"
-                    : "bg-gray-100 group-hover:bg-primary-50 group-hover:text-primary"
-                }`}>
+                <div
+                  className={`flex items-center justify-center w-9 h-9 rounded-lg mr-3 transition-colors ${
+                    isActive
+                      ? "bg-white/20"
+                      : "bg-gray-100 group-hover:bg-primary-50 group-hover:text-primary"
+                  }`}
+                >
                   <item.icon size={18} />
                 </div>
                 <span className="font-medium">{item.name}</span>
@@ -190,9 +200,10 @@ export default function AdminLayout({
             {/* Page title (desktop) */}
             <div className="hidden lg:flex items-center gap-3">
               <h1 className="text-lg font-semibold text-gray-900">
-                {navigation.find((item) =>
-                  item.href === pathname ||
-                  (item.href !== "/admin" && pathname.startsWith(item.href))
+                {navigation.find(
+                  (item) =>
+                    item.href === pathname ||
+                    (item.href !== "/admin" && pathname.startsWith(item.href))
                 )?.name || "관리자"}
               </h1>
             </div>
@@ -200,9 +211,10 @@ export default function AdminLayout({
             {/* Mobile title */}
             <div className="lg:hidden flex-1 text-center">
               <span className="font-semibold text-gray-900">
-                {navigation.find((item) =>
-                  item.href === pathname ||
-                  (item.href !== "/admin" && pathname.startsWith(item.href))
+                {navigation.find(
+                  (item) =>
+                    item.href === pathname ||
+                    (item.href !== "/admin" && pathname.startsWith(item.href))
                 )?.name || "관리자"}
               </span>
             </div>
@@ -213,11 +225,16 @@ export default function AdminLayout({
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-2 py-1.5 px-2 text-sm text-gray-700 hover:bg-gray-50 rounded-xl transition-colors"
               >
-                <span className="hidden sm:block text-gray-600">{admin?.name}</span>
+                <span className="hidden sm:block text-gray-600">
+                  {admin?.name}
+                </span>
                 <div className="w-9 h-9 bg-gradient-to-br from-primary to-primary-600 rounded-xl flex items-center justify-center text-white font-medium shadow-sm">
                   {admin?.name?.charAt(0) || "A"}
                 </div>
-                <ChevronDown size={16} className="text-gray-400 hidden sm:block" />
+                <ChevronDown
+                  size={16}
+                  className="text-gray-400 hidden sm:block"
+                />
               </button>
 
               {userMenuOpen && (
@@ -228,8 +245,12 @@ export default function AdminLayout({
                   />
                   <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
                     <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
-                      <p className="text-sm font-semibold text-gray-900">{admin?.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{admin?.email}</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {admin?.name}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {admin?.email}
+                      </p>
                     </div>
                     <div className="p-2">
                       <button

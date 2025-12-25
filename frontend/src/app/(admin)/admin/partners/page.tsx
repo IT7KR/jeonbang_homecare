@@ -1,20 +1,33 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Eye, CheckCircle, XCircle, Users, Loader2, MessageSquare, X } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import { getPartners, approvePartner, PartnerListItem } from "@/lib/api/admin";
+import {
+  getPartners,
+  approvePartner,
+  getDashboard,
+  PartnerListItem,
+  DashboardStats,
+} from "@/lib/api/admin";
+import {
+  getServices,
+  type ServicesListResponse,
+} from "@/lib/api/services";
 import {
   PARTNER_STATUS_OPTIONS,
   getPartnerStatusLabel,
   getPartnerStatusColor,
 } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
-import { AdminListLayout, ColumnDef } from "@/components/admin";
+import { AdminListLayout, ColumnDef, StatsCards, type StatsCardItem } from "@/components/admin";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DirectSMSSheet } from "@/components/features/admin/sms";
+
+// Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
+const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
 
 export default function PartnersPage() {
   const router = useRouter();
@@ -23,6 +36,12 @@ export default function PartnersPage() {
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 대시보드 통계
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  // 서비스 목록 (코드→이름 변환용)
+  const [services, setServices] = useState<ServicesListResponse | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -44,6 +63,30 @@ export default function PartnersPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
 
+  // 서비스 목록 로드 (최초 1회)
+  useEffect(() => {
+    getServices().then(setServices).catch(console.error);
+  }, []);
+
+  // 서비스 코드→이름 변환 맵 생성
+  const serviceNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (services) {
+      services.categories.forEach((cat) => {
+        cat.services.forEach((s) => {
+          map.set(s.code, s.name);
+        });
+      });
+    }
+    return map;
+  }, [services]);
+
+  // 서비스 코드를 이름으로 변환하는 함수
+  const getServiceName = useCallback(
+    (code: string) => serviceNameMap.get(code) || code,
+    [serviceNameMap]
+  );
+
   const loadPartners = async () => {
     try {
       setIsLoading(true);
@@ -55,16 +98,21 @@ export default function PartnersPage() {
         return;
       }
 
-      const data = await getPartners(token, {
-        page,
-        page_size: pageSize,
-        status: statusFilter || undefined,
-        search: searchQuery || undefined,
-      });
+      // 협력사 목록과 통계를 병렬로 로드
+      const [data, dashboardData] = await Promise.all([
+        getPartners(token, {
+          page,
+          page_size: pageSize,
+          status: statusFilter || undefined,
+          search: searchQuery || undefined,
+        }),
+        getDashboard(token),
+      ]);
 
       setPartners(data.items);
       setTotalPages(data.total_pages);
       setTotal(data.total);
+      setStats(dashboardData.stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
     } finally {
@@ -78,6 +126,75 @@ export default function PartnersPage() {
 
   const handleSearch = () => {
     setSearchQuery(searchInput);
+    setPage(1);
+  };
+
+  // 상태별 통계 카드 설정
+  const statusCards = useMemo<StatsCardItem[]>(
+    () => [
+      {
+        status: "pending",
+        label: "대기중",
+        count: stats?.partners_pending ?? 0,
+        needsAction: true,
+        color: "bg-yellow-500",
+        bgColor: "bg-yellow-50",
+        textColor: "text-yellow-700",
+      },
+      {
+        status: "approved",
+        label: "승인됨",
+        count: stats?.partners_approved ?? 0,
+        needsAction: false,
+        color: "bg-green-500",
+        bgColor: "bg-green-50",
+        textColor: "text-green-700",
+      },
+      {
+        status: "rejected",
+        label: "거절됨",
+        count: (stats?.partners_total ?? 0) - (stats?.partners_pending ?? 0) - (stats?.partners_approved ?? 0),
+        needsAction: false,
+        color: "bg-red-500",
+        bgColor: "bg-red-50",
+        textColor: "text-red-700",
+      },
+      {
+        status: "inactive",
+        label: "비활성",
+        count: 0, // API에서 별도 제공 안함
+        needsAction: false,
+        color: "bg-gray-500",
+        bgColor: "bg-gray-50",
+        textColor: "text-gray-700",
+      },
+    ],
+    [stats]
+  );
+
+  // 상태별 행 스타일링
+  const getRowClassName = useCallback((partner: PartnerListItem) => {
+    switch (partner.status) {
+      case "pending":
+        return "bg-yellow-50/40 border-l-4 border-l-yellow-500";
+      case "approved":
+        return "border-l-4 border-l-green-400";
+      case "rejected":
+        return "opacity-60 bg-red-50/30 border-l-4 border-l-red-300";
+      case "inactive":
+        return "opacity-40 bg-gray-50/50";
+      default:
+        return "";
+    }
+  }, []);
+
+  // 상태 카드 클릭 핸들러
+  const handleStatusCardClick = (status: string) => {
+    if (statusFilter === status) {
+      setStatusFilter(""); // 같은 상태를 다시 클릭하면 필터 해제
+    } else {
+      setStatusFilter(status);
+    }
     setPage(1);
   };
 
@@ -139,20 +256,25 @@ export default function PartnersPage() {
   };
 
   const columns: ColumnDef<PartnerListItem>[] = [
-    {
-      key: "checkbox",
-      header: "",
-      headerClassName: "w-12",
-      render: (partner) => (
-        <div onClick={(e) => handleToggleSelect(partner.id, e)}>
-          <Checkbox
-            checked={selectedIds.includes(partner.id)}
-            onCheckedChange={() => {}}
-          />
-        </div>
-      ),
-      className: "px-4 py-4 w-12",
-    },
+    // SMS 수동 발송 기능 활성화 시에만 체크박스 표시
+    ...(enableManualSMS
+      ? [
+          {
+            key: "checkbox",
+            header: "",
+            headerClassName: "w-12",
+            render: (partner: PartnerListItem) => (
+              <div onClick={(e) => handleToggleSelect(partner.id, e)}>
+                <Checkbox
+                  checked={selectedIds.includes(partner.id)}
+                  onCheckedChange={() => {}}
+                />
+              </div>
+            ),
+            className: "px-4 py-4 w-12",
+          } as ColumnDef<PartnerListItem>,
+        ]
+      : []),
     {
       key: "company_name",
       header: "회사명",
@@ -188,7 +310,7 @@ export default function PartnersPage() {
               key={idx}
               className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
             >
-              {area}
+              {getServiceName(area)}
             </span>
           ))}
           {partner.service_areas.length > 2 && (
@@ -355,14 +477,14 @@ export default function PartnersPage() {
         </p>
       }
       headerAction={
-        partners.length > 0 && (
+        enableManualSMS && partners.length > 0 ? (
           <button
             onClick={handleSelectAll}
             className="text-sm text-gray-600 hover:text-primary"
           >
             {selectedIds.length === partners.length ? "전체 해제" : "전체 선택"}
           </button>
-        )
+        ) : undefined
       }
       // 필터
       statusOptions={PARTNER_STATUS_OPTIONS}
@@ -381,6 +503,15 @@ export default function PartnersPage() {
       keyExtractor={(partner) => partner.id}
       emptyIcon={<Users className="w-5 h-5 text-gray-400" />}
       emptyMessage="협력사가 없습니다"
+      getRowClassName={getRowClassName}
+      // 통계 카드
+      beforeTable={
+        <StatsCards
+          cards={statusCards}
+          activeStatus={statusFilter}
+          onCardClick={handleStatusCardClick}
+        />
+      }
       // 페이지네이션
       page={page}
       totalPages={totalPages}
@@ -392,16 +523,21 @@ export default function PartnersPage() {
       afterPagination={
         <>
           {ApprovalModal}
-          {SelectionActionBar}
-          <DirectSMSSheet
-            open={showBulkSMSSheet}
-            onOpenChange={setShowBulkSMSSheet}
-            targetType="partner"
-            selectedIds={selectedIds}
-            onComplete={() => {
-              setSelectedIds([]);
-            }}
-          />
+          {/* SMS 수동 발송 기능 활성화 시에만 표시 */}
+          {enableManualSMS && (
+            <>
+              {SelectionActionBar}
+              <DirectSMSSheet
+                open={showBulkSMSSheet}
+                onOpenChange={setShowBulkSMSSheet}
+                targetType="partner"
+                selectedIds={selectedIds}
+                onComplete={() => {
+                  setSelectedIds([]);
+                }}
+              />
+            </>
+          )}
         </>
       }
     />

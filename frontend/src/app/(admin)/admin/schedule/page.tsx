@@ -23,6 +23,7 @@ import {
   MonthlyStats,
   SchedulePartner,
 } from "@/lib/api/admin";
+import { getServiceName } from "@/lib/utils/service";
 
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "bg-blue-50 text-blue-700 border-blue-200",
@@ -494,7 +495,7 @@ export default function SchedulePage() {
                             key={idx}
                             className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-lg font-medium"
                           >
-                            {service}
+                            {getServiceName(service)}
                           </span>
                         ))}
                         {schedule.selected_services.length > 3 && (

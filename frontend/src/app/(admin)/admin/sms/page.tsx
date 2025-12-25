@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   Send,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
   XCircle,
   Users,
   X,
+  FileText,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
@@ -28,6 +30,7 @@ import {
 import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef, FilterOption } from "@/components/admin";
 import { BulkSMSSheet, SMSSendSheet } from "@/components/features/admin/sms";
+import { toast } from "@/hooks";
 
 const TYPE_OPTIONS: FilterOption[] = [
   { value: "", label: "전체유형" },
@@ -50,6 +53,9 @@ const TYPE_LABELS: Record<string, string> = {
   bulk_status_notify: "복수발송(상태별)",
   bulk_manual_select: "복수발송(선택)",
 };
+
+// Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
+const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
 
 export default function SMSPage() {
   const router = useRouter();
@@ -154,13 +160,14 @@ export default function SMSPage() {
       const result = await retrySMS(token, logId);
 
       if (result.success) {
+        toast.success("SMS가 재발송되었습니다");
         loadStats();
         loadLogs();
       } else {
-        alert(result.message || "SMS 재발송에 실패했습니다");
+        toast.error(result.message || "SMS 재발송에 실패했습니다");
       }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "SMS 재발송에 실패했습니다");
+      toast.error(err instanceof Error ? err.message : "SMS 재발송에 실패했습니다");
     } finally {
       setRetryingId(null);
     }
@@ -343,13 +350,25 @@ export default function SMSPage() {
       subtitle="SMS 발송 내역 및 수동 발송"
       headerAction={
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowBulkSMSSheet(true)}
-            className="inline-flex items-center px-4 py-2.5 border border-primary text-primary rounded-xl hover:bg-primary-50 font-medium text-sm transition-colors"
+          {/* 템플릿 관리 */}
+          <Link
+            href="/admin/sms/templates"
+            className="inline-flex items-center px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium text-sm transition-colors"
           >
-            <Users size={18} className="mr-2" />
-            복수 발송
-          </button>
+            <FileText size={18} className="mr-2" />
+            템플릿 관리
+          </Link>
+          {/* 복수 발송 버튼: Feature Flag로 제어 */}
+          {enableManualSMS && (
+            <button
+              onClick={() => setShowBulkSMSSheet(true)}
+              className="inline-flex items-center px-4 py-2.5 border border-primary text-primary rounded-xl hover:bg-primary-50 font-medium text-sm transition-colors"
+            >
+              <Users size={18} className="mr-2" />
+              복수 발송
+            </button>
+          )}
+          {/* 단일 SMS 발송 버튼: 항상 표시 */}
           <button
             onClick={() => setShowSendSheet(true)}
             className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
@@ -394,15 +413,20 @@ export default function SMSPage() {
               loadStats();
               loadLogs();
             }}
+            // 복수 선택 기능 비활성화 시 단일 선택 모드
+            singleSelect={!enableManualSMS}
           />
-          <BulkSMSSheet
-            open={showBulkSMSSheet}
-            onOpenChange={setShowBulkSMSSheet}
-            onComplete={() => {
-              loadStats();
-              loadLogs();
-            }}
-          />
+          {/* 복수 발송 시트: Feature Flag로 제어 */}
+          {enableManualSMS && (
+            <BulkSMSSheet
+              open={showBulkSMSSheet}
+              onOpenChange={setShowBulkSMSSheet}
+              onComplete={() => {
+                loadStats();
+                loadLogs();
+              }}
+            />
+          )}
           {/* 메시지 상세 모달 */}
           {selectedLog && (
             <div

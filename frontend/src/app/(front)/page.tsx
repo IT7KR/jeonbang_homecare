@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -7,15 +8,11 @@ import {
   ArrowDown,
   ArrowUp,
   CheckCircle2,
-  QrCode,
   ClipboardList,
   Building2,
-  Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ServiceGrid } from "@/components/features/landing/ServiceGrid";
-import { CompanyIntroCards } from "@/components/features/landing/CompanyIntroCards";
 import {
   CORE_ROLES,
   REQUEST_PROCESS,
@@ -26,10 +23,27 @@ import {
   ROUTES,
   COMPANY_INFO,
 } from "@/lib/constants";
+import { ServiceGrid } from "@/components/features/landing/ServiceGrid";
+import { CompanyIntroCards } from "@/components/features/landing/CompanyIntroCards";
+
+export const metadata: Metadata = {
+  title: "전방 홈케어 - 양평, 가평 전원주택 관리 전문 서비스",
+  description:
+    "전방 홈케어는 양평, 가평 지역 전원주택 관리 전문 서비스입니다. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다. 지금 무료 견적을 받아보세요.",
+  openGraph: {
+    title: "전방 홈케어 - 양평, 가평 전원주택 관리 전문 서비스",
+    description:
+      "전원주택의 모든 관리를 원스톱으로. 제초, 조경, 청소, 시공까지 전문 협력사가 해결해 드립니다.",
+    url: "https://geonbang.com/homecare",
+  },
+  alternates: {
+    canonical: "https://geonbang.com/homecare",
+  },
+};
 
 export default function HomePage() {
   return (
-    <div className="flex flex-col">
+    <main id="main-content" className="flex flex-col">
       {/* ========================================
           Hero 섹션 (배경 이미지 + 콘텐츠 오버레이)
           ======================================== */}
@@ -99,7 +113,7 @@ export default function HomePage() {
                       </span>
                     </p>
                   </div>
-                  <ClipboardList className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" />
+                  <ClipboardList className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
                 </Link>
                 <Link
                   href={ROUTES.PARTNER}
@@ -118,7 +132,7 @@ export default function HomePage() {
                       </span>
                     </p>
                   </div>
-                  <Building2 className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" />
+                  <Building2 className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
                 </Link>
               </div>
 
@@ -127,12 +141,13 @@ export default function HomePage() {
                 <div className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-5 shadow-xl border border-gray-100">
                   <div className="text-left">
                     <div className="flex items-center gap-2 text-2xl text-gray-600 mb-1">
-                      <Phone className="w-6 h-6 text-primary" />
+                      <Phone className="w-6 h-6 text-primary" aria-hidden="true" />
                       <span className="font-semibold">문의</span>
                     </div>
                     <a
                       href={`tel:${COMPANY_INFO.phone}`}
                       className="text-2xl md:text-3xl lg:text-4xl font-black text-secondary hover:opacity-80 transition-opacity block"
+                      aria-label={`전화 문의: ${COMPANY_INFO.phone}`}
                     >
                       {COMPANY_INFO.phone}
                     </a>
@@ -144,7 +159,13 @@ export default function HomePage() {
               <div className="hidden lg:flex justify-center pt-4">
                 <div className="flex items-center gap-4 bg-white/80 backdrop-blur-sm rounded-xl px-6 py-3">
                   <div className="w-16 h-16 bg-white rounded-lg shadow border border-gray-200 flex items-center justify-center p-1">
-                    <QrCode className="w-full h-full text-primary/80" />
+                    <Image
+                      src="/domain-qr.png"
+                      alt="전방 홈케어 모바일 접속 QR 코드"
+                      width={64}
+                      height={64}
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <p className="text-sm text-gray-600 font-medium">
                     QR 코드로
@@ -288,7 +309,7 @@ export default function HomePage() {
 
                   {/* 양방향 화살표 */}
                   {index < SERVICE_STRUCTURE.length - 1 && (
-                    <div className="flex flex-col items-center my-4 md:my-0 md:mx-6">
+                    <div className="flex flex-col items-center my-4 md:my-0 md:mx-6" aria-hidden="true">
                       {/* 데스크톱: 가로 양방향 */}
                       <div className="hidden md:flex flex-col items-center gap-1">
                         <ArrowRight className="h-5 w-5 text-primary" />
@@ -346,7 +367,7 @@ export default function HomePage() {
             >
               <Link href={ROUTES.APPLY}>
                 견적 요청하기
-                <ArrowRight className="ml-2 h-6 w-6" />
+                <ArrowRight className="ml-2 h-6 w-6" aria-hidden="true" />
               </Link>
             </Button>
           </div>
@@ -382,11 +403,11 @@ export default function HomePage() {
                 <div className="absolute top-9 left-[10%] right-[10%] h-1.5 bg-gradient-to-r from-primary/30 via-primary to-primary/30 rounded-full" />
               </div>
 
-              <div className="grid grid-cols-5 gap-8">
+              <ol className="grid grid-cols-5 gap-8 list-none">
                 {CORE_ROLES.map((role) => (
-                  <div key={role.step} className="text-center">
+                  <li key={role.step} className="text-center">
                     {/* 번호 원 */}
-                    <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl shadow-xl mb-6 z-10">
+                    <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl shadow-xl mb-6 z-10" aria-hidden="true">
                       {role.step}
                     </div>
                     {/* 타이틀 */}
@@ -397,21 +418,21 @@ export default function HomePage() {
                     <p className="text-lg md:text-xl text-gray-600 leading-relaxed px-2 whitespace-pre-line">
                       {role.description}
                     </p>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </div>
 
             {/* 모바일/태블릿: 세로 타임라인 */}
             <div className="lg:hidden relative">
               {/* 세로 연결선 */}
-              <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/30" />
+              <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/30" aria-hidden="true" />
 
-              <div className="space-y-12">
+              <ol className="space-y-12 list-none">
                 {CORE_ROLES.map((role) => (
-                  <div key={role.step} className="flex items-start gap-8">
+                  <li key={role.step} className="flex items-start gap-8">
                     {/* 번호 원 */}
-                    <div className="w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl flex items-center justify-center shadow-xl flex-shrink-0 z-10">
+                    <div className="w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl flex items-center justify-center shadow-xl flex-shrink-0 z-10" aria-hidden="true">
                       {role.step}
                     </div>
                     {/* 내용 */}
@@ -423,15 +444,15 @@ export default function HomePage() {
                         {role.description}
                       </p>
                     </div>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </div>
 
             {/* 강조 메시지 */}
             <div className="mt-16 text-center">
               <div className="inline-flex items-center gap-4 bg-white rounded-full px-10 py-5 shadow-lg border border-primary/20">
-                <CheckCircle2 className="h-8 w-8 text-primary" />
+                <CheckCircle2 className="h-8 w-8 text-primary" aria-hidden="true" />
                 <span className="font-bold text-xl md:text-2xl lg:text-3xl text-gray-900">
                   전방이{" "}
                   <span className="text-primary font-extrabold">전 과정</span>을
@@ -463,11 +484,11 @@ export default function HomePage() {
               {/* 프로세스 스텝 */}
               <div className="relative">
                 {/* 세로 연결선 */}
-                <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/20" />
+                <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/20" aria-hidden="true" />
 
-                <div className="space-y-6">
+                <ol className="space-y-6 list-none">
                   {REQUEST_PROCESS.map((process) => (
-                    <div
+                    <li
                       key={process.step}
                       className="relative flex items-start gap-8 bg-gray-50 rounded-2xl p-8 hover:bg-gray-100 transition-colors shadow-sm"
                     >
@@ -482,7 +503,7 @@ export default function HomePage() {
                       </div>
                       <div className="flex-1 pt-2">
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="text-lg md:text-xl font-bold text-primary bg-primary/10 px-4 py-1.5 rounded">
+                          <span className="text-lg md:text-xl font-bold text-primary bg-primary/10 px-4 py-1.5 rounded" aria-hidden="true">
                             STEP {process.step}
                           </span>
                         </div>
@@ -498,9 +519,9 @@ export default function HomePage() {
                           {process.description}
                         </p>
                       </div>
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ol>
               </div>
 
               {/* CTA 영역 */}
@@ -532,7 +553,7 @@ export default function HomePage() {
                     >
                       <Link href={ROUTES.APPLY}>
                         견적 요청하기
-                        <ArrowRight className="ml-2 h-7 w-7" />
+                        <ArrowRight className="ml-2 h-7 w-7" aria-hidden="true" />
                       </Link>
                     </Button>
                   </CardContent>
@@ -543,7 +564,7 @@ export default function HomePage() {
                   <CardContent className="py-10">
                     <div className="flex items-center gap-6">
                       <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
-                        <Phone className="h-8 w-8 text-secondary" />
+                        <Phone className="h-8 w-8 text-secondary" aria-hidden="true" />
                       </div>
                       <div className="flex-1">
                         <p className="text-lg md:text-xl text-gray-500">
@@ -552,6 +573,7 @@ export default function HomePage() {
                         <a
                           href={`tel:${COMPANY_INFO.phone}`}
                           className="text-2xl md:text-3xl font-bold text-secondary hover:opacity-80 transition-opacity"
+                          aria-label={`전화 문의: ${COMPANY_INFO.phone}`}
                         >
                           {COMPANY_INFO.phone}
                         </a>
@@ -564,7 +586,13 @@ export default function HomePage() {
                 <div className="hidden lg:block w-full max-w-lg">
                   <div className="bg-gray-50 rounded-2xl p-8 text-center">
                     <div className="w-40 h-40 bg-white rounded-lg shadow-md flex items-center justify-center mx-auto mb-5 border">
-                      <QrCode className="h-28 w-28 text-primary/30" />
+                      <Image
+                        src="/domain-qr.png"
+                        alt="전방 홈케어 모바일 접속 QR 코드"
+                        width={128}
+                        height={128}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                     <p className="text-lg md:text-xl text-gray-500">
                       QR 코드로 모바일에서 바로 접속
@@ -636,12 +664,12 @@ export default function HomePage() {
             >
               <Link href={ROUTES.PARTNER}>
                 협력사 신청하기
-                <ArrowRight className="ml-3 h-7 w-7" />
+                <ArrowRight className="ml-3 h-7 w-7" aria-hidden="true" />
               </Link>
             </Button>
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

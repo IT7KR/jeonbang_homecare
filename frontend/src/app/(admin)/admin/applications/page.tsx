@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Eye, FileText, MessageSquare, X } from "lucide-react";
+import { Eye, FileText, MessageSquare, X, UserPlus } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import { getApplications, ApplicationListItem } from "@/lib/api/admin";
+import {
+  getApplications,
+  getDashboard,
+  ApplicationListItem,
+  DashboardStats,
+} from "@/lib/api/admin";
+import {
+  getServices,
+  type ServicesListResponse,
+} from "@/lib/api/services";
 import {
   APPLICATION_STATUS_OPTIONS,
   getApplicationStatusLabel,
@@ -15,6 +24,10 @@ import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef } from "@/components/admin";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DirectSMSSheet } from "@/components/features/admin/sms";
+import { BulkAssignSheet } from "@/components/features/admin/applications";
+
+// Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
+const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
 
 export default function ApplicationsPage() {
   const router = useRouter();
@@ -23,6 +36,12 @@ export default function ApplicationsPage() {
   const [applications, setApplications] = useState<ApplicationListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // 대시보드 통계
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  // 서비스 목록 (코드→이름 변환용)
+  const [services, setServices] = useState<ServicesListResponse | null>(null);
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -38,6 +57,31 @@ export default function ApplicationsPage() {
   // Selection
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
+  const [showBulkAssignSheet, setShowBulkAssignSheet] = useState(false);
+
+  // 서비스 목록 로드 (최초 1회)
+  useEffect(() => {
+    getServices().then(setServices).catch(console.error);
+  }, []);
+
+  // 서비스 코드→이름 변환 맵 생성
+  const serviceNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (services) {
+      services.categories.forEach((cat) => {
+        cat.services.forEach((s) => {
+          map.set(s.code, s.name);
+        });
+      });
+    }
+    return map;
+  }, [services]);
+
+  // 서비스 코드를 이름으로 변환하는 함수
+  const getServiceName = useCallback(
+    (code: string) => serviceNameMap.get(code) || code,
+    [serviceNameMap]
+  );
 
   const loadApplications = async () => {
     try {
@@ -50,16 +94,21 @@ export default function ApplicationsPage() {
         return;
       }
 
-      const data = await getApplications(token, {
-        page,
-        page_size: pageSize,
-        status: statusFilter || undefined,
-        search: searchQuery || undefined,
-      });
+      // 신청 목록과 통계를 병렬로 로드
+      const [appData, dashboardData] = await Promise.all([
+        getApplications(token, {
+          page,
+          page_size: pageSize,
+          status: statusFilter || undefined,
+          search: searchQuery || undefined,
+        }),
+        getDashboard(token),
+      ]);
 
-      setApplications(data.items);
-      setTotalPages(data.total_pages);
-      setTotal(data.total);
+      setApplications(appData.items);
+      setTotalPages(appData.total_pages);
+      setTotal(appData.total);
+      setStats(dashboardData.stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
     } finally {
@@ -69,7 +118,81 @@ export default function ApplicationsPage() {
 
   useEffect(() => {
     loadApplications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter, searchQuery]);
+
+  // 상태별 통계 카드 설정
+  const statusCards = useMemo(
+    () => [
+      {
+        status: "new",
+        label: "신규",
+        count: stats?.applications_new ?? 0,
+        needsAction: true,
+        color: "bg-blue-500",
+        bgColor: "bg-blue-50",
+        textColor: "text-blue-700",
+      },
+      {
+        status: "consulting",
+        label: "상담중",
+        count: stats?.applications_consulting ?? 0,
+        needsAction: true,
+        color: "bg-yellow-500",
+        bgColor: "bg-yellow-50",
+        textColor: "text-yellow-700",
+      },
+      {
+        status: "assigned",
+        label: "배정완료",
+        count: stats?.applications_assigned ?? 0,
+        needsAction: false,
+        color: "bg-purple-500",
+        bgColor: "bg-purple-50",
+        textColor: "text-purple-700",
+      },
+      {
+        status: "scheduled",
+        label: "일정확정",
+        count: stats?.applications_scheduled ?? 0,
+        needsAction: false,
+        color: "bg-primary",
+        bgColor: "bg-primary-50",
+        textColor: "text-primary-700",
+      },
+    ],
+    [stats]
+  );
+
+  // 상태별 행 스타일링
+  const getRowClassName = useCallback((app: ApplicationListItem) => {
+    switch (app.status) {
+      case "new":
+        return "bg-blue-50/40 border-l-4 border-l-blue-500";
+      case "consulting":
+        return "bg-yellow-50/40 border-l-4 border-l-yellow-500";
+      case "assigned":
+        return "border-l-4 border-l-purple-300";
+      case "scheduled":
+        return "border-l-4 border-l-primary-300";
+      case "completed":
+        return "opacity-60";
+      case "cancelled":
+        return "opacity-40 bg-gray-50/50";
+      default:
+        return "";
+    }
+  }, []);
+
+  // 상태 카드 클릭 핸들러
+  const handleStatusCardClick = (status: string) => {
+    if (statusFilter === status) {
+      setStatusFilter(""); // 같은 상태를 다시 클릭하면 필터 해제
+    } else {
+      setStatusFilter(status);
+    }
+    setPage(1);
+  };
 
   const handleSearch = () => {
     setSearchQuery(searchInput);
@@ -99,20 +222,25 @@ export default function ApplicationsPage() {
   };
 
   const columns: ColumnDef<ApplicationListItem>[] = [
-    {
-      key: "checkbox",
-      header: "",
-      headerClassName: "w-12",
-      render: (app) => (
-        <div onClick={(e) => handleToggleSelect(app.id, e)}>
-          <Checkbox
-            checked={selectedIds.includes(app.id)}
-            onCheckedChange={() => {}}
-          />
-        </div>
-      ),
-      className: "px-4 py-4 w-12",
-    },
+    // SMS 수동 발송 기능 활성화 시에만 체크박스 표시
+    ...(enableManualSMS
+      ? [
+          {
+            key: "checkbox",
+            header: "",
+            headerClassName: "w-12",
+            render: (app: ApplicationListItem) => (
+              <div onClick={(e) => handleToggleSelect(app.id, e)}>
+                <Checkbox
+                  checked={selectedIds.includes(app.id)}
+                  onCheckedChange={() => {}}
+                />
+              </div>
+            ),
+            className: "px-4 py-4 w-12",
+          } as ColumnDef<ApplicationListItem>,
+        ]
+      : []),
     {
       key: "application_number",
       header: "신청번호",
@@ -148,7 +276,7 @@ export default function ApplicationsPage() {
               key={idx}
               className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
             >
-              {service}
+              {getServiceName(service)}
             </span>
           ))}
           {app.selected_services.length > 2 && (
@@ -201,7 +329,7 @@ export default function ApplicationsPage() {
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-lg border border-gray-200">
       <div className="flex items-center gap-2 pr-3 border-r border-gray-200">
         <span className="text-sm font-medium text-gray-900">
-          {selectedIds.length}명 선택
+          {selectedIds.length}건 선택
         </span>
         <button
           onClick={handleClearSelection}
@@ -211,12 +339,55 @@ export default function ApplicationsPage() {
         </button>
       </div>
       <button
-        onClick={() => setShowBulkSMSSheet(true)}
+        onClick={() => setShowBulkAssignSheet(true)}
         className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl hover:bg-primary-600 text-sm font-medium transition-colors"
+      >
+        <UserPlus size={16} />
+        일괄 배정
+      </button>
+      <button
+        onClick={() => setShowBulkSMSSheet(true)}
+        className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors"
       >
         <MessageSquare size={16} />
         SMS 발송
       </button>
+    </div>
+  );
+
+  // 통계 카드 컴포넌트
+  const StatsCards = (
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+      {statusCards.map((card) => (
+        <button
+          key={card.status}
+          onClick={() => handleStatusCardClick(card.status)}
+          className={`
+            relative px-3 py-2 rounded-xl border-2 transition-all text-left
+            ${
+              statusFilter === card.status
+                ? `border-${card.status === "scheduled" ? "primary" : card.color.replace("bg-", "")} ${card.bgColor}`
+                : "border-gray-100 bg-white hover:border-gray-200"
+            }
+          `}
+        >
+          {/* 색상 표시 바 */}
+          <div
+            className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-xl ${card.color}`}
+          />
+          <div className="pl-2 flex items-center gap-2">
+            <div className={`text-xl font-bold ${card.textColor}`}>
+              {card.count}
+            </div>
+            <div className="text-sm text-gray-600">{card.label}</div>
+            {card.needsAction && (
+              <span className="px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded-full">
+                처리필요
+              </span>
+            )}
+          </div>
+        </button>
+      ))}
     </div>
   );
 
@@ -230,14 +401,14 @@ export default function ApplicationsPage() {
         </p>
       }
       headerAction={
-        applications.length > 0 && (
+        enableManualSMS && applications.length > 0 ? (
           <button
             onClick={handleSelectAll}
             className="text-sm text-gray-600 hover:text-primary"
           >
             {selectedIds.length === applications.length ? "전체 해제" : "전체 선택"}
           </button>
-        )
+        ) : undefined
       }
       // 필터
       statusOptions={APPLICATION_STATUS_OPTIONS}
@@ -256,26 +427,40 @@ export default function ApplicationsPage() {
       keyExtractor={(app) => app.id}
       emptyIcon={<FileText className="w-5 h-5 text-gray-400" />}
       emptyMessage="신청 내역이 없습니다"
+      getRowClassName={getRowClassName}
       // 페이지네이션
       page={page}
       totalPages={totalPages}
       total={total}
       pageSize={pageSize}
       onPageChange={setPage}
-      // 추가 컨텐츠
+      // 통계 카드
+      beforeTable={StatsCards}
+      // 추가 컨텐츠 (SMS 수동 발송 기능 활성화 시에만)
       afterPagination={
-        <>
-          {SelectionActionBar}
-          <DirectSMSSheet
-            open={showBulkSMSSheet}
-            onOpenChange={setShowBulkSMSSheet}
-            targetType="customer"
-            selectedIds={selectedIds}
-            onComplete={() => {
-              setSelectedIds([]);
-            }}
-          />
-        </>
+        enableManualSMS ? (
+          <>
+            {SelectionActionBar}
+            <BulkAssignSheet
+              open={showBulkAssignSheet}
+              onOpenChange={setShowBulkAssignSheet}
+              selectedIds={selectedIds}
+              onComplete={() => {
+                setSelectedIds([]);
+                loadApplications();
+              }}
+            />
+            <DirectSMSSheet
+              open={showBulkSMSSheet}
+              onOpenChange={setShowBulkSMSSheet}
+              targetType="customer"
+              selectedIds={selectedIds}
+              onComplete={() => {
+                setSelectedIds([]);
+              }}
+            />
+          </>
+        ) : undefined
       }
     />
   );

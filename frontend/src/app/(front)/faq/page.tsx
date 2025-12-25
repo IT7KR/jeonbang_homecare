@@ -101,7 +101,7 @@ export default function FAQPage() {
   };
 
   return (
-    <div className="flex flex-col">
+    <main id="main-content" className="flex flex-col">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-20 lg:py-28">
         <div className="container mx-auto px-4">
@@ -121,7 +121,7 @@ export default function FAQPage() {
         <div className="container mx-auto px-4">
           <div className="max-w-4xl mx-auto">
             {/* Category Tabs */}
-            <div className="flex flex-wrap gap-3 mb-10">
+            <div className="flex flex-wrap gap-3 mb-10" role="tablist" aria-label="FAQ 카테고리">
               {CATEGORIES.map((category) => (
                 <button
                   key={category}
@@ -129,6 +129,9 @@ export default function FAQPage() {
                     setSelectedCategory(category);
                     setOpenIndex(null);
                   }}
+                  role="tab"
+                  aria-selected={selectedCategory === category}
+                  aria-label={`${category} 카테고리 보기`}
                   className={cn(
                     "px-6 py-3 rounded-full text-lg md:text-xl font-semibold transition-colors",
                     selectedCategory === category
@@ -142,35 +145,46 @@ export default function FAQPage() {
             </div>
 
             {/* FAQ List */}
-            <div className="space-y-5">
+            <div className="space-y-5" role="tabpanel">
               {filteredFAQ.map((item, index) => (
-                <div
+                <article
                   key={index}
                   className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm"
                 >
-                  <button
-                    onClick={() => toggleFAQ(index)}
-                    className="w-full px-6 md:px-8 py-5 md:py-6 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-primary font-bold text-xl md:text-2xl">
-                        Q
-                      </span>
-                      <span className="font-semibold text-lg md:text-xl text-gray-900">
-                        {item.question}
-                      </span>
-                    </div>
-                    <ChevronDown
-                      className={cn(
-                        "w-6 h-6 text-gray-500 transition-transform flex-shrink-0",
-                        openIndex === index && "rotate-180"
-                      )}
-                    />
-                  </button>
+                  <h3>
+                    <button
+                      onClick={() => toggleFAQ(index)}
+                      aria-expanded={openIndex === index}
+                      aria-controls={`faq-answer-${index}`}
+                      id={`faq-question-${index}`}
+                      className="w-full px-6 md:px-8 py-5 md:py-6 flex items-center justify-between text-left bg-white hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-4">
+                        <span className="text-primary font-bold text-xl md:text-2xl" aria-hidden="true">
+                          Q
+                        </span>
+                        <span className="font-semibold text-lg md:text-xl text-gray-900">
+                          {item.question}
+                        </span>
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          "w-6 h-6 text-gray-500 transition-transform flex-shrink-0",
+                          openIndex === index && "rotate-180"
+                        )}
+                        aria-hidden="true"
+                      />
+                    </button>
+                  </h3>
                   {openIndex === index && (
-                    <div className="px-6 md:px-8 py-5 md:py-6 bg-gray-50 border-t border-gray-200">
+                    <div
+                      id={`faq-answer-${index}`}
+                      role="region"
+                      aria-labelledby={`faq-question-${index}`}
+                      className="px-6 md:px-8 py-5 md:py-6 bg-gray-50 border-t border-gray-200"
+                    >
                       <div className="flex gap-4">
-                        <span className="text-primary font-bold text-xl md:text-2xl">
+                        <span className="text-primary font-bold text-xl md:text-2xl" aria-hidden="true">
                           A
                         </span>
                         <p className="text-lg md:text-xl text-gray-600 leading-relaxed">
@@ -179,7 +193,7 @@ export default function FAQPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </article>
               ))}
             </div>
           </div>
@@ -204,21 +218,21 @@ export default function FAQPage() {
                 variant="outline"
                 className="text-lg md:text-xl h-14 px-8"
               >
-                <Link href={`tel:${COMPANY_INFO.phone.replace(/-/g, "")}`}>
-                  <Phone className="mr-2 h-6 w-6" />
+                <Link href={`tel:${COMPANY_INFO.phone.replace(/-/g, "")}`} aria-label={`전화 문의: ${COMPANY_INFO.phone}`}>
+                  <Phone className="mr-2 h-6 w-6" aria-hidden="true" />
                   {COMPANY_INFO.phone}
                 </Link>
               </Button>
               <Button asChild size="lg" className="text-lg md:text-xl h-14 px-8">
                 <Link href="/apply">
                   서비스 문의하기
-                  <ArrowRight className="ml-2 h-6 w-6" />
+                  <ArrowRight className="ml-2 h-6 w-6" aria-hidden="true" />
                 </Link>
               </Button>
             </div>
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

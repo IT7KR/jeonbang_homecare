@@ -4,6 +4,12 @@ import "pretendard/dist/web/variable/pretendardvariable.css";
 import "./globals.css";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/hooks/useConfirm";
+import {
+  generateOrganizationSchema,
+  generateWebSiteSchema,
+  generateLocalBusinessSchema,
+} from "@/lib/seo/schemas";
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
@@ -31,17 +37,26 @@ export const metadata: Metadata = {
   openGraph: {
     title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
     description:
-      "전원주택의 모든 관리를 원스톱으로. 전방 홈케어와 함께하세요.",
+      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
     type: "website",
     locale: "ko_KR",
     siteName: "전방 홈케어",
     url: "https://geonbang.com/homecare",
+    images: [
+      {
+        url: "https://geonbang.com/homecare/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "전방 홈케어 - 전원주택 관리의 새로운 기준",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
     description:
-      "전원주택의 모든 관리를 원스톱으로. 전방 홈케어와 함께하세요.",
+      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
+    images: ["https://geonbang.com/homecare/og-image.png"],
   },
   robots: {
     index: true,
@@ -63,24 +78,18 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              "@context": "https://schema.org",
-              "@type": "LocalBusiness",
-              name: "전방 홈케어",
-              description: "전원주택 관리 전문 서비스",
-              telephone: "031-797-4004",
-              address: {
-                "@type": "PostalAddress",
-                addressRegion: "경기도",
-                addressLocality: "양평군",
-              },
-              areaServed: ["양평", "가평"],
-            }),
+            __html: JSON.stringify([
+              generateOrganizationSchema(),
+              generateWebSiteSchema(),
+              generateLocalBusinessSchema(),
+            ]),
           }}
         />
       </head>
       <body className={`${geistMono.variable} antialiased font-pretendard`}>
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </QueryProvider>
         <Toaster />
       </body>
     </html>

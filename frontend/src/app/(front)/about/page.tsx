@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Building2,
@@ -24,14 +25,24 @@ const iconMap: Record<string, React.ElementType> = {
   Home,
 };
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "회사 소개 | 전방 홈케어",
-  description: "전방은 전원생활의 모든 것을 함께 하는 토탈 솔루션 기업입니다.",
+  description:
+    "전방은 전원생활의 모든 것을 함께 하는 토탈 솔루션 기업입니다. 전원주택 관리, 부동산 중개, 커뮤니티 서비스를 제공합니다.",
+  openGraph: {
+    title: "회사 소개 | 전방 홈케어",
+    description:
+      "전방은 전원생활의 모든 것을 함께 하는 토탈 솔루션 기업입니다.",
+    url: "https://geonbang.com/homecare/about",
+  },
+  alternates: {
+    canonical: "https://geonbang.com/homecare/about",
+  },
 };
 
 export default function AboutPage() {
   return (
-    <div className="flex flex-col">
+    <main id="main-content" className="flex flex-col">
       {/* Hero Section */}
       <section className="bg-gradient-to-br from-primary-50 via-white to-secondary-50/30 py-20 lg:py-28">
         <div className="container mx-auto px-4">
@@ -68,7 +79,7 @@ export default function AboutPage() {
                 >
                   <CardContent className="pt-10 pb-8">
                     <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-primary-50 rounded-full mb-6">
-                      <IconComponent className="w-10 h-10 md:w-12 md:h-12 text-primary" />
+                      <IconComponent className="w-10 h-10 md:w-12 md:h-12 text-primary" aria-hidden="true" />
                     </div>
                     <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                       {item.title}
@@ -97,7 +108,7 @@ export default function AboutPage() {
             <Card className="border-0 shadow-xl">
               <CardContent className="pt-10 pb-8 text-center">
                 <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-blue-100 rounded-full mb-6">
-                  <Target className="w-10 h-10 md:w-12 md:h-12 text-blue-600" />
+                  <Target className="w-10 h-10 md:w-12 md:h-12 text-blue-600" aria-hidden="true" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                   미션
@@ -112,7 +123,7 @@ export default function AboutPage() {
             <Card className="border-0 shadow-xl">
               <CardContent className="pt-10 pb-8 text-center">
                 <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-green-100 rounded-full mb-6">
-                  <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-600" />
+                  <Shield className="w-10 h-10 md:w-12 md:h-12 text-green-600" aria-hidden="true" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                   신뢰
@@ -127,7 +138,7 @@ export default function AboutPage() {
             <Card className="border-0 shadow-xl">
               <CardContent className="pt-10 pb-8 text-center">
                 <div className="inline-flex items-center justify-center w-20 h-20 md:w-24 md:h-24 bg-orange-100 rounded-full mb-6">
-                  <Handshake className="w-10 h-10 md:w-12 md:h-12 text-orange-600" />
+                  <Handshake className="w-10 h-10 md:w-12 md:h-12 text-orange-600" aria-hidden="true" />
                 </div>
                 <h3 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                   상생
@@ -155,13 +166,13 @@ export default function AboutPage() {
           </div>
 
           <div className="max-w-5xl mx-auto">
-            <div className="space-y-6">
-              {CORE_ROLES.map((role, idx) => (
-                <div
+            <ol className="space-y-6 list-none">
+              {CORE_ROLES.map((role) => (
+                <li
                   key={role.step}
                   className="flex items-start gap-6 md:gap-8 p-6 md:p-8 bg-white rounded-2xl shadow-sm border border-gray-100"
                 >
-                  <div className="flex-shrink-0 w-14 h-14 md:w-16 md:h-16 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl md:text-2xl">
+                  <div className="flex-shrink-0 w-14 h-14 md:w-16 md:h-16 bg-primary text-white rounded-full flex items-center justify-center font-bold text-xl md:text-2xl" aria-hidden="true">
                     {role.step}
                   </div>
                   <div>
@@ -172,9 +183,9 @@ export default function AboutPage() {
                       {role.description}
                     </p>
                   </div>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
           </div>
         </div>
       </section>
@@ -194,7 +205,7 @@ export default function AboutPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="flex items-start gap-5">
                     <div className="p-4 bg-primary-50 rounded-xl">
-                      <Phone className="w-6 h-6 md:w-7 md:h-7 text-primary" />
+                      <Phone className="w-6 h-6 md:w-7 md:h-7 text-primary" aria-hidden="true" />
                     </div>
                     <div>
                       <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
@@ -208,7 +219,7 @@ export default function AboutPage() {
 
                   <div className="flex items-start gap-5">
                     <div className="p-4 bg-primary-50 rounded-xl">
-                      <Mail className="w-6 h-6 md:w-7 md:h-7 text-primary" />
+                      <Mail className="w-6 h-6 md:w-7 md:h-7 text-primary" aria-hidden="true" />
                     </div>
                     <div>
                       <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
@@ -222,7 +233,7 @@ export default function AboutPage() {
 
                   <div className="flex items-start gap-5">
                     <div className="p-4 bg-primary-50 rounded-xl">
-                      <Clock className="w-6 h-6 md:w-7 md:h-7 text-primary" />
+                      <Clock className="w-6 h-6 md:w-7 md:h-7 text-primary" aria-hidden="true" />
                     </div>
                     <div>
                       <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
@@ -236,7 +247,7 @@ export default function AboutPage() {
 
                   <div className="flex items-start gap-5">
                     <div className="p-4 bg-primary-50 rounded-xl">
-                      <MapPin className="w-6 h-6 md:w-7 md:h-7 text-primary" />
+                      <MapPin className="w-6 h-6 md:w-7 md:h-7 text-primary" aria-hidden="true" />
                     </div>
                     <div>
                       <h3 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
@@ -285,6 +296,6 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
-    </div>
+    </main>
   );
 }

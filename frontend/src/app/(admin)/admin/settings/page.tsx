@@ -16,6 +16,7 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
+import { useConfirm } from "@/hooks";
 import {
   getProfile,
   updateProfile,
@@ -32,6 +33,7 @@ import { formatPhoneInput } from "@/lib/utils";
 export default function SettingsPage() {
   const router = useRouter();
   const { getValidToken, admin: currentAdmin } = useAuthStore();
+  const { confirm } = useConfirm();
 
   const [activeTab, setActiveTab] = useState<"profile" | "password" | "admins">("profile");
   const [isLoading, setIsLoading] = useState(true);
@@ -240,7 +242,14 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAdmin = async (admin: AdminItem) => {
-    if (!confirm(`${admin.name} 관리자를 삭제하시겠습니까?`)) return;
+    const confirmed = await confirm({
+      title: `${admin.name} 관리자를 삭제하시겠습니까?`,
+      description: "삭제된 관리자 계정은 복구할 수 없습니다.",
+      type: "warning",
+      confirmText: "삭제",
+      confirmVariant: "destructive",
+    });
+    if (!confirmed) return;
     clearMessages();
 
     try {
