@@ -18,9 +18,20 @@ export type {
   // Applications
   ApplicationListItem,
   ApplicationListResponse,
+  ScheduleConflict,
   ApplicationDetail,
   ApplicationUpdate,
   ApplicationListParams,
+  // Bulk Assign
+  BulkAssignRequest,
+  BulkAssignResult,
+  BulkAssignResponse,
+  // Assignments (1:N)
+  AssignmentSummary,
+  Assignment,
+  AssignmentListResponse,
+  AssignmentCreate,
+  AssignmentUpdate,
   // Partners
   PartnerListItem,
   PartnerListResponse,
@@ -58,6 +69,27 @@ export type {
   AdminListItem,
   AdminCreate,
   AdminUpdateData,
+  // SMS Templates
+  SMSTemplate,
+  SMSTemplateListResponse,
+  SMSTemplateCreate,
+  SMSTemplateUpdate,
+  SMSTemplatePreviewRequest,
+  SMSTemplatePreviewResponse,
+  SMSTemplateListParams,
+  // Audit Logs
+  AuditLog,
+  AuditLogListResponse,
+  AuditLogListParams,
+  // Application Notes
+  ApplicationNote,
+  ApplicationNotesListResponse,
+  ApplicationNoteCreate,
+  // Partner Notes
+  PartnerNote,
+  PartnerNotesListResponse,
+  PartnerNoteCreate,
+  PartnerStatusChange,
 } from "./types";
 
 // Auth API
@@ -76,6 +108,15 @@ export {
   getApplications,
   getApplication,
   updateApplication,
+  bulkAssignApplications,
+  getApplicationNotes,
+  createApplicationNote,
+  deleteApplicationNote,
+  // Assignments (1:N)
+  getApplicationAssignments,
+  createApplicationAssignment,
+  updateApplicationAssignment,
+  deleteApplicationAssignment,
 } from "./applications";
 
 // Partners API
@@ -84,6 +125,10 @@ export {
   getPartner,
   updatePartner,
   approvePartner,
+  changePartnerStatus,
+  getPartnerNotes,
+  createPartnerNote,
+  deletePartnerNote,
 } from "./partners";
 
 // SMS API
@@ -116,3 +161,17 @@ export {
   updateAdmin,
   deleteAdmin,
 } from "./settings";
+
+// SMS Templates API
+export {
+  getSMSTemplates,
+  getSMSTemplate,
+  getSMSTemplateByKey,
+  createSMSTemplate,
+  updateSMSTemplate,
+  deleteSMSTemplate,
+  previewSMSTemplate,
+} from "./sms-templates";
+
+// Audit Logs API
+export { getAuditLogs, getEntityAuditLogs } from "./audit-logs";

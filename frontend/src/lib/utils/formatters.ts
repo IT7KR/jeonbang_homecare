@@ -68,7 +68,8 @@ export function formatDate(
 /**
  * 상대적 시간 포맷팅 (예: "3분 전", "2시간 전")
  */
-export function formatRelativeTime(date: Date): string {
+export function formatRelativeTime(dateInput: Date | string): string {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);

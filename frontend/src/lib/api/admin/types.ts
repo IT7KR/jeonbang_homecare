@@ -83,6 +83,8 @@ export interface ApplicationListItem {
   status: string;
   assigned_partner_id: number | null;
   scheduled_date: string | null;
+  preferred_consultation_date: string | null;
+  preferred_work_date: string | null;
   created_at: string;
 }
 
@@ -92,6 +94,76 @@ export interface ApplicationListResponse {
   page: number;
   page_size: number;
   total_pages: number;
+}
+
+export interface ScheduleConflict {
+  application_id: number;
+  application_number: string;
+  customer_name: string;
+  scheduled_time: string | null;
+}
+
+// ===== Assignment Types (1:N 협력사 배정) =====
+
+export interface AssignmentSummary {
+  id: number;
+  partner_id: number;
+  partner_name: string;
+  partner_company: string | null;
+  assigned_services: string[];
+  status: string;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  estimated_cost: number | null;
+  final_cost: number | null;
+}
+
+export interface Assignment {
+  id: number;
+  application_id: number;
+  partner_id: number;
+  assigned_services: string[];
+  status: string;
+  scheduled_date: string | null;
+  scheduled_time: string | null;
+  estimated_cost: number | null;
+  final_cost: number | null;
+  assigned_by: number | null;
+  assigned_at: string | null;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  cancelled_at: string | null;
+  partner_name: string | null;
+  partner_phone: string | null;
+  partner_company: string | null;
+}
+
+export interface AssignmentListResponse {
+  items: Assignment[];
+  total: number;
+}
+
+export interface AssignmentCreate {
+  partner_id: number;
+  assigned_services: string[];
+  scheduled_date?: string;
+  scheduled_time?: string;
+  estimated_cost?: number;
+  note?: string;
+  send_sms?: boolean;
+}
+
+export interface AssignmentUpdate {
+  assigned_services?: string[];
+  status?: string;
+  scheduled_date?: string;
+  scheduled_time?: string;
+  estimated_cost?: number;
+  final_cost?: number;
+  note?: string;
+  send_sms?: boolean;
 }
 
 export interface ApplicationDetail {
@@ -104,7 +176,10 @@ export interface ApplicationDetail {
   selected_services: string[];
   description: string;
   photos: string[];
+  preferred_consultation_date: string | null;
+  preferred_work_date: string | null;
   status: string;
+  // 레거시 필드 (단일 배정 호환용)
   assigned_partner_id: number | null;
   assigned_admin_id: number | null;
   scheduled_date: string | null;
@@ -116,6 +191,10 @@ export interface ApplicationDetail {
   updated_at: string;
   completed_at: string | null;
   cancelled_at: string | null;
+  // 일정 충돌 경고 (업데이트 응답에서만)
+  schedule_conflicts?: ScheduleConflict[] | null;
+  // 다중 배정 목록 (1:N)
+  assignments?: AssignmentSummary[] | null;
 }
 
 export interface ApplicationUpdate {
@@ -135,6 +214,29 @@ export interface ApplicationListParams {
   page_size?: number;
   status?: string;
   search?: string;
+}
+
+// ===== Bulk Assign Types =====
+
+export interface BulkAssignRequest {
+  application_ids: number[];
+  partner_id: number;
+  send_sms?: boolean;
+}
+
+export interface BulkAssignResult {
+  application_id: number;
+  application_number: string;
+  success: boolean;
+  message: string;
+}
+
+export interface BulkAssignResponse {
+  total: number;
+  success_count: number;
+  failed_count: number;
+  results: BulkAssignResult[];
+  partner_name: string;
 }
 
 // ===== Partners Types =====
@@ -179,6 +281,7 @@ export interface PartnerDetail {
   introduction: string | null;
   experience: string | null;
   remarks: string | null;
+  business_registration_file: string | null;  // 사업자등록증 파일 경로
   status: string;
   approved_by: number | null;
   approved_at: string | null;
@@ -416,4 +519,139 @@ export interface AdminUpdateData {
   name?: string;
   phone?: string;
   is_active?: boolean;
+}
+
+// ===== SMS Template Types =====
+
+export interface SMSTemplate {
+  id: number;
+  template_key: string;
+  title: string;
+  description: string | null;
+  content: string;
+  available_variables: string[] | null;
+  is_active: boolean;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+  updated_by: number | null;
+}
+
+export interface SMSTemplateListResponse {
+  items: SMSTemplate[];
+  total: number;
+}
+
+export interface SMSTemplateCreate {
+  template_key: string;
+  title: string;
+  description?: string;
+  content: string;
+  available_variables?: string[];
+  is_active?: boolean;
+}
+
+export interface SMSTemplateUpdate {
+  title?: string;
+  description?: string;
+  content?: string;
+  is_active?: boolean;
+}
+
+export interface SMSTemplatePreviewRequest {
+  template_key: string;
+  variables: Record<string, string>;
+}
+
+export interface SMSTemplatePreviewResponse {
+  original: string;
+  preview: string;
+  byte_length: number;
+  message_type: "SMS" | "LMS";
+}
+
+export interface SMSTemplateListParams {
+  is_active?: boolean;
+  search?: string;
+}
+
+// ===== Audit Log Types =====
+
+export interface AuditLog {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  summary: string | null;
+  admin_id: number | null;
+  admin_name: string | null;
+  created_at: string;
+}
+
+export interface AuditLogListResponse {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export interface AuditLogListParams {
+  entity_type?: string;
+  entity_id?: number;
+  action?: string;
+  admin_id?: number;
+  page?: number;
+  page_size?: number;
+}
+
+// ===== Application Note Types =====
+
+export interface ApplicationNote {
+  id: number;
+  application_id: number;
+  admin_id: number;
+  admin_name: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ApplicationNotesListResponse {
+  items: ApplicationNote[];
+  total: number;
+}
+
+export interface ApplicationNoteCreate {
+  content: string;
+}
+
+// ===== Partner Note Types =====
+
+export interface PartnerNote {
+  id: number;
+  partner_id: number;
+  admin_id: number | null;
+  admin_name: string;
+  note_type: "memo" | "status_change" | "system";
+  content: string;
+  old_status: string | null;
+  new_status: string | null;
+  created_at: string;
+}
+
+export interface PartnerNotesListResponse {
+  items: PartnerNote[];
+  total: number;
+}
+
+export interface PartnerNoteCreate {
+  content: string;
+}
+
+export interface PartnerStatusChange {
+  new_status: "pending" | "approved" | "rejected" | "active" | "inactive" | "suspended";
+  reason?: string;
+  send_sms?: boolean;
 }

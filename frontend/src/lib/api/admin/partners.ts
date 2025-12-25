@@ -9,6 +9,10 @@ import type {
   PartnerDetail,
   PartnerUpdate,
   PartnerListParams,
+  PartnerNote,
+  PartnerNotesListResponse,
+  PartnerNoteCreate,
+  PartnerStatusChange,
 } from "./types";
 
 /**
@@ -68,4 +72,70 @@ export async function approvePartner(
       rejection_reason: rejectionReason,
     },
   });
+}
+
+/**
+ * 협력사 상태 변경 (어떤 상태에서든 변경 가능)
+ */
+export async function changePartnerStatus(
+  token: string,
+  id: number,
+  data: PartnerStatusChange
+): Promise<PartnerDetail> {
+  return fetchWithToken<PartnerDetail>(`/admin/partners/${id}/status`, token, {
+    method: "POST",
+    body: {
+      new_status: data.new_status,
+      reason: data.reason,
+      send_sms: data.send_sms ?? true,
+    },
+  });
+}
+
+/**
+ * 협력사 메모/히스토리 목록 조회
+ */
+export async function getPartnerNotes(
+  token: string,
+  partnerId: number
+): Promise<PartnerNotesListResponse> {
+  return fetchWithToken<PartnerNotesListResponse>(
+    `/admin/partners/${partnerId}/notes`,
+    token
+  );
+}
+
+/**
+ * 협력사 메모 추가
+ */
+export async function createPartnerNote(
+  token: string,
+  partnerId: number,
+  data: PartnerNoteCreate
+): Promise<PartnerNote> {
+  return fetchWithToken<PartnerNote>(
+    `/admin/partners/${partnerId}/notes`,
+    token,
+    {
+      method: "POST",
+      body: data,
+    }
+  );
+}
+
+/**
+ * 협력사 메모 삭제
+ */
+export async function deletePartnerNote(
+  token: string,
+  partnerId: number,
+  noteId: number
+): Promise<void> {
+  return fetchWithToken<void>(
+    `/admin/partners/${partnerId}/notes/${noteId}`,
+    token,
+    {
+      method: "DELETE",
+    }
+  );
 }

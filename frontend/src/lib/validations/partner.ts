@@ -78,6 +78,26 @@ export const partnerSchema = z.object({
     .max(500, "비고는 500자 이하로 입력해주세요")
     .optional(),
 
+  // 사업자등록증 파일 (선택)
+  businessRegistrationFile: z
+    .custom<File>()
+    .optional()
+    .refine(
+      (file) => {
+        if (!file) return true;
+        const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/jpg"];
+        return allowedTypes.includes(file.type);
+      },
+      { message: "PDF, JPG, PNG 파일만 업로드 가능합니다" }
+    )
+    .refine(
+      (file) => {
+        if (!file) return true;
+        return file.size <= 10 * 1024 * 1024; // 10MB
+      },
+      { message: "파일 크기는 10MB 이하여야 합니다" }
+    ),
+
   // 개인정보 동의
   agreePrivacy: z
     .boolean()
@@ -109,6 +129,7 @@ export const partnerDefaultValues: Partial<PartnerFormData> = {
   introduction: "",
   experience: "",
   remarks: "",
+  businessRegistrationFile: undefined,
   agreePrivacy: false,
   agreeTerms: false,
 };

@@ -13,6 +13,8 @@ export interface ApplicationCreateRequest {
   address_detail?: string;
   selected_services: string[];
   description: string;
+  preferred_consultation_date?: string; // YYYY-MM-DD
+  preferred_work_date?: string; // YYYY-MM-DD
 }
 
 // Response Types
@@ -50,6 +52,14 @@ export async function createApplication(
   }
   formData.append("selected_services", JSON.stringify(data.selected_services));
   formData.append("description", data.description);
+
+  // 희망 일정
+  if (data.preferred_consultation_date) {
+    formData.append("preferred_consultation_date", data.preferred_consultation_date);
+  }
+  if (data.preferred_work_date) {
+    formData.append("preferred_work_date", data.preferred_work_date);
+  }
 
   if (photos) {
     photos.forEach((photo) => {

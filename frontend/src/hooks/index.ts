@@ -6,3 +6,5 @@ export type {
 } from "./useWizardForm";
 
 export { toast } from "./useToast";
+export { useConfirm, ConfirmProvider } from "./useConfirm";
+export type { ConfirmOptions } from "./useConfirm";

@@ -1,7 +1,17 @@
 import { z } from "zod";
+import { PHONE_PATTERN } from "./patterns";
 
-// 전화번호 정규식 (하이픈 포함/미포함 모두 허용)
-const phoneRegex = /^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/;
+// 전화번호 정규식 - 공통 패턴 사용
+const phoneRegex = PHONE_PATTERN;
+
+// 오늘 날짜를 YYYY-MM-DD 형식으로 가져오기
+const getTodayString = () => new Date().toISOString().split("T")[0];
+
+// 미래 날짜 검증 함수
+const isFutureOrToday = (dateStr: string | undefined) => {
+  if (!dateStr) return true;
+  return dateStr >= getTodayString();
+};
 
 // 서비스 신청 폼 스키마
 export const applicationSchema = z.object({
@@ -26,8 +36,20 @@ export const applicationSchema = z.object({
   // 상세 내용
   description: z
     .string()
-    .min(10, "상세 내용은 10자 이상 입력해주세요")
-    .max(1000, "상세 내용은 1000자 이하로 입력해주세요"),
+    .min(20, "전달 사항은 20자 이상 입력해주세요")
+    .max(1000, "전달 사항은 1000자 이하로 입력해주세요"),
+
+  // 희망 상담일 (선택, 오늘 이후)
+  preferredConsultationDate: z
+    .string()
+    .optional()
+    .refine(isFutureOrToday, { message: "희망일은 오늘 이후 날짜여야 합니다" }),
+
+  // 희망 작업일 (선택, 오늘 이후)
+  preferredWorkDate: z
+    .string()
+    .optional()
+    .refine(isFutureOrToday, { message: "희망일은 오늘 이후 날짜여야 합니다" }),
 
   // 사진 첨부 (선택)
   photos: z.array(z.instanceof(File)).optional(),
@@ -50,6 +72,8 @@ export const applicationDefaultValues: Partial<ApplicationFormData> = {
   addressDetail: "",
   selectedServices: [],
   description: "",
+  preferredConsultationDate: "",
+  preferredWorkDate: "",
   photos: [],
   agreePrivacy: false,
 };
