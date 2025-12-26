@@ -18,7 +18,7 @@ import {
   type ApplicationFormData,
 } from "@/lib/validations/application";
 import { ROUTES } from "@/lib/constants";
-import { createApplication } from "@/lib/api/applications";
+import { createApplication, type ApplicationCreateResponse } from "@/lib/api/applications";
 import { getServices, type ServicesListResponse } from "@/lib/api/services";
 
 // 마법사 스텝 설정 (4단계)
@@ -60,6 +60,8 @@ export default function ApplyPage() {
   // 서비스 목록 상태
   const [services, setServices] = useState<ServicesListResponse | null>(null);
   const [servicesLoading, setServicesLoading] = useState(true);
+  // 제출 응답 저장 (중복 정보 표시용)
+  const [submitResponse, setSubmitResponse] = useState<ApplicationCreateResponse | null>(null);
 
   // 서비스 목록 로드
   useEffect(() => {
@@ -93,6 +95,9 @@ export default function ApplyPage() {
       if (!response.success) {
         throw new Error(response.message);
       }
+
+      // 응답 저장 (중복 정보 포함)
+      setSubmitResponse(response);
     },
   });
 
@@ -107,7 +112,12 @@ export default function ApplyPage() {
 
   // 제출 완료 시 성공 화면 표시
   if (wizard.isSubmitted) {
-    return <ApplySuccess />;
+    return (
+      <ApplySuccess
+        applicationNumber={submitResponse?.application_number}
+        duplicateInfo={submitResponse?.duplicate_info}
+      />
+    );
   }
 
   // 현재 스텝 정보
