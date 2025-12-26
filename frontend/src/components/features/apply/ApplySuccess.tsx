@@ -1,14 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Phone, Home } from "lucide-react";
+import { CheckCircle2, Phone, Home, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROUTES, COMPANY_INFO } from "@/lib/constants";
+import type { DuplicateApplicationInfo } from "@/lib/api/applications";
+
+interface ApplySuccessProps {
+  applicationNumber?: string;
+  duplicateInfo?: DuplicateApplicationInfo;
+}
+
+// 상태 라벨
+const STATUS_LABELS: Record<string, string> = {
+  new: "신규접수",
+  consulting: "상담중",
+  assigned: "협력사 배정됨",
+  scheduled: "일정 확정",
+};
 
 /**
  * 서비스 신청 완료 화면
  */
-export function ApplySuccess() {
+export function ApplySuccess({ applicationNumber, duplicateInfo }: ApplySuccessProps) {
   return (
     <div className="wizard-container">
       <div className="wizard-content max-w-lg mx-auto px-4 py-12">
@@ -29,6 +43,35 @@ export function ApplySuccess() {
           <h1 className="text-senior-title mb-4">
             서비스 신청이 완료되었습니다
           </h1>
+
+          {/* 신청번호 표시 */}
+          {applicationNumber && (
+            <p className="text-lg text-primary font-bold mb-4">
+              신청번호: {applicationNumber}
+            </p>
+          )}
+
+          {/* 중복 신청 경고 */}
+          {duplicateInfo && (
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-5 mb-6 text-left">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-[16px] font-bold text-amber-800 mb-2">
+                    이미 진행 중인 신청이 있습니다
+                  </h3>
+                  <p className="text-[15px] text-amber-700 mb-3">
+                    동일한 연락처로 이미 신청된 건이 있어 안내드립니다.
+                    담당자가 확인 후 함께 처리해 드리겠습니다.
+                  </p>
+                  <div className="bg-white/60 rounded-lg p-3 text-[14px] text-amber-800">
+                    <p><span className="font-medium">기존 신청번호:</span> {duplicateInfo.existing_application_number}</p>
+                    <p><span className="font-medium">상태:</span> {STATUS_LABELS[duplicateInfo.existing_status] || duplicateInfo.existing_status}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 설명 */}
           <p className="text-senior-body text-gray-600 mb-10">
