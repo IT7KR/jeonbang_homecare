@@ -149,12 +149,25 @@ class PartnerDetailResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DuplicatePartnerInfo(BaseModel):
+    """중복 협력사 정보"""
+
+    existing_id: int
+    existing_company_name: str
+    existing_status: str
+    existing_created_at: datetime
+    duplicate_type: str  # "business_number" | "phone_company"
+
+
 class PartnerCreateResponse(BaseModel):
     """협력사 등록 응답"""
 
     success: bool
     partner_id: int
     message: str
+    # 중복 협력사 정보 (있는 경우)
+    duplicate_info: Optional[DuplicatePartnerInfo] = None
+    is_duplicate: bool = False
 
 
 # ===== 관리자용 스키마 =====

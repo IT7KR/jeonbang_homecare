@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, UploadFile, File, Form,
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.encryption import encrypt_value
+from app.core.encryption import encrypt_value, generate_search_hash, generate_composite_hash
 from app.core.config import settings
 from app.core.file_validators import (
     validate_file_magic,
@@ -27,10 +27,13 @@ logger = logging.getLogger(__name__)
 from app.schemas.partner import (
     PartnerCreate,
     PartnerCreateResponse,
+    DuplicatePartnerInfo,
 )
 from app.services.sms import send_partner_notification
 from app.services.background import run_async_in_background
 from app.services.audit import log_file_access
+from app.services.search_index import update_partner_search_index
+from app.services.duplicate_check import check_partner_duplicate
 
 router = APIRouter(prefix="/partners", tags=["Partners"])
 
@@ -150,6 +153,36 @@ async def create_partner(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="잘못된 데이터 형식입니다.")
 
+    # 중복 협력사 체크
+    duplicate_result = check_partner_duplicate(
+        db,
+        phone=contactPhone,
+        company_name=companyName,
+        business_number=businessNumber,
+    )
+    duplicate_info = None
+    if duplicate_result.is_duplicate:
+        duplicate_info = DuplicatePartnerInfo(
+            existing_id=duplicate_result.existing_id,
+            existing_company_name=duplicate_result.existing_company_name,
+            existing_status=duplicate_result.existing_status,
+            existing_created_at=duplicate_result.existing_created_at,
+            duplicate_type=duplicate_result.duplicate_type,
+        )
+        logger.info(
+            f"중복 협력사 감지: 회사명={companyName}, "
+            f"유형={duplicate_result.duplicate_type}, "
+            f"기존 회사명={duplicate_result.existing_company_name}"
+        )
+
+    # 해시 생성 (중복 감지용)
+    phone_hash = generate_search_hash(contactPhone, "phone")
+    business_number_hash = generate_search_hash(businessNumber, "business_number") if businessNumber else None
+    phone_company_hash = generate_composite_hash([
+        (contactPhone, "phone"),
+        (companyName, "company_name")
+    ])
+
     # 협력사 데이터 생성 (민감정보 암호화)
     new_partner = Partner(
         company_name=companyName,
@@ -165,11 +198,24 @@ async def create_partner(
         experience=experience,
         remarks=remarks,
         status="pending",
+        # 중복 감지용 해시
+        phone_hash=phone_hash,
+        business_number_hash=business_number_hash,
+        phone_company_hash=phone_company_hash,
     )
 
     db.add(new_partner)
     db.commit()
     db.refresh(new_partner)
+
+    # 검색 인덱스 생성 (평문 값 사용)
+    update_partner_search_index(
+        db,
+        new_partner.id,
+        representativeName,
+        contactPhone
+    )
+    db.commit()
 
     # 사업자등록증 파일 저장
     if businessRegistrationFile and businessRegistrationFile.filename:
@@ -209,8 +255,24 @@ async def create_partner(
         service_areas_list,
     )
 
+    # 응답 메시지 (중복 여부에 따라 다름)
+    message = "협력사 등록 신청이 완료되었습니다. 검토 후 연락드리겠습니다."
+    if duplicate_info:
+        if duplicate_info.duplicate_type == "business_number":
+            message = (
+                f"협력사 등록 신청이 완료되었습니다. "
+                f"동일한 사업자등록번호로 등록된 업체({duplicate_info.existing_company_name})가 있습니다."
+            )
+        else:
+            message = (
+                f"협력사 등록 신청이 완료되었습니다. "
+                f"동일한 연락처와 상호명으로 등록된 업체가 있습니다."
+            )
+
     return PartnerCreateResponse(
         success=True,
         partner_id=new_partner.id,
-        message="협력사 등록 신청이 완료되었습니다. 검토 후 연락드리겠습니다.",
+        message=message,
+        duplicate_info=duplicate_info,
+        is_duplicate=duplicate_result.is_duplicate,
     )
