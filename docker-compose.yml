@@ -45,9 +45,11 @@ services:
       - ALIGO_USER_ID=${ALIGO_USER_ID:-}
       - ALIGO_SENDER=${ALIGO_SENDER:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3500}
+      - UPLOAD_DIR=/data/uploads
       - TZ=Asia/Seoul
     volumes:
-      - uploads_data:/app/uploads
+      # 파일 저장소는 웹 루트 외부에 격리 (/data/uploads)
+      - uploads_data:/data/uploads
     depends_on:
       db:
         condition: service_healthy

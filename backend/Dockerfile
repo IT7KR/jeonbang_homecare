@@ -27,10 +27,14 @@ COPY . .
 # Create non-root user for security
 RUN adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
-USER appuser
 
-# Create uploads directory
-RUN mkdir -p /app/uploads
+# Create isolated uploads directory (outside web root)
+# /data/uploads is mounted as a separate volume
+RUN mkdir -p /data/uploads && \
+    chown -R appuser:appuser /data && \
+    chmod 750 /data/uploads
+
+USER appuser
 
 # Expose port
 EXPOSE 8000

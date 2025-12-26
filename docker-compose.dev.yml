@@ -14,8 +14,9 @@ services:
       - ./backend:/app                    # Hot reload
       - /app/__pycache__                  # Exclude pycache
       - /app/.pytest_cache               # Exclude pytest cache
-      - uploads_data:/app/uploads
+      - uploads_data:/data/uploads        # 격리된 파일 저장소
     environment:
+      - UPLOAD_DIR=/data/uploads
       - APP_ENV=development
       - DEBUG=true
       - CORS_ORIGINS=http://localhost:3500,http://127.0.0.1:3500

@@ -29,7 +29,17 @@ class Settings(BaseSettings):
     ALIGO_SENDER: str = ""
 
     # File Upload
-    UPLOAD_DIR: str = "/app/uploads"
+    # 파일 저장 경로 (웹 루트 외부에 격리)
+    # - 개발 환경: /app/uploads (편의상 앱 디렉토리 내)
+    # - 운영 환경: /data/uploads (격리된 볼륨)
+    UPLOAD_DIR: str = "/data/uploads"
+
+    # File Access Control
+    # 파일 접근 모드: public | admin_only | owner_only
+    # - public: 토큰만으로 접근 가능 (기본값)
+    # - admin_only: 관리자 JWT 인증 필수
+    # - owner_only: 담당 관리자만 접근 가능 (추후 구현)
+    FILE_ACCESS_MODE: str = "public"
 
     # CORS
     CORS_ORIGINS: str = "http://localhost:3500"
