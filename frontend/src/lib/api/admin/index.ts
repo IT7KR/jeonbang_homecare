@@ -90,6 +90,12 @@ export type {
   PartnerNotesListResponse,
   PartnerNoteCreate,
   PartnerStatusChange,
+  // Customer History (중복 관리)
+  CustomerHistoryItem,
+  CustomerHistoryResponse,
+  // Similar Partners (중복 관리)
+  SimilarPartnerItem,
+  SimilarPartnersResponse,
 } from "./types";
 
 // Auth API
@@ -117,6 +123,8 @@ export {
   createApplicationAssignment,
   updateApplicationAssignment,
   deleteApplicationAssignment,
+  // Customer History (중복 관리)
+  getCustomerHistory,
 } from "./applications";
 
 // Partners API
@@ -129,6 +137,8 @@ export {
   getPartnerNotes,
   createPartnerNote,
   deletePartnerNote,
+  // Similar Partners (중복 관리)
+  getSimilarPartners,
 } from "./partners";
 
 // SMS API

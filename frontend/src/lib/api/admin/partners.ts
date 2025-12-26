@@ -13,6 +13,7 @@ import type {
   PartnerNotesListResponse,
   PartnerNoteCreate,
   PartnerStatusChange,
+  SimilarPartnersResponse,
 } from "./types";
 
 /**
@@ -28,6 +29,12 @@ export async function getPartners(
       page_size: params.page_size,
       status: params.status,
       search: params.search,
+      search_type: params.search_type,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      services: params.services,
+      region: params.region,
+      approved_by: params.approved_by,
     },
   });
 }
@@ -137,5 +144,20 @@ export async function deletePartnerNote(
     {
       method: "DELETE",
     }
+  );
+}
+
+// ==================== 유사 협력사 API (중복 관리) ====================
+
+/**
+ * 유사 협력사 조회 (동일 전화번호/사업자번호)
+ */
+export async function getSimilarPartners(
+  token: string,
+  partnerId: number
+): Promise<SimilarPartnersResponse> {
+  return fetchWithToken<SimilarPartnersResponse>(
+    `/admin/partners/${partnerId}/similar-partners`,
+    token
   );
 }

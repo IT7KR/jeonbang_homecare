@@ -18,6 +18,7 @@ import type {
   AssignmentListResponse,
   AssignmentCreate,
   AssignmentUpdate,
+  CustomerHistoryResponse,
 } from "./types";
 
 /**
@@ -33,6 +34,12 @@ export async function getApplications(
       page_size: params.page_size,
       status: params.status,
       search: params.search,
+      search_type: params.search_type,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      services: params.services,
+      assigned_admin_id: params.assigned_admin_id,
+      assigned_partner_id: params.assigned_partner_id,
     },
   });
 }
@@ -197,5 +204,20 @@ export async function deleteApplicationAssignment(
     {
       method: "DELETE",
     }
+  );
+}
+
+// ==================== 고객 이력 API (중복 관리) ====================
+
+/**
+ * 고객 신청 이력 조회 (동일 전화번호의 모든 신청)
+ */
+export async function getCustomerHistory(
+  token: string,
+  applicationId: number
+): Promise<CustomerHistoryResponse> {
+  return fetchWithToken<CustomerHistoryResponse>(
+    `/admin/applications/${applicationId}/customer-history`,
+    token
   );
 }
