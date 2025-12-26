@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "협력사 등록 | 전방 홈케어",
     description:
-      "전방 홈케어 협력사로 등록하고 함께 성장하세요. 양평, 가평 지역 전원주택 관리 서비스 파트너를 모집합니다.",
+      "전방 홈케어 협력사로 등록하고 함께 성장하세요. 전원주택 관리 서비스 파트너를 모집합니다.",
     url: "https://geonbang.com/homecare/partner",
   },
   alternates: {
