@@ -6,15 +6,8 @@ Application Status Service
 from typing import Dict, List, Set
 from fastapi import HTTPException
 
-# 유효한 상태 전환 규칙 정의
-VALID_TRANSITIONS: Dict[str, List[str]] = {
-    "new": ["consulting", "cancelled"],
-    "consulting": ["assigned", "cancelled"],
-    "assigned": ["scheduled", "consulting", "cancelled"],
-    "scheduled": ["completed", "cancelled"],
-    "completed": [],  # 최종 상태
-    "cancelled": [],  # 최종 상태
-}
+# 모든 유효한 상태 목록
+ALL_STATUSES: List[str] = ["new", "consulting", "assigned", "scheduled", "completed", "cancelled"]
 
 # 상태별 한글 이름
 STATUS_NAMES: Dict[str, str] = {
@@ -26,11 +19,11 @@ STATUS_NAMES: Dict[str, str] = {
     "cancelled": "취소",
 }
 
-# 협력사 배정이 가능한 상태
-ASSIGNABLE_STATUSES: Set[str] = {"new", "consulting"}
+# 협력사 배정이 가능한 상태 (모든 상태에서 가능)
+ASSIGNABLE_STATUSES: Set[str] = set(ALL_STATUSES)
 
-# 일정 설정이 가능한 상태
-SCHEDULABLE_STATUSES: Set[str] = {"assigned", "scheduled"}
+# 일정 설정이 가능한 상태 (모든 상태에서 가능)
+SCHEDULABLE_STATUSES: Set[str] = set(ALL_STATUSES)
 
 
 def validate_status_transition(current_status: str, next_status: str) -> bool:
@@ -42,13 +35,10 @@ def validate_status_transition(current_status: str, next_status: str) -> bool:
         next_status: 변경하려는 상태
 
     Returns:
-        bool: 전환 가능 여부
+        bool: 전환 가능 여부 (모든 상태 간 전환 허용)
     """
-    # 같은 상태로의 전환은 허용
-    if current_status == next_status:
-        return True
-
-    return next_status in VALID_TRANSITIONS.get(current_status, [])
+    # 모든 상태 간 전환 허용
+    return next_status in ALL_STATUSES
 
 
 def check_status_transition(current_status: str, next_status: str) -> None:
@@ -60,24 +50,14 @@ def check_status_transition(current_status: str, next_status: str) -> None:
         next_status: 변경하려는 상태
 
     Raises:
-        HTTPException: 유효하지 않은 상태 전환인 경우
+        HTTPException: 유효하지 않은 상태인 경우
     """
     if not validate_status_transition(current_status, next_status):
-        current_name = STATUS_NAMES.get(current_status, current_status)
         next_name = STATUS_NAMES.get(next_status, next_status)
-        allowed = VALID_TRANSITIONS.get(current_status, [])
-        allowed_names = [STATUS_NAMES.get(s, s) for s in allowed]
-
-        if not allowed:
-            raise HTTPException(
-                status_code=400,
-                detail=f"'{current_name}' 상태에서는 상태를 변경할 수 없습니다"
-            )
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"'{current_name}' 상태에서 '{next_name}'(으)로 변경할 수 없습니다. 가능한 상태: {', '.join(allowed_names)}"
-            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{next_name}'은(는) 유효하지 않은 상태입니다"
+        )
 
 
 def can_assign_partner(status: str) -> bool:
@@ -116,8 +96,9 @@ def get_next_status_options(current_status: str) -> List[Dict[str, str]]:
     Returns:
         List[Dict]: 전환 가능한 상태 목록 [{value, label}]
     """
-    allowed = VALID_TRANSITIONS.get(current_status, [])
+    # 현재 상태를 제외한 모든 상태 반환
     return [
         {"value": status, "label": STATUS_NAMES.get(status, status)}
-        for status in allowed
+        for status in ALL_STATUSES
+        if status != current_status
     ]

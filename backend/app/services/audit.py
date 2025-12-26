@@ -3,10 +3,38 @@ Audit Log Service
 변경 이력 추적 서비스
 """
 
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog, Admin
+from app.services.application_status import STATUS_NAMES as APPLICATION_STATUS_NAMES
+
+
+# 협력사 상태 한글 매핑
+PARTNER_STATUS_NAMES: Dict[str, str] = {
+    "pending": "대기중",
+    "approved": "승인됨",
+    "rejected": "거절됨",
+    "inactive": "비활성",
+}
+
+
+def get_status_label(entity_type: str, status: str) -> str:
+    """
+    상태값을 한글 라벨로 변환
+
+    Args:
+        entity_type: 엔티티 유형 (application, partner)
+        status: 영문 상태값
+
+    Returns:
+        한글 상태 라벨
+    """
+    if entity_type == "application":
+        return APPLICATION_STATUS_NAMES.get(status, status)
+    elif entity_type == "partner":
+        return PARTNER_STATUS_NAMES.get(status, status)
+    return status
 
 
 def log_change(
@@ -84,6 +112,10 @@ def log_status_change(
     Returns:
         생성된 AuditLog 객체
     """
+    # 상태값을 한글로 변환
+    old_label = get_status_label(entity_type, old_status)
+    new_label = get_status_label(entity_type, new_status)
+
     return log_change(
         db=db,
         entity_type=entity_type,
@@ -91,7 +123,7 @@ def log_status_change(
         action="status_change",
         old_value={"status": old_status},
         new_value={"status": new_status},
-        summary=f"상태 변경: {old_status} → {new_status}",
+        summary=f"상태 변경: {old_label} → {new_label}",
         admin=admin,
         ip_address=ip_address,
         user_agent=user_agent,
