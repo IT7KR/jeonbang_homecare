@@ -30,9 +30,30 @@ const nextConfig: NextConfig = {
         pathname: "/uploads/**",
       },
       {
+        protocol: "http",
+        hostname: "localhost",
+        port: "8000",
+        pathname: "/api/v1/files/**",
+      },
+      {
         protocol: "https",
-        hostname: "*.jeonbang.kr",
+        hostname: "*.jeonbang.com",
         pathname: "/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.jeonbang.com",
+        pathname: "/api/v1/files/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.geonbang.com",
+        pathname: "/uploads/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.geonbang.com",
+        pathname: "/api/v1/files/**",
       },
     ],
   },
@@ -70,8 +91,8 @@ const nextConfig: NextConfig = {
               }`,
               // 스타일: 동일 출처 + 인라인 스타일 허용 (Tailwind CSS용)
               "style-src 'self' 'unsafe-inline'",
-              // 이미지: 동일 출처 + data URI + blob (이미지 미리보기용)
-              "img-src 'self' data: blob:",
+              // 이미지: 동일 출처 + data URI + blob + 백엔드 API (파일 서빙용)
+              "img-src 'self' data: blob: http://localhost:8000 https://*.jeonbang.kr",
               // 폰트: 동일 출처
               "font-src 'self'",
               // API 연결: 동일 출처 + 백엔드 API
