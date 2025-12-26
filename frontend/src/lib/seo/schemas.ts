@@ -27,7 +27,7 @@ export function generateOrganizationSchema() {
     name: COMPANY_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/logo.png`,
-    description: "양평, 가평 지역 전원주택 관리 전문 서비스",
+    description: "전원주택 관리 전문 서비스",
     telephone: COMPANY_PHONE,
     email: COMPANY_EMAIL,
     address: {
@@ -79,7 +79,7 @@ export function generateLocalBusinessSchema() {
     "@id": `${SITE_URL}/#organization`,
     name: COMPANY_NAME,
     description:
-      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱 제공.",
+      "전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱 제공.",
     url: SITE_URL,
     telephone: COMPANY_PHONE,
     email: COMPANY_EMAIL,
