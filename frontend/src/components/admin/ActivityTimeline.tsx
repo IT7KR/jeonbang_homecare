@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Trash2, Send, Loader2, MessageSquare, Clock, RefreshCw } from "lucide-react";
+import { Trash2, Send, Loader2, MessageSquare, Clock, RefreshCw, Filter } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 
 /** 메모 항목 */
@@ -26,6 +26,9 @@ export type ActivityItem =
   | { type: "note"; data: NoteItem }
   | { type: "audit"; data: AuditItem };
 
+/** 필터 타입 */
+export type ActivityFilterType = "all" | "note" | "audit";
+
 export interface ActivityTimelineProps {
   /** 메모 목록 */
   notes?: NoteItem[];
@@ -35,6 +38,8 @@ export interface ActivityTimelineProps {
   initialDisplayCount?: number;
   /** 메모 입력창 표시 여부 */
   showInput?: boolean;
+  /** 필터 칩 표시 여부 (기본: true, auditLogs가 있을 때만 표시) */
+  showFilter?: boolean;
   /** 메모 추가 중 로딩 상태 */
   isAddingNote?: boolean;
   /** 메모 추가 핸들러 */
@@ -50,6 +55,7 @@ export interface ActivityTimelineProps {
 /**
  * 메모 + 감사 로그 통합 타임라인 컴포넌트
  * - 메모와 변경 이력을 시간순으로 통합 표시
+ * - 필터 칩으로 유형별 필터링
  * - 타입별 아이콘/색상 구분
  * - 메모 추가/삭제 기능
  * - 더보기/접기 토글
@@ -59,6 +65,7 @@ export function ActivityTimeline({
   auditLogs = [],
   initialDisplayCount = 5,
   showInput = true,
+  showFilter = true,
   isAddingNote = false,
   onAddNote,
   onDeleteNote,
@@ -67,9 +74,10 @@ export function ActivityTimeline({
 }: ActivityTimelineProps) {
   const [showAll, setShowAll] = useState(false);
   const [newContent, setNewContent] = useState("");
+  const [activeFilter, setActiveFilter] = useState<ActivityFilterType>("all");
 
   // 메모와 감사 로그를 통합하여 최신순 정렬
-  const activityItems = useMemo<ActivityItem[]>(() => {
+  const allActivityItems = useMemo<ActivityItem[]>(() => {
     const items: ActivityItem[] = [
       ...notes.map((n) => ({ type: "note" as const, data: n })),
       ...auditLogs.map((a) => ({ type: "audit" as const, data: a })),
@@ -82,11 +90,20 @@ export function ActivityTimeline({
     });
   }, [notes, auditLogs]);
 
-  const displayedItems = showAll
-    ? activityItems
-    : activityItems.slice(0, initialDisplayCount);
+  // 필터 적용된 항목
+  const filteredItems = useMemo(() => {
+    if (activeFilter === "all") return allActivityItems;
+    return allActivityItems.filter((item) => item.type === activeFilter);
+  }, [allActivityItems, activeFilter]);
 
-  const hasMore = activityItems.length > initialDisplayCount;
+  const displayedItems = showAll
+    ? filteredItems
+    : filteredItems.slice(0, initialDisplayCount);
+
+  const hasMore = filteredItems.length > initialDisplayCount;
+
+  // 필터 표시 여부 (auditLogs가 있을 때만)
+  const shouldShowFilter = showFilter && auditLogs.length > 0;
 
   // 메모 추가 핸들러
   const handleAddNote = async () => {
@@ -125,8 +142,46 @@ export function ActivityTimeline({
     return <Clock size={12} />;
   };
 
+  // 필터 옵션
+  const filterOptions: { value: ActivityFilterType; label: string; count: number }[] = [
+    { value: "all", label: "전체", count: allActivityItems.length },
+    { value: "note", label: "메모", count: notes.length },
+    { value: "audit", label: "변경", count: auditLogs.length },
+  ];
+
   return (
     <div className={`space-y-4 ${className}`}>
+      {/* 필터 칩 */}
+      {shouldShowFilter && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {filterOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => {
+                setActiveFilter(option.value);
+                setShowAll(false); // 필터 변경 시 더보기 초기화
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                activeFilter === option.value
+                  ? "bg-primary text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              {option.label}
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                  activeFilter === option.value
+                    ? "bg-white/20 text-white"
+                    : "bg-gray-200 text-gray-500"
+                }`}
+              >
+                {option.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 메모 입력창 */}
       {showInput && onAddNote && (
         <div className="flex gap-2">
@@ -155,7 +210,13 @@ export function ActivityTimeline({
       {/* 타임라인 */}
       <div className="space-y-3">
         {displayedItems.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">{emptyMessage}</p>
+          <p className="text-sm text-gray-500 text-center py-4">
+            {activeFilter === "all"
+              ? emptyMessage
+              : activeFilter === "note"
+                ? "메모가 없습니다"
+                : "변경 이력이 없습니다"}
+          </p>
         ) : (
           displayedItems.map((item, idx) => (
             <div
@@ -232,7 +293,7 @@ export function ActivityTimeline({
           onClick={() => setShowAll(!showAll)}
           className="w-full text-sm text-primary hover:underline py-2"
         >
-          {showAll ? "접기" : `더보기 (${activityItems.length - initialDisplayCount}개 더)`}
+          {showAll ? "접기" : `더보기 (${filteredItems.length - initialDisplayCount}개 더)`}
         </button>
       )}
     </div>
