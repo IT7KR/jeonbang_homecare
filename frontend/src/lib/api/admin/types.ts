@@ -209,11 +209,20 @@ export interface ApplicationUpdate {
   send_sms?: boolean;
 }
 
+// 통합 검색 타입 (모든 검색 유형 포함)
+export type UnifiedSearchType = "auto" | "name" | "phone" | "number" | "company";
+
 export interface ApplicationListParams {
   page?: number;
   page_size?: number;
   status?: string;
   search?: string;
+  search_type?: UnifiedSearchType;
+  date_from?: string;  // YYYY-MM-DD
+  date_to?: string;    // YYYY-MM-DD
+  services?: string;   // 콤마 구분
+  assigned_admin_id?: number;
+  assigned_partner_id?: number;
 }
 
 // ===== Bulk Assign Types =====
@@ -302,6 +311,12 @@ export interface PartnerListParams {
   page_size?: number;
   status?: string;
   search?: string;
+  search_type?: UnifiedSearchType;
+  date_from?: string;  // YYYY-MM-DD
+  date_to?: string;    // YYYY-MM-DD
+  services?: string;   // 콤마 구분
+  region?: string;
+  approved_by?: number;
 }
 
 // ===== SMS Types =====
@@ -651,7 +666,46 @@ export interface PartnerNoteCreate {
 }
 
 export interface PartnerStatusChange {
-  new_status: "pending" | "approved" | "rejected" | "active" | "inactive" | "suspended";
+  new_status: "pending" | "approved" | "rejected" | "inactive";
   reason?: string;
   send_sms?: boolean;
+}
+
+// ===== Customer History Types (중복 관리) =====
+
+export interface CustomerHistoryItem {
+  id: number;
+  application_number: string;
+  selected_services: string[];
+  status: string;
+  status_label: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface CustomerHistoryResponse {
+  application_id: number;
+  customer_phone_masked: string;
+  total_applications: number;
+  applications: CustomerHistoryItem[];
+}
+
+// ===== Similar Partners Types (중복 관리) =====
+
+export interface SimilarPartnerItem {
+  id: number;
+  company_name: string;
+  representative_name: string;
+  contact_phone: string;
+  business_number: string | null;
+  status: string;
+  status_label: string;
+  created_at: string;
+}
+
+export interface SimilarPartnersResponse {
+  partner_id: number;
+  company_name: string;
+  similar_partners: SimilarPartnerItem[];
+  total: number;
 }
