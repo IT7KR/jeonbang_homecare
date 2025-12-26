@@ -31,14 +31,15 @@ export interface AdminListLayoutProps<T> {
   headerAction?: ReactNode;
 
   // 필터
-  statusOptions: FilterOption[];
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
+  statusOptions?: FilterOption[];
+  statusFilter?: string;
+  onStatusFilterChange?: (value: string) => void;
   additionalFilters?: ReactNode;
   searchPlaceholder?: string;
-  searchValue: string;
-  onSearchChange: (value: string) => void;
-  onSearch: () => void;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+  onSearch?: () => void;
+  hideFilters?: boolean; // 기본 필터 섹션 숨김 옵션
 
   // 상태
   isLoading: boolean;
@@ -324,14 +325,15 @@ export function AdminListLayout<T>({
   title,
   subtitle,
   headerAction,
-  statusOptions,
-  statusFilter,
-  onStatusFilterChange,
+  statusOptions = [],
+  statusFilter = "",
+  onStatusFilterChange = () => {},
   additionalFilters,
   searchPlaceholder,
-  searchValue,
-  onSearchChange,
-  onSearch,
+  searchValue = "",
+  onSearchChange = () => {},
+  onSearch = () => {},
+  hideFilters = false,
   isLoading,
   error,
   columns,
@@ -358,17 +360,19 @@ export function AdminListLayout<T>({
         headerAction={headerAction}
       />
 
-      <FilterSection
-        statusOptions={statusOptions}
-        statusFilter={statusFilter}
-        onStatusFilterChange={onStatusFilterChange}
-        additionalFilters={additionalFilters}
-        searchPlaceholder={searchPlaceholder}
-        searchValue={searchValue}
-        onSearchChange={onSearchChange}
-        onSearch={onSearch}
-        onPageReset={() => onPageChange(1)}
-      />
+      {!hideFilters && (
+        <FilterSection
+          statusOptions={statusOptions}
+          statusFilter={statusFilter}
+          onStatusFilterChange={onStatusFilterChange}
+          additionalFilters={additionalFilters}
+          searchPlaceholder={searchPlaceholder}
+          searchValue={searchValue}
+          onSearchChange={onSearchChange}
+          onSearch={onSearch}
+          onPageReset={() => onPageChange(1)}
+        />
+      )}
 
       {error && <ErrorMessage message={error} />}
 

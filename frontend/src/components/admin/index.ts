@@ -22,6 +22,7 @@ export {
   type NoteItem,
   type AuditItem,
   type ActivityItem,
+  type ActivityFilterType,
   type ActivityTimelineProps,
 } from "./ActivityTimeline";
 export { CollapsibleCard, type CollapsibleCardProps } from "./CollapsibleCard";
