@@ -11,17 +11,20 @@ import json
 import logging
 
 from app.core.database import get_db
-from app.core.encryption import encrypt_value
+from app.core.encryption import encrypt_value, generate_search_hash
 from app.core.config import settings
 from app.models.application import Application, generate_application_number
 from app.models.service import ServiceType
 from app.schemas.application import (
     ApplicationCreate,
     ApplicationCreateResponse,
+    DuplicateApplicationInfo,
 )
 from app.services.sms import send_application_notification
 from app.services.file_upload import process_uploaded_files
 from app.services.background import run_async_in_background
+from app.services.search_index import update_application_search_index
+from app.services.duplicate_check import check_application_duplicate
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +116,21 @@ async def create_application(
                     detail=f"서비스 '{instance.name}'(은)는 현재 준비 중이므로 선택할 수 없습니다."
                 )
 
+    # 중복 신청 체크
+    duplicate_result = check_application_duplicate(db, data.customer_phone)
+    duplicate_info = None
+    if duplicate_result.is_duplicate:
+        duplicate_info = DuplicateApplicationInfo(
+            existing_id=duplicate_result.existing_id,
+            existing_application_number=duplicate_result.existing_application_number,
+            existing_status=duplicate_result.existing_status,
+            existing_created_at=duplicate_result.existing_created_at,
+        )
+        logger.info(
+            f"중복 신청 감지: 전화번호={data.customer_phone}, "
+            f"기존 신청번호={duplicate_result.existing_application_number}"
+        )
+
     # 사진 파일 처리 (공통 서비스 사용)
     photo_paths = await process_uploaded_files(
         files=photos,
@@ -123,11 +141,15 @@ async def create_application(
     # 신청번호 생성
     application_number = generate_application_number(db)
 
+    # 전화번호 해시 생성 (중복 감지용)
+    phone_hash = generate_search_hash(data.customer_phone, "phone")
+
     # 신청 데이터 생성 (민감정보 암호화)
     new_application = Application(
         application_number=application_number,
         customer_name=encrypt_value(data.customer_name),
         customer_phone=encrypt_value(data.customer_phone),
+        phone_hash=phone_hash,
         address=encrypt_value(data.address),
         address_detail=encrypt_value(data.address_detail) if data.address_detail else None,
         selected_services=data.selected_services,
@@ -142,6 +164,15 @@ async def create_application(
     db.commit()
     db.refresh(new_application)
 
+    # 검색 인덱스 생성 (평문 값 사용)
+    update_application_search_index(
+        db,
+        new_application.id,
+        data.customer_name,
+        data.customer_phone
+    )
+    db.commit()
+
     # 관리자에게만 SMS 알림 (백그라운드)
     background_tasks.add_task(
         send_admin_notification_background,
@@ -152,10 +183,20 @@ async def create_application(
         data.preferred_work_date,
     )
 
+    # 응답 메시지 (중복 여부에 따라 다름)
+    message = "서비스 신청이 완료되었습니다. 담당자가 빠른 시일 내에 연락드리겠습니다."
+    if duplicate_info:
+        message = (
+            f"서비스 신청이 완료되었습니다. "
+            f"동일 연락처로 진행 중인 신청(신청번호: {duplicate_info.existing_application_number})이 있습니다."
+        )
+
     return ApplicationCreateResponse(
         success=True,
         application_number=application_number,
-        message="서비스 신청이 완료되었습니다. 담당자가 빠른 시일 내에 연락드리겠습니다.",
+        message=message,
+        duplicate_info=duplicate_info,
+        is_duplicate=duplicate_result.is_duplicate,
     )
 
 
@@ -182,18 +223,37 @@ def create_application_simple(
         for instance in selected_instances:
             if instance.booking_status == 'PREPARING':
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"서비스 '{instance.name}'(은)는 현재 준비 중이므로 선택할 수 없습니다."
                 )
 
+    # 중복 신청 체크
+    duplicate_result = check_application_duplicate(db, data.customer_phone)
+    duplicate_info = None
+    if duplicate_result.is_duplicate:
+        duplicate_info = DuplicateApplicationInfo(
+            existing_id=duplicate_result.existing_id,
+            existing_application_number=duplicate_result.existing_application_number,
+            existing_status=duplicate_result.existing_status,
+            existing_created_at=duplicate_result.existing_created_at,
+        )
+        logger.info(
+            f"중복 신청 감지: 전화번호={data.customer_phone}, "
+            f"기존 신청번호={duplicate_result.existing_application_number}"
+        )
+
     # 신청번호 생성
     application_number = generate_application_number(db)
+
+    # 전화번호 해시 생성 (중복 감지용)
+    phone_hash = generate_search_hash(data.customer_phone, "phone")
 
     # 신청 데이터 생성 (민감정보 암호화)
     new_application = Application(
         application_number=application_number,
         customer_name=encrypt_value(data.customer_name),
         customer_phone=encrypt_value(data.customer_phone),
+        phone_hash=phone_hash,
         address=encrypt_value(data.address),
         address_detail=encrypt_value(data.address_detail) if data.address_detail else None,
         selected_services=data.selected_services,
@@ -208,6 +268,15 @@ def create_application_simple(
     db.commit()
     db.refresh(new_application)
 
+    # 검색 인덱스 생성 (평문 값 사용)
+    update_application_search_index(
+        db,
+        new_application.id,
+        data.customer_name,
+        data.customer_phone
+    )
+    db.commit()
+
     # 관리자에게만 SMS 알림 (백그라운드)
     background_tasks.add_task(
         send_admin_notification_background,
@@ -218,8 +287,18 @@ def create_application_simple(
         data.preferred_work_date,
     )
 
+    # 응답 메시지 (중복 여부에 따라 다름)
+    message = "서비스 신청이 완료되었습니다. 담당자가 빠른 시일 내에 연락드리겠습니다."
+    if duplicate_info:
+        message = (
+            f"서비스 신청이 완료되었습니다. "
+            f"동일 연락처로 진행 중인 신청(신청번호: {duplicate_info.existing_application_number})이 있습니다."
+        )
+
     return ApplicationCreateResponse(
         success=True,
         application_number=application_number,
-        message="서비스 신청이 완료되었습니다. 담당자가 빠른 시일 내에 연락드리겠습니다.",
+        message=message,
+        duplicate_info=duplicate_info,
+        is_duplicate=duplicate_result.is_duplicate,
     )

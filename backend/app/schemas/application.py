@@ -128,12 +128,24 @@ class ApplicationDetailResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DuplicateApplicationInfo(BaseModel):
+    """중복 신청 정보"""
+
+    existing_id: int
+    existing_application_number: str
+    existing_status: str
+    existing_created_at: datetime
+
+
 class ApplicationCreateResponse(BaseModel):
     """서비스 신청 생성 응답"""
 
     success: bool
     application_number: str
     message: str
+    # 중복 신청 정보 (있는 경우)
+    duplicate_info: Optional[DuplicateApplicationInfo] = None
+    is_duplicate: bool = False
 
 
 # ===== 관리자용 스키마 =====
