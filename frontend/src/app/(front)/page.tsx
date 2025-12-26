@@ -27,11 +27,11 @@ import { ServiceGrid } from "@/components/features/landing/ServiceGrid";
 import { CompanyIntroCards } from "@/components/features/landing/CompanyIntroCards";
 
 export const metadata: Metadata = {
-  title: "전방 홈케어 - 양평, 가평 전원주택 관리 전문 서비스",
+  title: "전방 홈케어 - 전원주택 관리 전문 서비스",
   description:
-    "전방 홈케어는 양평, 가평 지역 전원주택 관리 전문 서비스입니다. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다. 지금 무료 견적을 받아보세요.",
+    "전방 홈케어는 전원주택 관리 전문 서비스입니다. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다. 지금 무료 견적을 받아보세요.",
   openGraph: {
-    title: "전방 홈케어 - 양평, 가평 전원주택 관리 전문 서비스",
+    title: "전방 홈케어 - 전원주택 관리 전문 서비스",
     description:
       "전원주택의 모든 관리를 원스톱으로. 제초, 조경, 청소, 시공까지 전문 협력사가 해결해 드립니다.",
     url: "https://geonbang.com/homecare",
@@ -113,7 +113,10 @@ export default function HomePage() {
                       </span>
                     </p>
                   </div>
-                  <ClipboardList className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
+                  <ClipboardList
+                    className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0"
+                    aria-hidden="true"
+                  />
                 </Link>
                 <Link
                   href={ROUTES.PARTNER}
@@ -132,7 +135,10 @@ export default function HomePage() {
                       </span>
                     </p>
                   </div>
-                  <Building2 className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
+                  <Building2
+                    className="w-14 h-14 md:w-16 md:h-16 text-white/90 group-hover:scale-110 transition-transform flex-shrink-0"
+                    aria-hidden="true"
+                  />
                 </Link>
               </div>
 
@@ -141,7 +147,10 @@ export default function HomePage() {
                 <div className="inline-flex items-center gap-4 bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-5 shadow-xl border border-gray-100">
                   <div className="text-left">
                     <div className="flex items-center gap-2 text-2xl text-gray-600 mb-1">
-                      <Phone className="w-6 h-6 text-primary" aria-hidden="true" />
+                      <Phone
+                        className="w-6 h-6 text-primary"
+                        aria-hidden="true"
+                      />
                       <span className="font-semibold">문의</span>
                     </div>
                     <a
@@ -309,7 +318,10 @@ export default function HomePage() {
 
                   {/* 양방향 화살표 */}
                   {index < SERVICE_STRUCTURE.length - 1 && (
-                    <div className="flex flex-col items-center my-4 md:my-0 md:mx-6" aria-hidden="true">
+                    <div
+                      className="flex flex-col items-center my-4 md:my-0 md:mx-6"
+                      aria-hidden="true"
+                    >
                       {/* 데스크톱: 가로 양방향 */}
                       <div className="hidden md:flex flex-col items-center gap-1">
                         <ArrowRight className="h-5 w-5 text-primary" />
@@ -407,7 +419,10 @@ export default function HomePage() {
                 {CORE_ROLES.map((role) => (
                   <li key={role.step} className="text-center">
                     {/* 번호 원 */}
-                    <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl shadow-xl mb-6 z-10" aria-hidden="true">
+                    <div
+                      className="relative inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl shadow-xl mb-6 z-10"
+                      aria-hidden="true"
+                    >
                       {role.step}
                     </div>
                     {/* 타이틀 */}
@@ -426,13 +441,19 @@ export default function HomePage() {
             {/* 모바일/태블릿: 세로 타임라인 */}
             <div className="lg:hidden relative">
               {/* 세로 연결선 */}
-              <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/30" aria-hidden="true" />
+              <div
+                className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/30"
+                aria-hidden="true"
+              />
 
               <ol className="space-y-12 list-none">
                 {CORE_ROLES.map((role) => (
                   <li key={role.step} className="flex items-start gap-8">
                     {/* 번호 원 */}
-                    <div className="w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl flex items-center justify-center shadow-xl flex-shrink-0 z-10" aria-hidden="true">
+                    <div
+                      className="w-20 h-20 rounded-full bg-primary text-white font-bold text-3xl flex items-center justify-center shadow-xl flex-shrink-0 z-10"
+                      aria-hidden="true"
+                    >
                       {role.step}
                     </div>
                     {/* 내용 */}
@@ -452,7 +473,10 @@ export default function HomePage() {
             {/* 강조 메시지 */}
             <div className="mt-16 text-center">
               <div className="inline-flex items-center gap-4 bg-white rounded-full px-10 py-5 shadow-lg border border-primary/20">
-                <CheckCircle2 className="h-8 w-8 text-primary" aria-hidden="true" />
+                <CheckCircle2
+                  className="h-8 w-8 text-primary"
+                  aria-hidden="true"
+                />
                 <span className="font-bold text-xl md:text-2xl lg:text-3xl text-gray-900">
                   전방이{" "}
                   <span className="text-primary font-extrabold">전 과정</span>을
@@ -484,7 +508,10 @@ export default function HomePage() {
               {/* 프로세스 스텝 */}
               <div className="relative">
                 {/* 세로 연결선 */}
-                <div className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/20" aria-hidden="true" />
+                <div
+                  className="absolute left-10 top-10 bottom-10 w-0.5 bg-primary/20"
+                  aria-hidden="true"
+                />
 
                 <ol className="space-y-6 list-none">
                   {REQUEST_PROCESS.map((process) => (
@@ -503,7 +530,10 @@ export default function HomePage() {
                       </div>
                       <div className="flex-1 pt-2">
                         <div className="flex items-center gap-3 mb-3">
-                          <span className="text-lg md:text-xl font-bold text-primary bg-primary/10 px-4 py-1.5 rounded" aria-hidden="true">
+                          <span
+                            className="text-lg md:text-xl font-bold text-primary bg-primary/10 px-4 py-1.5 rounded"
+                            aria-hidden="true"
+                          >
                             STEP {process.step}
                           </span>
                         </div>
@@ -553,7 +583,10 @@ export default function HomePage() {
                     >
                       <Link href={ROUTES.APPLY}>
                         견적 요청하기
-                        <ArrowRight className="ml-2 h-7 w-7" aria-hidden="true" />
+                        <ArrowRight
+                          className="ml-2 h-7 w-7"
+                          aria-hidden="true"
+                        />
                       </Link>
                     </Button>
                   </CardContent>
@@ -564,7 +597,10 @@ export default function HomePage() {
                   <CardContent className="py-10">
                     <div className="flex items-center gap-6">
                       <div className="w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center">
-                        <Phone className="h-8 w-8 text-secondary" aria-hidden="true" />
+                        <Phone
+                          className="h-8 w-8 text-secondary"
+                          aria-hidden="true"
+                        />
                       </div>
                       <div className="flex-1">
                         <p className="text-lg md:text-xl text-gray-500">
