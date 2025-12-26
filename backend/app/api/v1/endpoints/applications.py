@@ -12,6 +12,7 @@ import logging
 
 from app.core.database import get_db
 from app.core.encryption import encrypt_value
+from app.core.config import settings
 from app.models.application import Application, generate_application_number
 from app.models.service import ServiceType
 from app.schemas.application import (
@@ -26,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
 
-# 업로드 디렉토리 설정
-UPLOAD_DIR = "/app/uploads/applications"
+# 업로드 디렉토리 설정 (settings에서 가져옴)
+UPLOAD_DIR = settings.UPLOAD_DIR
 
 
 def send_admin_notification_background(

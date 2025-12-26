@@ -24,6 +24,7 @@ async def process_uploaded_files(
     upload_dir: str,
     max_files: int = MAX_FILES_PER_UPLOAD,
     allowed_types: Optional[set[str]] = None,
+    entity_type: str = "applications",
 ) -> list[str]:
     """
     업로드된 파일들을 처리하고 저장
@@ -33,6 +34,7 @@ async def process_uploaded_files(
         upload_dir: 업로드 디렉토리 경로
         max_files: 최대 파일 수
         allowed_types: 허용된 MIME 타입 (기본: 이미지)
+        entity_type: 엔티티 유형 (applications, partners 등)
 
     Returns:
         저장된 파일 경로 리스트
@@ -70,6 +72,7 @@ async def process_uploaded_files(
                     image_data=content,
                     original_filename=file.filename,
                     upload_dir=upload_dir,
+                    entity_type=entity_type,
                 )
                 saved_paths.append(result["path"])
 

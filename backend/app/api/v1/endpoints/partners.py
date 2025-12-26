@@ -30,6 +30,7 @@ from app.schemas.partner import (
 )
 from app.services.sms import send_partner_notification
 from app.services.background import run_async_in_background
+from app.services.audit import log_file_access
 
 router = APIRouter(prefix="/partners", tags=["Partners"])
 
@@ -179,6 +180,22 @@ async def create_partner(
             )
             if file_path:
                 new_partner.business_registration_file = file_path
+
+                # 파일 업로드 감사 로그 기록
+                try:
+                    log_file_access(
+                        db=db,
+                        action="upload",
+                        file_path=file_path,
+                        file_size=businessRegistrationFile.size,
+                        file_type=businessRegistrationFile.content_type,
+                        original_name=businessRegistrationFile.filename,
+                        related_entity_type="partner",
+                        related_entity_id=new_partner.id,
+                    )
+                except Exception as log_error:
+                    logger.warning(f"파일 업로드 로그 기록 실패: {log_error}")
+
                 db.commit()
         except ValueError as e:
             # 파일 저장 실패해도 협력사 등록은 성공 처리

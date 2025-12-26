@@ -128,6 +128,7 @@ def process_uploaded_image(
     image_data: bytes,
     original_filename: str,
     upload_dir: str,
+    entity_type: str = "applications",
 ) -> dict:
     """
     업로드된 이미지 처리 (최적화 + 저장)
@@ -137,6 +138,7 @@ def process_uploaded_image(
         image_data: 원본 이미지 바이트 데이터
         original_filename: 원본 파일명
         upload_dir: 업로드 디렉토리 경로
+        entity_type: 엔티티 유형 (applications, partners 등)
 
     Returns:
         {
@@ -145,9 +147,9 @@ def process_uploaded_image(
             "optimized_size": 1234
         }
     """
-    # 월별 디렉토리 생성
+    # 월별 디렉토리 생성 (entity_type 포함)
     date_dir = datetime.now().strftime("%Y%m")
-    full_dir = os.path.join(upload_dir, date_dir)
+    full_dir = os.path.join(upload_dir, entity_type, date_dir)
     os.makedirs(full_dir, exist_ok=True)
 
     # 이미지 최적화
@@ -160,8 +162,8 @@ def process_uploaded_image(
     with open(file_path, "wb") as f:
         f.write(optimized_data)
 
-    # 상대 경로 반환 (API 응답용)
-    rel_path = f"/uploads/applications/{date_dir}/{new_filename}"
+    # 상대 경로 반환 (API 응답용) - 실제 저장 경로와 일치
+    rel_path = f"/uploads/{entity_type}/{date_dir}/{new_filename}"
 
     return {
         "path": rel_path,
