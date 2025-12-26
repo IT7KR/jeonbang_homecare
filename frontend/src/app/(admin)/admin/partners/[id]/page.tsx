@@ -15,12 +15,9 @@ import {
   Download,
   ExternalLink,
   ChevronDown,
-  Calendar,
-  Briefcase,
   CheckCircle,
   XCircle,
   AlertTriangle,
-  Edit3,
   StickyNote,
   Settings,
   Globe,
@@ -33,17 +30,20 @@ import {
   getPartnerNotes,
   createPartnerNote,
   deletePartnerNote,
+  getEntityAuditLogs,
+  getSimilarPartners,
   PartnerDetail,
   PartnerNote,
   PartnerStatusChange,
+  AuditLog,
+  SimilarPartnersResponse,
 } from "@/lib/api/admin";
 import { getServiceName } from "@/lib/utils/service";
 import {
   CollapsibleCard,
   ActivityTimeline,
-  SummaryCards,
   type NoteItem,
-  type SummaryCardItem,
+  type AuditItem,
 } from "@/components/admin";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 
@@ -56,9 +56,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
   pending: { label: "대기중", color: "text-yellow-700", bgColor: "bg-yellow-100" },
   approved: { label: "승인됨", color: "text-green-700", bgColor: "bg-green-100" },
   rejected: { label: "거절됨", color: "text-red-700", bgColor: "bg-red-100" },
-  active: { label: "활성", color: "text-blue-700", bgColor: "bg-blue-100" },
   inactive: { label: "비활성", color: "text-gray-700", bgColor: "bg-gray-100" },
-  suspended: { label: "일시중지", color: "text-orange-700", bgColor: "bg-orange-100" },
 };
 
 // 상태 변경 옵션
@@ -66,9 +64,7 @@ const STATUS_OPTIONS: { value: PartnerStatusChange["new_status"]; label: string 
   { value: "pending", label: "대기중" },
   { value: "approved", label: "승인" },
   { value: "rejected", label: "거절" },
-  { value: "active", label: "활성" },
   { value: "inactive", label: "비활성" },
-  { value: "suspended", label: "일시중지" },
 ];
 
 // 파일 다운로드 (백엔드 API 사용)
@@ -87,6 +83,8 @@ export default function PartnerDetailPage() {
 
   const [partner, setPartner] = useState<PartnerDetail | null>(null);
   const [notes, setNotes] = useState<PartnerNote[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [similarPartners, setSimilarPartners] = useState<SimilarPartnersResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
   const [isAddingNote, setIsAddingNote] = useState(false);
@@ -115,13 +113,17 @@ export default function PartnerDetailPage() {
         return;
       }
 
-      const [partnerData, notesData] = await Promise.all([
+      const [partnerData, notesData, auditLogsData, similarPartnersData] = await Promise.all([
         getPartner(token, id),
         getPartnerNotes(token, id),
+        getEntityAuditLogs(token, "partner", id, { page_size: 20 }),
+        getSimilarPartners(token, id).catch(() => null),
       ]);
 
       setPartner(partnerData);
       setNotes(notesData.items);
+      setAuditLogs(auditLogsData.items);
+      setSimilarPartners(similarPartnersData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
     } finally {
@@ -138,8 +140,8 @@ export default function PartnerDetailPage() {
       return;
     }
 
-    // 거절 또는 일시중지인 경우 사유 입력 모달
-    if (newStatus === "rejected" || newStatus === "suspended" || newStatus === "inactive") {
+    // 거절 또는 비활성인 경우 사유 입력 모달
+    if (newStatus === "rejected" || newStatus === "inactive") {
       setPendingStatus(newStatus);
       setShowStatusReasonModal(true);
       setShowStatusDropdown(false);
@@ -169,9 +171,13 @@ export default function PartnerDetailPage() {
       const updated = await changePartnerStatus(token, id, data);
       setPartner(updated);
 
-      // 노트 목록 새로고침
-      const notesData = await getPartnerNotes(token, id);
+      // 노트 및 변경 이력 새로고침
+      const [notesData, auditLogsData] = await Promise.all([
+        getPartnerNotes(token, id),
+        getEntityAuditLogs(token, "partner", id, { page_size: 20 }),
+      ]);
       setNotes(notesData.items);
+      setAuditLogs(auditLogsData.items);
 
       setSuccessMessage("상태가 변경되었습니다");
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -264,42 +270,6 @@ export default function PartnerDetailPage() {
     return phone;
   };
 
-  // 요약 카드 데이터
-  const summaryItems = useMemo<SummaryCardItem[]>(() => {
-    if (!partner) return [];
-    return [
-      {
-        icon: <User size={20} />,
-        iconBgColor: "bg-blue-100",
-        iconColor: "text-blue-600",
-        label: "대표자",
-        value: partner.representative_name,
-      },
-      {
-        icon: <Phone size={20} />,
-        iconBgColor: "bg-green-100",
-        iconColor: "text-green-600",
-        label: "연락처",
-        value: formatPhone(partner.contact_phone),
-        href: `tel:${partner.contact_phone}`,
-      },
-      {
-        icon: <Calendar size={20} />,
-        iconBgColor: "bg-purple-100",
-        iconColor: "text-purple-600",
-        label: "등록일",
-        value: new Date(partner.created_at).toLocaleDateString("ko-KR"),
-      },
-      {
-        icon: <Briefcase size={20} />,
-        iconBgColor: "bg-orange-100",
-        iconColor: "text-orange-600",
-        label: "서비스",
-        value: `${partner.service_areas.length}개 분야`,
-      },
-    ];
-  }, [partner]);
-
   // ActivityTimeline용 노트 변환
   const timelineNotes = useMemo<NoteItem[]>(() => {
     return notes.map((note) => ({
@@ -310,6 +280,16 @@ export default function PartnerDetailPage() {
       note_type: note.note_type as "memo" | "manual" | "status_change" | "system" | undefined,
     }));
   }, [notes]);
+
+  // ActivityTimeline용 변경 이력 변환
+  const timelineAuditLogs = useMemo<AuditItem[]>(() => {
+    return auditLogs.map((log) => ({
+      id: log.id,
+      summary: log.summary || "",
+      admin_name: log.admin_name || undefined,
+      created_at: log.created_at,
+    }));
+  }, [auditLogs]);
 
   if (isLoading) {
     return (
@@ -342,63 +322,84 @@ export default function PartnerDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/admin/partners"
-            className="p-2 rounded-md hover:bg-gray-100"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {partner.company_name}
-            </h1>
-            <div className="flex items-center gap-4 text-sm text-gray-500">
-              <span>등록: {new Date(partner.created_at).toLocaleDateString("ko-KR")}</span>
-              {partner.updated_at !== partner.created_at && (
-                <span className="flex items-center gap-1">
-                  <Edit3 size={12} />
-                  수정: {new Date(partner.updated_at).toLocaleDateString("ko-KR")}
+      {/* ===== 통합 헤더: 협력사 요약 ===== */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        {/* 상단: 제목 + 상태 */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Link
+              href="/admin/partners"
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+            >
+              <ArrowLeft size={20} className="text-gray-600" />
+            </Link>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-lg font-bold text-gray-900">
+                  {partner.company_name}
+                </h1>
+                <span
+                  className={`inline-flex px-2.5 py-0.5 text-sm font-semibold rounded-full ${statusConfig.bgColor} ${statusConfig.color}`}
+                >
+                  {statusConfig.label}
                 </span>
-              )}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                <span>
+                  등록:{" "}
+                  {new Date(partner.created_at).toLocaleDateString("ko-KR")}
+                </span>
+                {partner.updated_at !== partner.created_at && (
+                  <span>
+                    · 수정:{" "}
+                    {new Date(partner.updated_at).toLocaleDateString("ko-KR")}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* 상태 변경 드롭다운 */}
-        <div className="relative">
-          <button
-            onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-            disabled={isChangingStatus}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80 transition-opacity`}
-          >
-            {isChangingStatus ? (
-              <Loader2 className="animate-spin" size={16} />
-            ) : (
-              <>
-                {statusConfig.label}
-                <ChevronDown size={16} />
-              </>
+          {/* 상태 변경 드롭다운 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+              disabled={isChangingStatus}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80 transition-opacity`}
+            >
+              {isChangingStatus ? (
+                <Loader2 className="animate-spin" size={14} />
+              ) : (
+                <>
+                  {statusConfig.label}
+                  <ChevronDown size={14} />
+                </>
+              )}
+            </button>
+
+            {showStatusDropdown && (
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                {STATUS_OPTIONS.filter((opt) => opt.value !== partner.status).map((option) => (
+                  <button
+                    key={option.value}
+                    onClick={() => handleStatusChange(option.value)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
-
-          {showStatusDropdown && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-              {STATUS_OPTIONS.filter((opt) => opt.value !== partner.status).map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleStatusChange(option.value)}
-                  className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
+          </div>
         </div>
       </div>
+
+      {/* 드롭다운 외부 클릭 시 닫기 */}
+      {showStatusDropdown && (
+        <div
+          className="fixed inset-0 z-0"
+          onClick={() => setShowStatusDropdown(false)}
+        />
+      )}
 
       {/* Messages */}
       {error && (
@@ -411,9 +412,6 @@ export default function PartnerDetailPage() {
           {successMessage}
         </div>
       )}
-
-      {/* 요약 카드 */}
-      <SummaryCards items={summaryItems} />
 
       {/* 3:2 좌우 분할 레이아웃 */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -462,12 +460,9 @@ export default function PartnerDetailPage() {
                     <Phone size={18} className="text-gray-400 mt-0.5" />
                     <div>
                       <p className="text-xs text-gray-500">전화번호</p>
-                      <a
-                        href={`tel:${partner.contact_phone}`}
-                        className="font-medium text-primary hover:underline"
-                      >
+                      <p className="font-medium text-gray-900">
                         {formatPhone(partner.contact_phone)}
-                      </a>
+                      </p>
                     </div>
                   </div>
                   {partner.contact_email && (
@@ -475,12 +470,9 @@ export default function PartnerDetailPage() {
                       <Mail size={18} className="text-gray-400 mt-0.5" />
                       <div>
                         <p className="text-xs text-gray-500">이메일</p>
-                        <a
-                          href={`mailto:${partner.contact_email}`}
-                          className="font-medium text-primary hover:underline"
-                        >
+                        <p className="font-medium text-gray-900">
                           {partner.contact_email}
-                        </a>
+                        </p>
                       </div>
                     </div>
                   )}
@@ -499,7 +491,7 @@ export default function PartnerDetailPage() {
             </div>
 
             {/* 승인 정보 */}
-            {(partner.status === "approved" || partner.status === "active" || partner.status === "rejected" || partner.rejection_reason || partner.approved_at) && (
+            {(partner.status === "approved" || partner.status === "rejected" || partner.rejection_reason || partner.approved_at) && (
               <div className="border-t border-gray-100 pt-4 mt-4">
                 <h4 className="text-sm font-medium text-gray-500 mb-3">승인 정보</h4>
                 <div className="space-y-3">
@@ -527,14 +519,12 @@ export default function PartnerDetailPage() {
                       </div>
                     </div>
                   )}
-                  {(partner.status === "inactive" || partner.status === "suspended") && (
+                  {partner.status === "inactive" && (
                     <div className="flex items-start gap-3">
                       <AlertTriangle size={18} className="text-orange-500 mt-0.5" />
                       <div>
                         <p className="text-xs text-gray-500">상태</p>
-                        <p className="font-medium text-orange-700">
-                          {partner.status === "inactive" ? "비활성 상태입니다" : "일시 중지된 상태입니다"}
-                        </p>
+                        <p className="font-medium text-orange-700">비활성 상태입니다</p>
                       </div>
                     </div>
                   )}
@@ -674,10 +664,10 @@ export default function PartnerDetailPage() {
                   {statusConfig.label}
                 </span>
               </div>
-              {(pendingStatus === "rejected" || pendingStatus === "suspended" || pendingStatus === "inactive") && showStatusReasonModal && (
+              {(pendingStatus === "rejected" || pendingStatus === "inactive") && showStatusReasonModal && (
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-700">
-                    {pendingStatus === "rejected" ? "거절" : pendingStatus === "suspended" ? "일시중지" : "비활성화"} 사유
+                    {pendingStatus === "rejected" ? "거절" : "비활성화"} 사유
                   </label>
                   <textarea
                     value={statusChangeReason}
@@ -715,8 +705,10 @@ export default function PartnerDetailPage() {
             <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2 mb-4">
               <StickyNote size={18} className="text-primary" />
               활동 이력
-              {notes.length > 0 && (
-                <span className="text-sm font-normal text-gray-500">({notes.length})</span>
+              {(notes.length > 0 || auditLogs.length > 0) && (
+                <span className="text-sm font-normal text-gray-500">
+                  (메모 {notes.length}개, 변경 {auditLogs.length}개)
+                </span>
               )}
             </h3>
 
@@ -738,6 +730,7 @@ export default function PartnerDetailPage() {
 
             <ActivityTimeline
               notes={timelineNotes}
+              auditLogs={timelineAuditLogs}
               showInput={true}
               isAddingNote={isAddingNote}
               onAddNote={handleAddNote}
@@ -745,16 +738,58 @@ export default function PartnerDetailPage() {
               emptyMessage="아직 활동 이력이 없습니다"
             />
           </div>
+
+          {/* 유사 협력사 */}
+          {similarPartners && similarPartners.total > 0 && (
+            <div className="bg-amber-50 rounded-2xl shadow-sm border border-amber-200 p-4">
+              <h3 className="text-base font-semibold text-amber-900 flex items-center gap-2 mb-3">
+                <AlertTriangle size={18} className="text-amber-600" />
+                유사 협력사
+                <span className="text-sm font-normal text-amber-700 ml-auto">
+                  {similarPartners.total}건
+                </span>
+              </h3>
+              <p className="text-xs text-amber-700 mb-3">
+                동일한 전화번호 또는 사업자등록번호를 가진 협력사가 있습니다.
+              </p>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {similarPartners.similar_partners.map((p) => {
+                  const pStatusConfig = STATUS_CONFIG[p.status] || STATUS_CONFIG.pending;
+                  return (
+                    <Link
+                      key={p.id}
+                      href={`/admin/partners/${p.id}`}
+                      className="block p-3 bg-white hover:bg-amber-100/50 rounded-lg transition-colors border border-amber-200"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-gray-900 truncate">
+                            {p.company_name}
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {p.representative_name} · {formatPhone(p.contact_phone)}
+                          </p>
+                          {p.business_number && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              사업자번호: {p.business_number}
+                            </p>
+                          )}
+                        </div>
+                        <span className={`flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full ${pStatusConfig.bgColor} ${pStatusConfig.color}`}>
+                          {pStatusConfig.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        등록: {new Date(p.created_at).toLocaleDateString("ko-KR")}
+                      </p>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {/* 드롭다운 외부 클릭 시 닫기 */}
-      {showStatusDropdown && (
-        <div
-          className="fixed inset-0 z-0"
-          onClick={() => setShowStatusDropdown(false)}
-        />
-      )}
     </div>
   );
 }
