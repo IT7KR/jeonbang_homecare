@@ -25,6 +25,14 @@ import { AdminListLayout, ColumnDef } from "@/components/admin";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DirectSMSSheet } from "@/components/features/admin/sms";
 import { BulkAssignSheet } from "@/components/features/admin/applications";
+import {
+  UnifiedSearchInput,
+  FilterChips,
+  AdvancedFilters,
+  type FilterChip,
+  type SearchType,
+} from "@/components/admin/filters";
+import { format } from "date-fns";
 
 // Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
 const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
@@ -52,7 +60,12 @@ export default function ApplicationsPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [searchType, setSearchType] = useState<SearchType>("auto");
+
+  // Advanced Filters
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -83,6 +96,58 @@ export default function ApplicationsPage() {
     [serviceNameMap]
   );
 
+  // AdvancedFilters용 서비스 카테고리 (API 응답 직접 사용)
+  const serviceCategories = useMemo(() => {
+    return services?.categories ?? [];
+  }, [services]);
+
+  // 활성 필터 칩 생성
+  const filterChips = useMemo(() => {
+    const chips: FilterChip[] = [];
+
+    if (statusFilter) {
+      const statusLabel = APPLICATION_STATUS_OPTIONS.find(
+        (opt) => opt.value === statusFilter
+      )?.label;
+      chips.push({
+        key: "status",
+        label: `상태: ${statusLabel || statusFilter}`,
+        onRemove: () => {
+          setStatusFilter("");
+          setPage(1);
+        },
+      });
+    }
+
+    if (dateFrom || dateTo) {
+      const fromStr = dateFrom ? format(dateFrom, "MM/dd") : "";
+      const toStr = dateTo ? format(dateTo, "MM/dd") : "";
+      chips.push({
+        key: "date",
+        label: `기간: ${fromStr}${fromStr && toStr ? " ~ " : ""}${toStr}`,
+        onRemove: () => {
+          setDateFrom(undefined);
+          setDateTo(undefined);
+          setPage(1);
+        },
+      });
+    }
+
+    selectedServices.forEach((serviceCode) => {
+      const serviceName = getServiceName(serviceCode);
+      chips.push({
+        key: `service-${serviceCode}`,
+        label: serviceName,
+        onRemove: () => {
+          setSelectedServices((prev) => prev.filter((s) => s !== serviceCode));
+          setPage(1);
+        },
+      });
+    });
+
+    return chips;
+  }, [statusFilter, dateFrom, dateTo, selectedServices, getServiceName]);
+
   const loadApplications = async () => {
     try {
       setIsLoading(true);
@@ -101,6 +166,10 @@ export default function ApplicationsPage() {
           page_size: pageSize,
           status: statusFilter || undefined,
           search: searchQuery || undefined,
+          search_type: searchType !== "auto" ? searchType : undefined,
+          date_from: dateFrom ? format(dateFrom, "yyyy-MM-dd") : undefined,
+          date_to: dateTo ? format(dateTo, "yyyy-MM-dd") : undefined,
+          services: selectedServices.length > 0 ? selectedServices.join(",") : undefined,
         }),
         getDashboard(token),
       ]);
@@ -119,7 +188,7 @@ export default function ApplicationsPage() {
   useEffect(() => {
     loadApplications();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, searchQuery]);
+  }, [page, statusFilter, searchQuery, searchType, dateFrom, dateTo, selectedServices]);
 
   // 상태별 통계 카드 설정
   const statusCards = useMemo(
@@ -194,8 +263,21 @@ export default function ApplicationsPage() {
     setPage(1);
   };
 
-  const handleSearch = () => {
-    setSearchQuery(searchInput);
+  // 통합 검색 핸들러
+  const handleSearch = (query: string, type: SearchType) => {
+    setSearchQuery(query);
+    setSearchType(type);
+    setPage(1);
+  };
+
+  // 필터 전체 초기화
+  const handleClearAllFilters = () => {
+    setStatusFilter("");
+    setSearchQuery("");
+    setSearchType("auto");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setSelectedServices([]);
     setPage(1);
   };
 
@@ -391,6 +473,48 @@ export default function ApplicationsPage() {
     </div>
   );
 
+  // 새로운 필터 섹션 (통합 검색 + 고급 필터)
+  const FilterSectionNew = (
+    <div className="space-y-4">
+      {/* 통합 검색창 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <UnifiedSearchInput
+          placeholder="이름, 전화번호, 신청번호로 검색..."
+          onSearch={handleSearch}
+          defaultValue={searchQuery}
+        />
+      </div>
+
+      {/* 고급 필터 */}
+      <AdvancedFilters
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={(date) => {
+          setDateFrom(date);
+          setPage(1);
+        }}
+        onDateToChange={(date) => {
+          setDateTo(date);
+          setPage(1);
+        }}
+        serviceCategories={serviceCategories}
+        selectedServices={selectedServices}
+        onServicesChange={(services) => {
+          setSelectedServices(services);
+          setPage(1);
+        }}
+      />
+
+      {/* 활성 필터 칩 */}
+      {filterChips.length > 0 && (
+        <FilterChips chips={filterChips} onClearAll={handleClearAllFilters} />
+      )}
+
+      {/* 상태 카드 */}
+      {StatsCards}
+    </div>
+  );
+
   return (
     <AdminListLayout
       // 헤더
@@ -410,14 +534,8 @@ export default function ApplicationsPage() {
           </button>
         ) : undefined
       }
-      // 필터
-      statusOptions={APPLICATION_STATUS_OPTIONS}
-      statusFilter={statusFilter}
-      onStatusFilterChange={setStatusFilter}
-      searchPlaceholder="신청번호 검색..."
-      searchValue={searchInput}
-      onSearchChange={setSearchInput}
-      onSearch={handleSearch}
+      // 기본 필터 섹션 숨기고 커스텀 필터 사용
+      hideFilters
       // 상태
       isLoading={isLoading}
       error={error}
@@ -434,8 +552,8 @@ export default function ApplicationsPage() {
       total={total}
       pageSize={pageSize}
       onPageChange={setPage}
-      // 통계 카드
-      beforeTable={StatsCards}
+      // 새로운 필터 섹션 (통합 검색 + 고급 필터 + 상태 카드)
+      beforeTable={FilterSectionNew}
       // 추가 컨텐츠 (SMS 수동 발송 기능 활성화 시에만)
       afterPagination={
         enableManualSMS ? (
