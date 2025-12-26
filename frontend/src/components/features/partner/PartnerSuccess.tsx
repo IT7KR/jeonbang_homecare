@@ -1,14 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Phone, Home } from "lucide-react";
+import { CheckCircle2, Phone, Home, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ROUTES, COMPANY_INFO } from "@/lib/constants";
+import type { DuplicatePartnerInfo } from "@/lib/api/partners";
+
+interface PartnerSuccessProps {
+  partnerId?: number;
+  duplicateInfo?: DuplicatePartnerInfo;
+}
+
+// 상태 라벨
+const STATUS_LABELS: Record<string, string> = {
+  pending: "승인 대기",
+  approved: "승인됨",
+  rejected: "거절됨",
+  inactive: "비활성화",
+};
+
+// 중복 유형 라벨
+const DUPLICATE_TYPE_LABELS: Record<string, string> = {
+  business_number: "사업자등록번호",
+  phone_company: "연락처 및 상호명",
+};
 
 /**
  * 협력사 등록 완료 화면
  */
-export function PartnerSuccess() {
+export function PartnerSuccess({ partnerId, duplicateInfo }: PartnerSuccessProps) {
   return (
     <div className="wizard-container">
       <div className="wizard-content max-w-lg mx-auto px-4 py-12">
@@ -29,6 +49,28 @@ export function PartnerSuccess() {
           <h1 className="text-senior-title mb-4">
             협력사 등록 신청이 완료되었습니다
           </h1>
+
+          {/* 중복 협력사 경고 */}
+          {duplicateInfo && (
+            <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-5 mb-6 text-left">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-[16px] font-bold text-amber-800 mb-2">
+                    이미 등록된 업체 정보가 있습니다
+                  </h3>
+                  <p className="text-[15px] text-amber-700 mb-3">
+                    동일한 {DUPLICATE_TYPE_LABELS[duplicateInfo.duplicate_type]}으로 등록된 업체가 있어 안내드립니다.
+                    담당자가 확인 후 처리해 드리겠습니다.
+                  </p>
+                  <div className="bg-white/60 rounded-lg p-3 text-[14px] text-amber-800">
+                    <p><span className="font-medium">기존 업체명:</span> {duplicateInfo.existing_company_name}</p>
+                    <p><span className="font-medium">상태:</span> {STATUS_LABELS[duplicateInfo.existing_status] || duplicateInfo.existing_status}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 설명 */}
           <p className="text-senior-body text-gray-600 mb-10">
