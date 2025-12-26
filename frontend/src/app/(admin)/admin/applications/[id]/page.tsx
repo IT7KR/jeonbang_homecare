@@ -33,6 +33,7 @@ import {
   Users,
   Pencil,
   X,
+  Download,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useConfirm } from "@/hooks";
@@ -106,6 +107,8 @@ export default function ApplicationDetailPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [suggestedDateMessage, setSuggestedDateMessage] = useState<string | null>(null);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadingPhoto, setDownloadingPhoto] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // 메모 히스토리
@@ -517,6 +520,86 @@ export default function ApplicationDetailPage() {
     }
   };
 
+  // ===== 사진 다운로드 핸들러 =====
+
+  // 개별 사진 다운로드
+  const handleDownloadPhoto = async (photoUrl: string, index: number) => {
+    try {
+      setDownloadingPhoto(index);
+
+      // 파일 URL에 download=true 쿼리 파라미터 추가
+      const downloadUrl = `${FILE_BASE_URL}${photoUrl}${photoUrl.includes("?") ? "&" : "?"}download=true`;
+
+      // 파일명 추출 (URL에서)
+      const filename = `사진_${index + 1}.jpg`;
+
+      // 다운로드 링크 생성 및 클릭
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = filename;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      setError("사진 다운로드에 실패했습니다");
+    } finally {
+      setDownloadingPhoto(null);
+    }
+  };
+
+  // 전체 사진 다운로드 (ZIP)
+  const handleDownloadAllPhotos = async () => {
+    if (!application?.photos || application.photos.length === 0) return;
+
+    try {
+      setIsDownloadingAll(true);
+      setError(null);
+
+      // 동적 import로 JSZip 로드
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+
+      // 모든 사진을 fetch하여 ZIP에 추가
+      const fetchPromises = application.photos.map(async (photoUrl, index) => {
+        try {
+          const fullUrl = `${FILE_BASE_URL}${photoUrl}`;
+          const response = await fetch(fullUrl);
+          if (!response.ok) throw new Error(`Failed to fetch photo ${index + 1}`);
+          const blob = await response.blob();
+
+          // 파일 확장자 추출
+          const ext = photoUrl.split(".").pop()?.split("?")[0] || "jpg";
+          const filename = `사진_${String(index + 1).padStart(2, "0")}.${ext}`;
+          zip.file(filename, blob);
+        } catch (err) {
+          console.error(`Failed to download photo ${index + 1}:`, err);
+        }
+      });
+
+      await Promise.all(fetchPromises);
+
+      // ZIP 파일 생성 및 다운로드
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipUrl = URL.createObjectURL(zipBlob);
+
+      const link = document.createElement("a");
+      link.href = zipUrl;
+      link.download = `${application.application_number}_사진.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      URL.revokeObjectURL(zipUrl);
+      setSuccessMessage("사진을 다운로드했습니다");
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError("사진 다운로드에 실패했습니다");
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
   // ===== 배정 관련 핸들러 =====
 
   // 배정 폼 초기화
@@ -706,6 +789,19 @@ export default function ApplicationDetailPage() {
       return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
     }
     return phone;
+  };
+
+  // 금액 천단위 콤마 포맷팅
+  const formatCurrency = (value: number | ""): string => {
+    if (value === "" || value === 0) return "";
+    return value.toLocaleString("ko-KR");
+  };
+
+  // 콤마가 포함된 문자열에서 숫자만 추출
+  const parseCurrency = (value: string): number | "" => {
+    const numericValue = value.replace(/[^\d]/g, "");
+    if (numericValue === "") return "";
+    return Number(numericValue);
   };
 
   const formatDate = (dateString: string) => {
@@ -1048,33 +1144,82 @@ export default function ApplicationDetailPage() {
                 {/* 첨부 사진 - Compact Grid */}
                 {application.photos && application.photos.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-500 mb-2 flex items-center gap-1.5">
-                      <ImageIcon size={12} />
-                      첨부 사진 ({application.photos.length}장)
-                    </p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-500 flex items-center gap-1.5">
+                        <ImageIcon size={12} />
+                        첨부 사진 ({application.photos.length}장)
+                      </p>
+                      <button
+                        onClick={handleDownloadAllPhotos}
+                        disabled={isDownloadingAll}
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-primary hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="전체 다운로드 (ZIP)"
+                      >
+                        {isDownloadingAll ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" />
+                            <span>다운로드 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download size={12} />
+                            <span>전체 다운로드</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {application.photos.slice(0, 6).map((photo, idx) => (
-                        <button
+                        <div
                           key={idx}
-                          type="button"
-                          onClick={() => {
-                            setLightboxIndex(idx);
-                            setLightboxOpen(true);
-                          }}
-                          className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden group hover:ring-2 hover:ring-primary transition-all"
+                          className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden group"
                         >
-                          <img
-                            src={`${FILE_BASE_URL}${photo}`}
-                            alt={`첨부 사진 ${idx + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-                            <ZoomIn
-                              size={16}
-                              className="text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLightboxIndex(idx);
+                              setLightboxOpen(true);
+                            }}
+                            className="w-full h-full hover:ring-2 hover:ring-primary transition-all"
+                          >
+                            <img
+                              src={`${FILE_BASE_URL}${photo}`}
+                              alt={`첨부 사진 ${idx + 1}`}
+                              className="w-full h-full object-cover"
                             />
+                          </button>
+                          {/* 호버 시 버튼 표시 */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 pointer-events-none">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setLightboxIndex(idx);
+                                setLightboxOpen(true);
+                              }}
+                              className="p-1 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white"
+                              title="확대"
+                            >
+                              <ZoomIn size={14} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadPhoto(photo, idx);
+                              }}
+                              disabled={downloadingPhoto === idx}
+                              className="p-1 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white disabled:opacity-50"
+                              title="다운로드"
+                            >
+                              {downloadingPhoto === idx ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Download size={14} />
+                              )}
+                            </button>
                           </div>
-                        </button>
+                        </div>
                       ))}
                       {application.photos.length > 6 && (
                         <button
@@ -1584,6 +1729,7 @@ export default function ApplicationDetailPage() {
                       date={scheduledDate}
                       onDateChange={(date) => handleScheduleChange(date)}
                       placeholder="날짜"
+                      fromDate={startOfDay(new Date())}
                     />
                     <select
                       value={scheduledTime}
@@ -1605,11 +1751,10 @@ export default function ApplicationDetailPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
                       <input
-                        type="number"
-                        value={estimatedCost}
-                        onChange={(e) =>
-                          setEstimatedCost(e.target.value ? Number(e.target.value) : "")
-                        }
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrency(estimatedCost)}
+                        onChange={(e) => setEstimatedCost(parseCurrency(e.target.value))}
                         placeholder="견적"
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       />
@@ -1619,11 +1764,10 @@ export default function ApplicationDetailPage() {
                     </div>
                     <div className="relative">
                       <input
-                        type="number"
-                        value={finalCost}
-                        onChange={(e) =>
-                          setFinalCost(e.target.value ? Number(e.target.value) : "")
-                        }
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrency(finalCost)}
+                        onChange={(e) => setFinalCost(parseCurrency(e.target.value))}
                         placeholder="최종"
                         className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                       />
@@ -1929,6 +2073,7 @@ export default function ApplicationDetailPage() {
                       setAssignmentForm((prev) => ({ ...prev, scheduled_date: date }))
                     }
                     placeholder="날짜"
+                    fromDate={startOfDay(new Date())}
                   />
                   <select
                     value={assignmentForm.scheduled_time}
@@ -1951,12 +2096,13 @@ export default function ApplicationDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">견적 비용</label>
                 <div className="relative">
                   <input
-                    type="number"
-                    value={assignmentForm.estimated_cost}
+                    type="text"
+                    inputMode="numeric"
+                    value={formatCurrency(assignmentForm.estimated_cost)}
                     onChange={(e) =>
                       setAssignmentForm((prev) => ({
                         ...prev,
-                        estimated_cost: e.target.value ? Number(e.target.value) : "",
+                        estimated_cost: parseCurrency(e.target.value),
                       }))
                     }
                     placeholder="0"
