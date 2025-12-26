@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Encryption (for customer data)
     ENCRYPTION_KEY: str = "your-encryption-key"
 
+    # Search Index Hash Salt (for encrypted field search)
+    SEARCH_HASH_SALT: str = "jeonbang_homecare_search_salt"
+
     # Aligo SMS
     ALIGO_API_KEY: str = ""
     ALIGO_USER_ID: str = ""
