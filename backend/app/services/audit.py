@@ -328,3 +328,119 @@ def get_entity_history(
         .limit(limit)
         .all()
     )
+
+
+def log_file_access(
+    db: Session,
+    action: str,
+    file_path: str,
+    file_size: Optional[int] = None,
+    file_type: Optional[str] = None,
+    original_name: Optional[str] = None,
+    related_entity_type: Optional[str] = None,
+    related_entity_id: Optional[int] = None,
+    admin: Optional[Admin] = None,
+    ip_address: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> AuditLog:
+    """
+    파일 접근 감사 로그 기록
+
+    파일 업로드, 다운로드, 삭제 등의 파일 관련 작업을 기록
+
+    Args:
+        db: 데이터베이스 세션
+        action: 파일 작업 유형 (upload, download, delete)
+        file_path: 파일 경로
+        file_size: 파일 크기 (바이트)
+        file_type: 파일 MIME 타입
+        original_name: 원본 파일명
+        related_entity_type: 관련 엔티티 유형 (partner, application)
+        related_entity_id: 관련 엔티티 ID
+        admin: 접근자 Admin 객체
+        ip_address: IP 주소
+        user_agent: User Agent
+
+    Returns:
+        생성된 AuditLog 객체
+    """
+    # 액션별 요약 메시지 생성
+    action_labels = {
+        "upload": "파일 업로드",
+        "download": "파일 다운로드",
+        "delete": "파일 삭제",
+        "view": "파일 조회",
+    }
+    action_label = action_labels.get(action, action)
+
+    # 요약 생성
+    summary_parts = [action_label]
+    if original_name:
+        summary_parts.append(f": {original_name}")
+    elif file_path:
+        # 경로에서 파일명 추출
+        import os
+        summary_parts.append(f": {os.path.basename(file_path)}")
+
+    summary = "".join(summary_parts)
+
+    # 상세 정보
+    new_value = {
+        "file_path": file_path,
+    }
+    if file_size is not None:
+        new_value["file_size"] = file_size
+    if file_type:
+        new_value["file_type"] = file_type
+    if original_name:
+        new_value["original_name"] = original_name
+    if related_entity_type and related_entity_id:
+        new_value["related_entity"] = f"{related_entity_type}:{related_entity_id}"
+
+    return log_change(
+        db=db,
+        entity_type="file",
+        entity_id=related_entity_id or 0,
+        action=action,
+        old_value=None,
+        new_value=new_value,
+        summary=summary,
+        admin=admin,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
+
+
+def get_file_access_history(
+    db: Session,
+    related_entity_type: Optional[str] = None,
+    related_entity_id: Optional[int] = None,
+    action: Optional[str] = None,
+    limit: int = 50,
+) -> list[AuditLog]:
+    """
+    파일 접근 이력 조회
+
+    Args:
+        db: 데이터베이스 세션
+        related_entity_type: 관련 엔티티 유형으로 필터 (partner, application)
+        related_entity_id: 관련 엔티티 ID로 필터
+        action: 액션 유형으로 필터 (upload, download, delete)
+        limit: 조회 개수
+
+    Returns:
+        AuditLog 목록 (최신순)
+    """
+    query = db.query(AuditLog).filter(AuditLog.entity_type == "file")
+
+    if action:
+        query = query.filter(AuditLog.action == action)
+
+    if related_entity_type and related_entity_id:
+        # JSONB 필드 내 related_entity 값으로 필터링
+        related_str = f"{related_entity_type}:{related_entity_id}"
+        query = query.filter(
+            AuditLog.new_value["related_entity"].astext == related_str
+        )
+
+    return query.order_by(AuditLog.created_at.desc()).limit(limit).all()

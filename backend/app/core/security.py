@@ -196,6 +196,35 @@ async def get_current_admin(
     return admin
 
 
+async def get_current_admin_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[Admin]:
+    """
+    현재 인증된 관리자 반환 (선택적 인증)
+
+    인증 정보가 없거나 유효하지 않으면 None 반환
+    에러를 발생시키지 않음
+    """
+    if not credentials:
+        return None
+
+    try:
+        payload = decode_access_token(credentials.credentials)
+        admin_id: str = payload.get("sub")
+        if admin_id is None:
+            return None
+    except JWTError:
+        return None
+
+    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+
+    if admin is None or not admin.is_active:
+        return None
+
+    return admin
+
+
 async def get_current_super_admin(
     admin: Admin = Depends(get_current_admin),
 ) -> Admin:
