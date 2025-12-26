@@ -21,6 +21,14 @@ from app.services.background import (
     create_background_task,
     run_tasks_sequentially,
 )
+from app.services.search_index import (
+    update_application_search_index,
+    update_partner_search_index,
+    search_by_field,
+    unified_search,
+    detect_search_type,
+    delete_search_index,
+)
 
 __all__ = [
     # SMS (관리자 알림만)
@@ -41,4 +49,11 @@ __all__ = [
     "run_async_in_background",
     "create_background_task",
     "run_tasks_sequentially",
+    # Search Index
+    "update_application_search_index",
+    "update_partner_search_index",
+    "search_by_field",
+    "unified_search",
+    "detect_search_type",
+    "delete_search_index",
 ]
