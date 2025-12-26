@@ -1,5 +1,5 @@
 // 서비스 그룹 타입 및 상수
-export type ServiceGroupId = "outdoor" | "indoor" | "others";
+export type ServiceGroupId = "outdoor" | "indoor" | "regular" | "others";
 
 export interface ServiceGroup {
   id: ServiceGroupId;
@@ -9,10 +9,11 @@ export interface ServiceGroup {
 }
 
 /**
- * 서비스 그룹 (3개 대그룹)
+ * 서비스 그룹 (4개 대그룹)
  * - 외부 관리: 건축, 외부 관리, 조경 공사, 외부 시설, 창호
- * - 실내 개선: 실내 가구, 화장실, 마감 공사, 설비, 전기
- * - 기타: 기타 작업
+ * - 실내 개선: 실내 가구, 화장실, 마감 공사, 설비, 전기, 청소
+ * - 정기 관리: 정기 관리 (BASIC/STANDARD/PREMIUM)
+ * - 기타: 특수 서비스, 기타 작업
  */
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {
@@ -37,17 +38,28 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
       "finishing",
       "plumbing",
       "electrical",
+      "cleaning",
+    ],
+  },
+  {
+    id: "regular",
+    name: "정기 관리",
+    icon: "Calendar",
+    categoryIds: [
+      "regular_management_basic",
+      "regular_management_standard",
+      "regular_management_premium",
     ],
   },
   {
     id: "others",
     name: "기타",
     icon: "MoreHorizontal",
-    categoryIds: ["others"],
+    categoryIds: ["specialized_services", "others"],
   },
 ];
 
-// 서비스 카테고리 상수 (11개 대분류, 32개 소분류)
+// 서비스 카테고리 상수 (16개 대분류, 50개 소분류)
 export const SERVICE_CATEGORIES = [
   {
     id: "construction",
@@ -75,7 +87,7 @@ export const SERVICE_CATEGORIES = [
     name: "조경 공사",
     subtitle: "전문 조경으로 집의 인상을 한 번에 바꿉니다",
     icon: "/icons/services/landscaping-work-icon.png",
-    services: ["조경 공사/관리", "수목 전지", "정원 공사", "마당 공사"],
+    services: ["조경 공사", "수목 전지", "잔디, 제초", "정원 공사", "마당 공사", "정기 관리"],
   },
   {
     id: "outdoor_facility",
@@ -140,7 +152,35 @@ export const SERVICE_CATEGORIES = [
     name: "청소",
     subtitle: "전문 청소로 깨끗한 주거 환경 유지",
     icon: "/icons/services/cleaning-icon.png",
-    services: ["입주 청소", "이사 청소", "정기 청소", "특수 청소"],
+    services: ["실내 청소", "실외 청소", "외벽 청소", "세탁기 청소", "에어컨 청소/충전"],
+  },
+  {
+    id: "regular_management_basic",
+    name: "정기 관리 (BASIC)",
+    subtitle: "기본적인 정기 관리 서비스",
+    icon: "/icons/services/regular-management-icon.png",
+    services: ["정기 관리 (BASIC)"],
+  },
+  {
+    id: "regular_management_standard",
+    name: "정기 관리 (STANDARD)",
+    subtitle: "표준 정기 관리 서비스",
+    icon: "/icons/services/regular-management-icon.png",
+    services: ["정기 관리 (STANDARD)", "빈집 관리", "단지 관리"],
+  },
+  {
+    id: "regular_management_premium",
+    name: "정기 관리 (PREMIUM)",
+    subtitle: "프리미엄 정기 관리 서비스",
+    icon: "/icons/services/regular-management-icon.png",
+    services: ["정기 관리 (PREMIUM)"],
+  },
+  {
+    id: "specialized_services",
+    name: "특수 서비스",
+    subtitle: "특별한 요구에 맞는 서비스",
+    icon: "/icons/services/specialized-icon.png",
+    services: ["장작 난로/땔감", "보안 CCTV", "통신/인터넷", "세탁", "이사 (가전/가구)", "이사 (전체)"],
   },
   {
     id: "others",
