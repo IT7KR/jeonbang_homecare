@@ -5,9 +5,10 @@ Admin Application API endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_
-from typing import Optional
-from datetime import datetime, timezone
+from sqlalchemy import desc, or_, and_
+from sqlalchemy.dialects.postgresql import JSONB
+from typing import Optional, List
+from datetime import datetime, timezone, date
 import math
 import logging
 
@@ -49,6 +50,7 @@ from app.services.sms import (
     send_application_cancelled_notification,
     send_completion_notification,
     send_schedule_changed_notification,
+    send_assignment_changed_notification,
 )
 from app.services.application_status import (
     check_status_transition,
@@ -62,6 +64,8 @@ from app.services.audit import (
     log_bulk_assignment,
     log_change,
 )
+from app.services.search_index import unified_search, detect_search_type
+from app.services.duplicate_check import get_customer_applications
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +106,13 @@ def get_applications(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
-    search: Optional[str] = Query(None, description="검색어 (신청번호)"),
+    search: Optional[str] = Query(None, description="통합 검색어 (신청번호/고객명/연락처)"),
+    search_type: Optional[str] = Query(None, description="검색 타입 (auto/name/phone/number)"),
+    date_from: Optional[date] = Query(None, description="신청일 시작"),
+    date_to: Optional[date] = Query(None, description="신청일 종료"),
+    services: Optional[str] = Query(None, description="서비스 필터 (콤마 구분)"),
+    assigned_admin_id: Optional[int] = Query(None, description="담당 관리자 ID"),
+    assigned_partner_id: Optional[int] = Query(None, description="배정 협력사 ID"),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
@@ -111,7 +121,10 @@ def get_applications(
 
     - 페이징 지원
     - 상태 필터링
-    - 신청번호 검색
+    - 통합 검색 (신청번호/고객명/연락처 자동 감지)
+    - 날짜 범위 필터
+    - 서비스 필터
+    - 담당자 필터
     """
     query = db.query(Application)
 
@@ -119,9 +132,47 @@ def get_applications(
     if status:
         query = query.filter(Application.status == status)
 
-    # 검색 (신청번호)
+    # 통합 검색
     if search:
-        query = query.filter(Application.application_number.ilike(f"%{search}%"))
+        # 검색 타입 자동 감지 또는 지정된 타입 사용
+        detected_type = search_type if search_type and search_type != "auto" else detect_search_type(search)
+
+        if detected_type == "number":
+            # 신청번호 검색 (DB 직접 검색)
+            query = query.filter(Application.application_number.ilike(f"%{search}%"))
+        elif detected_type in ("phone", "name"):
+            # 암호화된 필드 검색 (인덱스 테이블 사용)
+            matching_ids = unified_search(db, "application", search, detected_type)
+            if matching_ids:
+                query = query.filter(Application.id.in_(matching_ids))
+            else:
+                # 검색 결과 없음 - 빈 결과 반환
+                query = query.filter(Application.id == -1)
+
+    # 날짜 범위 필터
+    if date_from:
+        query = query.filter(Application.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(Application.created_at <= datetime.combine(date_to, datetime.max.time()))
+
+    # 서비스 필터 (JSONB 배열에서 검색)
+    if services:
+        service_list = [s.strip() for s in services.split(",") if s.strip()]
+        if service_list:
+            # selected_services 배열에 지정된 서비스 중 하나라도 포함된 경우
+            service_conditions = [
+                Application.selected_services.contains([svc])
+                for svc in service_list
+            ]
+            query = query.filter(or_(*service_conditions))
+
+    # 담당 관리자 필터
+    if assigned_admin_id:
+        query = query.filter(Application.assigned_admin_id == assigned_admin_id)
+
+    # 배정 협력사 필터
+    if assigned_partner_id:
+        query = query.filter(Application.assigned_partner_id == assigned_partner_id)
 
     # 전체 개수
     total = query.count()
@@ -237,6 +288,10 @@ async def bulk_assign_applications(
                 application.application_number,
                 partner.company_name,
                 partner_phone,
+                decrypted["customer_name"],
+                "",  # scheduled_date (일괄 배정에서는 미정)
+                "",  # scheduled_time
+                "",  # estimated_cost
             )
 
         results.append(BulkAssignResult(
@@ -456,6 +511,9 @@ async def update_application(
             admin=current_admin,
         )
 
+    # Audit Log commit
+    db.commit()
+
     # SMS 발송 처리 (백그라운드)
     if data.send_sms:
         decrypted = decrypt_application(application)
@@ -468,12 +526,25 @@ async def update_application(
             partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
             if partner:
                 partner_phone = decrypt_value(partner.contact_phone)
+                # 배정 정보 조회 (있다면)
+                assignment = db.query(ApplicationAssignment).filter(
+                    ApplicationAssignment.application_id == application.id,
+                    ApplicationAssignment.partner_id == partner.id
+                ).first()
+                scheduled_date_str = str(assignment.scheduled_date) if assignment and assignment.scheduled_date else "미정"
+                scheduled_time_str = assignment.scheduled_time if assignment and assignment.scheduled_time else "미정"
+                estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment and assignment.estimated_cost else "협의"
+
                 background_tasks.add_task(
                     send_partner_assignment_notification,
                     customer_phone,
                     application.application_number,
                     partner.company_name,
                     partner_phone,
+                    customer_name,
+                    scheduled_date_str,
+                    scheduled_time_str,
+                    estimated_cost_str,
                 )
                 logger.info(f"SMS scheduled: partner assignment for {application.application_number}")
 
@@ -498,6 +569,7 @@ async def update_application(
                     str(application.scheduled_date),
                     application.scheduled_time,
                     partner_name,
+                    customer_name,
                 )
 
                 # 협력사에게 알림
@@ -522,6 +594,7 @@ async def update_application(
                 customer_phone,
                 application.application_number,
                 data.admin_memo,  # 취소 사유로 admin_memo 사용
+                customer_name,
             )
             logger.info(f"SMS scheduled: cancellation for {application.application_number}")
 
@@ -537,6 +610,7 @@ async def update_application(
                 customer_phone,
                 application.application_number,
                 partner_name,
+                customer_name,
             )
             logger.info(f"SMS scheduled: completion for {application.application_number}")
 
@@ -862,12 +936,20 @@ async def create_application_assignment(
     if data.send_sms:
         decrypted = decrypt_application(application)
         partner_phone = decrypt_value(partner.contact_phone)
+        scheduled_date_str = str(data.scheduled_date) if data.scheduled_date else "미정"
+        scheduled_time_str = data.scheduled_time if data.scheduled_time else "미정"
+        estimated_cost_str = f"{data.estimated_cost:,}원" if data.estimated_cost else "협의"
+
         background_tasks.add_task(
             send_partner_assignment_notification,
             decrypted["customer_phone"],
             application.application_number,
             partner.company_name,
             partner_phone,
+            decrypted["customer_name"],
+            scheduled_date_str,
+            scheduled_time_str,
+            estimated_cost_str,
         )
         logger.info(f"SMS scheduled: assignment created for {application.application_number}")
 
@@ -924,6 +1006,8 @@ async def update_application_assignment(
 
     prev_status = assignment.status
     prev_scheduled_date = assignment.scheduled_date
+    prev_scheduled_time = assignment.scheduled_time
+    prev_estimated_cost = assignment.estimated_cost
 
     # 필드 업데이트
     update_data = data.model_dump(exclude_unset=True, exclude={"send_sms"})
@@ -965,7 +1049,7 @@ async def update_application_assignment(
         decrypted = decrypt_application(application)
         partner_phone = decrypt_value(partner.contact_phone)
 
-        # 일정 확정 알림
+        # 일정 확정 알림 (scheduled 상태로 처음 변경될 때)
         if data.status == "scheduled" and prev_status != "scheduled":
             background_tasks.add_task(
                 send_schedule_confirmation,
@@ -974,6 +1058,7 @@ async def update_application_assignment(
                 str(assignment.scheduled_date) if assignment.scheduled_date else "",
                 assignment.scheduled_time,
                 partner.company_name,
+                decrypted["customer_name"],
             )
             # 협력사에게도 알림
             background_tasks.add_task(
@@ -987,6 +1072,29 @@ async def update_application_assignment(
                 assignment.scheduled_time,
                 assignment.assigned_services or [],
             )
+        else:
+            # 배정 정보 변경 알림 (일정 또는 견적이 변경된 경우)
+            schedule_changed = (
+                (data.scheduled_date is not None and str(data.scheduled_date) != str(prev_scheduled_date)) or
+                (data.scheduled_time is not None and data.scheduled_time != prev_scheduled_time)
+            )
+            cost_changed = data.estimated_cost is not None and data.estimated_cost != prev_estimated_cost
+
+            if schedule_changed or cost_changed:
+                scheduled_date_str = str(assignment.scheduled_date) if assignment.scheduled_date else "미정"
+                scheduled_time_str = assignment.scheduled_time if assignment.scheduled_time else "미정"
+                estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment.estimated_cost else "협의"
+
+                background_tasks.add_task(
+                    send_assignment_changed_notification,
+                    decrypted["customer_phone"],
+                    application.application_number,
+                    decrypted["customer_name"],
+                    scheduled_date_str,
+                    scheduled_time_str,
+                    estimated_cost_str,
+                )
+                logger.info(f"SMS scheduled: assignment changed for {application.application_number}")
 
     logger.info(f"Assignment updated: id={assignment_id}")
 
@@ -1071,3 +1179,64 @@ def delete_application_assignment(
     logger.info(f"Assignment deleted: id={assignment_id}, partner={partner_name}")
 
     return {"success": True, "message": "배정이 삭제되었습니다"}
+
+
+# =============================================================================
+# 고객 이력 조회 API
+# =============================================================================
+
+
+@router.get("/{application_id}/customer-history")
+def get_customer_history(
+    application_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 신청 이력 조회 (관리자용)
+
+    특정 신청의 고객(전화번호 기준)이 가진 모든 신청 목록을 반환합니다.
+    현재 신청은 목록에서 is_current로 표시됩니다.
+    """
+    # 현재 신청 조회
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    # 전화번호 복호화
+    customer_phone = decrypt_value(application.customer_phone)
+    if not customer_phone:
+        return {
+            "customer_phone_masked": None,
+            "total_applications": 1,
+            "applications": [],
+        }
+
+    # 동일 전화번호의 모든 신청 조회
+    customer_applications = get_customer_applications(db, customer_phone, limit=20)
+
+    # 전화번호 마스킹 (010-****-1234 형식)
+    phone_parts = customer_phone.replace("-", "")
+    if len(phone_parts) >= 7:
+        masked_phone = f"{phone_parts[:3]}-****-{phone_parts[-4:]}"
+    else:
+        masked_phone = customer_phone
+
+    # 응답 생성
+    applications_list = []
+    for app in customer_applications:
+        applications_list.append({
+            "id": app.id,
+            "application_number": app.application_number,
+            "status": app.status,
+            "selected_services": app.selected_services or [],
+            "created_at": app.created_at.isoformat() if app.created_at else None,
+            "completed_at": app.completed_at.isoformat() if app.completed_at else None,
+            "is_current": app.id == application_id,
+        })
+
+    return {
+        "customer_phone_masked": masked_phone,
+        "total_applications": len(applications_list),
+        "applications": applications_list,
+    }
