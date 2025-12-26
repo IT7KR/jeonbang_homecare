@@ -30,6 +30,14 @@ class Partner(Base):
     contact_phone = Column(String(500), nullable=False)  # 연락처 (암호화)
     contact_email = Column(String(500), nullable=True)  # 이메일 (암호화)
 
+    # 중복 감지용 해시 (Blind Index)
+    # 1. 사업자번호 해시 - 우선 중복 감지 (UNIQUE)
+    # 2. 전화번호 해시 - 보조 중복 감지
+    # 3. 전화번호+회사명 복합 해시 - 사업자번호 없는 경우 중복 감지
+    phone_hash = Column(String(64), nullable=True, index=True)
+    business_number_hash = Column(String(64), nullable=True, unique=True)
+    phone_company_hash = Column(String(64), nullable=True, index=True)
+
     # 주소 정보 (암호화)
     address = Column(String(1000), nullable=False)  # 주소 (암호화)
     address_detail = Column(String(500), nullable=True)  # 상세 주소 (암호화)

@@ -11,6 +11,7 @@ from app.models.sms_log import SMSLog
 from app.models.bulk_sms_job import BulkSMSJob
 from app.models.sms_template import SMSTemplate
 from app.models.audit_log import AuditLog
+from app.models.search_index import SearchIndex
 
 __all__ = [
     "Province",
@@ -28,4 +29,5 @@ __all__ = [
     "BulkSMSJob",
     "SMSTemplate",
     "AuditLog",
+    "SearchIndex",
 ]

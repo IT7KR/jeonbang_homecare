@@ -30,6 +30,10 @@ class Application(Base):
     customer_name = Column(String(500), nullable=False)  # 암호화된 값
     customer_phone = Column(String(500), nullable=False)  # 암호화된 값
 
+    # 중복 감지용 해시 (Blind Index)
+    # 전화번호 해시 - 진행 중인 동일 전화번호 신청 감지용
+    phone_hash = Column(String(64), nullable=True, index=True)
+
     # 주소 정보 (암호화 저장)
     address = Column(String(1000), nullable=False)  # 암호화된 값
     address_detail = Column(String(500), nullable=True)  # 암호화된 값

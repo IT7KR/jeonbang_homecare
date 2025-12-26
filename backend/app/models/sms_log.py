@@ -48,6 +48,9 @@ class SMSLog(Base):
     # 발송자 정보
     sender_phone = Column(String(20), nullable=True)  # 발신번호
 
+    # 템플릿 정보
+    template_key = Column(String(50), nullable=True)  # 사용된 템플릿 키
+
     # 타임스탬프
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     sent_at = Column(DateTime(timezone=True), nullable=True)
