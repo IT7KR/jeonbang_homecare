@@ -5,9 +5,9 @@ Admin Partner API endpoints
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
-from typing import Optional
-from datetime import datetime, timezone
+from sqlalchemy import desc, or_
+from typing import Optional, List
+from datetime import datetime, timezone, date
 import math
 import logging
 
@@ -32,6 +32,9 @@ from app.schemas.partner_note import (
     PartnerStatusChange,
 )
 from app.services.sms import send_partner_approval_notification
+from app.services.search_index import unified_search, detect_search_type
+from app.services.audit import log_status_change
+from app.services.duplicate_check import find_similar_partners
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +84,13 @@ def get_partners(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
-    search: Optional[str] = Query(None, description="검색어 (회사명)"),
+    search: Optional[str] = Query(None, description="통합 검색어 (회사명/대표자명/연락처)"),
+    search_type: Optional[str] = Query(None, description="검색 타입 (auto/company/name/phone)"),
+    date_from: Optional[date] = Query(None, description="등록일 시작"),
+    date_to: Optional[date] = Query(None, description="등록일 종료"),
+    services: Optional[str] = Query(None, description="서비스 분야 필터 (콤마 구분)"),
+    region: Optional[str] = Query(None, description="활동 지역 필터"),
+    approved_by: Optional[int] = Query(None, description="승인 관리자 ID"),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
@@ -90,7 +99,10 @@ def get_partners(
 
     - 페이징 지원
     - 상태 필터링
-    - 회사명 검색
+    - 통합 검색 (회사명/대표자명/연락처 자동 감지)
+    - 날짜 범위 필터
+    - 서비스 분야 필터
+    - 활동 지역 필터
     """
     query = db.query(Partner)
 
@@ -98,9 +110,55 @@ def get_partners(
     if status:
         query = query.filter(Partner.status == status)
 
-    # 검색 (회사명)
+    # 통합 검색
     if search:
-        query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+        # 검색 타입 자동 감지 또는 지정된 타입 사용
+        if search_type == "company":
+            # 회사명 검색 (DB 직접 검색)
+            query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+        else:
+            detected_type = search_type if search_type and search_type != "auto" else detect_search_type(search)
+
+            if detected_type in ("phone", "name"):
+                # 암호화된 필드 검색 (인덱스 테이블 사용)
+                matching_ids = unified_search(db, "partner", search, detected_type)
+                if matching_ids:
+                    query = query.filter(Partner.id.in_(matching_ids))
+                else:
+                    # 인덱스에서 결과가 없으면 회사명에서도 검색 시도
+                    query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+            else:
+                # 기본: 회사명 검색
+                query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+
+    # 날짜 범위 필터
+    if date_from:
+        query = query.filter(Partner.created_at >= datetime.combine(date_from, datetime.min.time()))
+    if date_to:
+        query = query.filter(Partner.created_at <= datetime.combine(date_to, datetime.max.time()))
+
+    # 서비스 분야 필터 (JSONB 배열에서 검색)
+    if services:
+        service_list = [s.strip() for s in services.split(",") if s.strip()]
+        if service_list:
+            service_conditions = [
+                Partner.service_areas.contains([svc])
+                for svc in service_list
+            ]
+            query = query.filter(or_(*service_conditions))
+
+    # 활동 지역 필터 (work_regions JSONB에서 검색)
+    if region:
+        # work_regions 형식: [{"province": "경기도", "district": "양평군"}, ...]
+        # PostgreSQL JSONB 텍스트 변환 후 검색
+        from sqlalchemy import cast, String
+        query = query.filter(
+            cast(Partner.work_regions, String).ilike(f"%{region}%")
+        )
+
+    # 승인 관리자 필터
+    if approved_by:
+        query = query.filter(Partner.approved_by == approved_by)
 
     # 전체 개수
     total = query.count()
@@ -152,6 +210,59 @@ def get_partner(
 
     decrypted = decrypt_partner(partner)
     return PartnerDetailResponse(**decrypted)
+
+
+@router.get("/{partner_id}/similar-partners")
+def get_similar_partners(
+    partner_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    유사 협력사 조회 (관리자용)
+
+    해당 협력사와 동일한 전화번호 또는 사업자등록번호를 가진 협력사 목록 조회
+    """
+    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+
+    if not partner:
+        raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
+
+    # 협력사 정보 복호화
+    decrypted = decrypt_partner(partner)
+    phone = decrypted.get("contact_phone")
+    business_number = decrypted.get("business_number")
+
+    # 유사 협력사 검색
+    similar = find_similar_partners(
+        db=db,
+        phone=phone,
+        business_number=business_number,
+        exclude_id=partner_id,
+        limit=5,
+    )
+
+    # 결과 구성
+    items = []
+    for p in similar:
+        p_decrypted = decrypt_partner(p)
+        items.append({
+            "id": p_decrypted["id"],
+            "company_name": p_decrypted["company_name"],
+            "representative_name": p_decrypted["representative_name"],
+            "contact_phone": p_decrypted["contact_phone"],
+            "business_number": p_decrypted["business_number"],
+            "status": p_decrypted["status"],
+            "status_label": STATUS_LABELS.get(p_decrypted["status"], p_decrypted["status"]),
+            "created_at": p_decrypted["created_at"],
+        })
+
+    return {
+        "partner_id": partner_id,
+        "company_name": decrypted["company_name"],
+        "similar_partners": items,
+        "total": len(items),
+    }
 
 
 @router.put("/{partner_id}", response_model=PartnerDetailResponse)
@@ -212,9 +323,6 @@ async def approve_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    if partner.status != "pending":
-        raise HTTPException(status_code=400, detail="대기 중인 협력사만 승인/거절할 수 있습니다")
-
     is_approved = data.action == "approve"
 
     if is_approved:
@@ -242,6 +350,7 @@ async def approve_partner(
             partner_name,
             is_approved,
             data.rejection_reason if not is_approved else None,
+            partner.company_name or "",
         )
         logger.info(f"SMS scheduled: partner {'approval' if is_approved else 'rejection'} for {partner.company_name}")
 
@@ -417,23 +526,15 @@ async def change_partner_status(
     db.commit()
     db.refresh(partner)
 
-    # 상태 변경 이력 저장
-    old_label = STATUS_LABELS.get(old_status, old_status)
-    new_label = STATUS_LABELS.get(new_status, new_status)
-    content = f"상태 변경: {old_label} → {new_label}"
-    if data.reason:
-        content += f"\n사유: {data.reason}"
-
-    note = PartnerNote(
-        partner_id=partner_id,
-        admin_id=current_admin.id,
-        admin_name=current_admin.name,
-        note_type="status_change",
-        content=content,
+    # Audit Log에 상태 변경 이력 저장
+    log_status_change(
+        db=db,
+        entity_type="partner",
+        entity_id=partner_id,
         old_status=old_status,
         new_status=new_status,
+        admin=current_admin,
     )
-    db.add(note)
     db.commit()
 
     # SMS 발송 (승인/거절 시)
@@ -447,6 +548,7 @@ async def change_partner_status(
             partner_name,
             is_approved,
             data.reason if not is_approved else None,
+            partner.company_name or "",
         )
         logger.info(f"SMS scheduled: partner status change to {new_status} for {partner.company_name}")
 
