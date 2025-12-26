@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { parse, format } from "date-fns";
+import { format, parse } from "date-fns";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import {
@@ -20,7 +20,6 @@ import {
   AlertCircle,
   Wrench,
   History,
-  Send,
   Trash2,
   ZoomIn,
   ChevronDown,
@@ -34,6 +33,10 @@ import {
   Pencil,
   X,
   Download,
+  Zap,
+  Check,
+  Search,
+  Star,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useConfirm } from "@/hooks";
@@ -41,7 +44,6 @@ import {
   getApplication,
   updateApplication,
   getPartners,
-  getSchedule,
   getEntityAuditLogs,
   getApplicationNotes,
   createApplicationNote,
@@ -49,31 +51,68 @@ import {
   createApplicationAssignment,
   updateApplicationAssignment,
   deleteApplicationAssignment,
+  getCustomerHistory,
   ApplicationDetail,
   PartnerListItem,
-  ScheduleConflict,
   AuditLog,
   ApplicationNote,
   AssignmentSummary,
   AssignmentCreate,
   AssignmentUpdate,
+  CustomerHistoryResponse,
 } from "@/lib/api/admin";
-import { addDays, startOfDay } from "date-fns";
+import { startOfDay } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { getServiceName } from "@/lib/utils/service";
-import { SummaryCards, type SummaryCardItem } from "@/components/admin";
+import {
+  type SummaryCardItem,
+  ActivityTimeline,
+  type NoteItem,
+  type AuditItem,
+} from "@/components/admin";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
-const FILE_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace("/api/v1", "");
+const FILE_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
+).replace("/api/v1", "");
 
 const STATUS_OPTIONS = [
-  { value: "new", label: "신규", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  { value: "consulting", label: "상담중", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-  { value: "assigned", label: "배정완료", color: "bg-purple-50 text-purple-700 border-purple-200" },
-  { value: "scheduled", label: "일정확정", color: "bg-primary-50 text-primary-700 border-primary-200" },
-  { value: "completed", label: "완료", color: "bg-gray-100 text-gray-700 border-gray-200" },
-  { value: "cancelled", label: "취소", color: "bg-red-50 text-red-600 border-red-200" },
+  {
+    value: "new",
+    label: "신규",
+    color: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  {
+    value: "consulting",
+    label: "상담중",
+    color: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  },
+  {
+    value: "assigned",
+    label: "배정완료",
+    color: "bg-purple-50 text-purple-700 border-purple-200",
+  },
+  {
+    value: "scheduled",
+    label: "일정확정",
+    color: "bg-primary-50 text-primary-700 border-primary-200",
+  },
+  {
+    value: "completed",
+    label: "완료",
+    color: "bg-gray-100 text-gray-700 border-gray-200",
+  },
+  {
+    value: "cancelled",
+    label: "취소",
+    color: "bg-red-50 text-red-600 border-red-200",
+  },
 ];
 
 const TIME_OPTIONS = [
@@ -90,6 +129,29 @@ const TIME_OPTIONS = [
   { value: "종일", label: "종일" },
 ];
 
+/**
+ * 상태 변경 시 SMS가 실제로 발송되는지 확인하는 함수
+ * 백엔드 로직과 동기화되어야 함
+ */
+const willSendSmsForStatusChange = (
+  prevStatus: string,
+  newStatus: string
+): boolean => {
+  // scheduled 상태로 변경 (일정 확정 알림)
+  if (newStatus === "scheduled" && prevStatus !== "scheduled") {
+    return true;
+  }
+
+  // completed 상태로 변경 (완료 알림)
+  if (newStatus === "completed" && prevStatus !== "completed") {
+    return true;
+  }
+
+  // cancelled 상태는 별도 취소 모달에서 처리
+  // consulting, assigned 상태 변경은 SMS 발송 로직 없음
+  return false;
+};
+
 export default function ApplicationDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -97,48 +159,68 @@ export default function ApplicationDetailPage() {
   const { getValidToken } = useAuthStore();
   const { confirm } = useConfirm();
 
-  const [application, setApplication] = useState<ApplicationDetail | null>(null);
+  const [application, setApplication] = useState<ApplicationDetail | null>(
+    null
+  );
   const [partners, setPartners] = useState<PartnerListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [scheduleConflicts, setScheduleConflicts] = useState<ScheduleConflict[]>([]);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [suggestedDateMessage, setSuggestedDateMessage] = useState<string | null>(null);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [downloadingPhoto, setDownloadingPhoto] = useState<number | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [customerHistory, setCustomerHistory] = useState<CustomerHistoryResponse | null>(null);
 
   // 메모 히스토리
   const [notes, setNotes] = useState<ApplicationNote[]>([]);
-  const [newNoteContent, setNewNoteContent] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [showAllNotes, setShowAllNotes] = useState(false);
 
   // 취소 모달
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState("");
+  const [cancelReasonSelect, setCancelReasonSelect] = useState("");
+  const [cancelReasonCustom, setCancelReasonCustom] = useState("");
   const [sendCancelSms, setSendCancelSms] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // 취소 사유 옵션
+  const CANCEL_REASONS = [
+    { value: "", label: "사유 선택" },
+    { value: "고객 요청", label: "고객 요청" },
+    { value: "일정 조율 불가", label: "일정 조율 불가" },
+    { value: "서비스 범위 초과", label: "서비스 범위 초과" },
+    { value: "협력사 배정 불가", label: "협력사 배정 불가" },
+    { value: "중복 신청", label: "중복 신청" },
+    { value: "other", label: "기타 (직접 입력)" },
+  ];
+
+  // 최종 취소 사유 계산
+  const finalCancelReason = cancelReasonSelect === "other"
+    ? cancelReasonCustom
+    : cancelReasonSelect;
+
   // 헤더 상태 드롭다운
-  const [showStatusHeaderDropdown, setShowStatusHeaderDropdown] = useState(false);
+  const [showStatusHeaderDropdown, setShowStatusHeaderDropdown] =
+    useState(false);
 
   // 섹션 접기/펼치기
   const [expandedSections, setExpandedSections] = useState({
     service: true,
-    assignments: true,
+    assignments: false, // 기본 닫힘 (좌측 높이 축소)
     management: true,
     activity: true,
   });
 
   // 배정 관리 상태
   const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
-  const [editingAssignment, setEditingAssignment] = useState<AssignmentSummary | null>(null);
+  const [editingAssignment, setEditingAssignment] =
+    useState<AssignmentSummary | null>(null);
   const [isAssignmentSaving, setIsAssignmentSaving] = useState(false);
-  const [isDeletingAssignment, setIsDeletingAssignment] = useState<number | null>(null);
+  const [isDeletingAssignment, setIsDeletingAssignment] = useState<
+    number | null
+  >(null);
 
   // 배정 폼 상태
   const [assignmentForm, setAssignmentForm] = useState<{
@@ -159,49 +241,16 @@ export default function ApplicationDetailPage() {
     send_sms: true,
   });
 
+  // 협력사 선택 드롭다운 상태
+  const [isPartnerDropdownOpen, setIsPartnerDropdownOpen] = useState(false);
+  const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
+
   // Form state
   const [status, setStatus] = useState("");
-  const [assignedPartnerId, setAssignedPartnerId] = useState<number | "">("");
-  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
-  const [scheduledTime, setScheduledTime] = useState("");
-  const [estimatedCost, setEstimatedCost] = useState<number | "">("");
-  const [finalCost, setFinalCost] = useState<number | "">("");
   const [sendSms, setSendSms] = useState(true);
 
-  // 원본 값 저장 (변경 감지용)
-  const [originalValues, setOriginalValues] = useState({
-    status: "",
-    assignedPartnerId: "" as number | "",
-    scheduledDate: undefined as Date | undefined,
-    scheduledTime: "",
-  });
-
-  // 선택한 협력사 정보
-  const selectedPartner = useMemo(() => {
-    if (!assignedPartnerId) return null;
-    return partners.find((p) => p.id === assignedPartnerId);
-  }, [assignedPartnerId, partners]);
-
-  // 협력사 드롭다운 상태
-  const [isPartnerDropdownOpen, setIsPartnerDropdownOpen] = useState(false);
-
-  // 드롭다운 외부 클릭 시 닫기
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest("[data-partner-dropdown]")) {
-        setIsPartnerDropdownOpen(false);
-      }
-    };
-
-    if (isPartnerDropdownOpen) {
-      document.addEventListener("click", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [isPartnerDropdownOpen]);
+  // 원본 상태값 저장 (변경 감지용)
+  const [originalStatus, setOriginalStatus] = useState("");
 
   // 서비스 매칭 정보가 추가된 협력사 타입
   type PartnerWithMatch = PartnerListItem & {
@@ -211,7 +260,10 @@ export default function ApplicationDetailPage() {
   };
 
   // 서비스 매칭률로 정렬된 협력사 목록
-  const sortedPartners = useMemo((): { matched: PartnerWithMatch[]; unmatched: PartnerWithMatch[] } => {
+  const sortedPartners = useMemo((): {
+    matched: PartnerWithMatch[];
+    unmatched: PartnerWithMatch[];
+  } => {
     if (!application?.selected_services || partners.length === 0) {
       const emptyPartners: PartnerWithMatch[] = partners.map((p) => ({
         ...p,
@@ -243,47 +295,8 @@ export default function ApplicationDetailPage() {
     return { matched, unmatched };
   }, [partners, application?.selected_services]);
 
-  // 협력사의 다음 가용 일정 제안
-  const suggestNextAvailableDate = async (partnerId: number) => {
-    try {
-      const token = await getValidToken();
-      if (!token) return null;
-
-      const today = startOfDay(new Date());
-      const startDate = format(today, "yyyy-MM-dd");
-      const endDate = format(addDays(today, 14), "yyyy-MM-dd");
-
-      const schedule = await getSchedule(token, {
-        start_date: startDate,
-        end_date: endDate,
-        partner_id: partnerId,
-      });
-
-      const bookedDates = schedule.items
-        .filter((item) => item.status === "assigned" || item.status === "scheduled")
-        .map((item) => item.scheduled_date);
-
-      for (let i = 1; i <= 14; i++) {
-        const candidateDate = addDays(today, i);
-        const candidateDateStr = format(candidateDate, "yyyy-MM-dd");
-
-        if (!bookedDates.includes(candidateDateStr)) {
-          return candidateDate;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Failed to suggest date:", error);
-      return null;
-    }
-  };
-
-  // 변경 사항 감지
-  const hasPartnerChanged = assignedPartnerId !== originalValues.assignedPartnerId;
-  const hasScheduleChanged =
-    scheduledDate?.toISOString() !== originalValues.scheduledDate?.toISOString() ||
-    scheduledTime !== originalValues.scheduledTime;
+  // 상태 변경 감지
+  const hasStatusChanged = status !== originalStatus;
 
   useEffect(() => {
     loadData();
@@ -301,84 +314,30 @@ export default function ApplicationDetailPage() {
         return;
       }
 
-      const [appData, partnersData, auditLogsData, notesData] = await Promise.all([
-        getApplication(token, id),
-        getPartners(token, { status: "approved", page_size: 100 }),
-        getEntityAuditLogs(token, "application", id, { page_size: 20 }),
-        getApplicationNotes(token, id, { page_size: 50 }),
-      ]);
+      const [appData, partnersData, auditLogsData, notesData, customerHistoryData] =
+        await Promise.all([
+          getApplication(token, id),
+          getPartners(token, { status: "approved", page_size: 100 }),
+          getEntityAuditLogs(token, "application", id, { page_size: 20 }),
+          getApplicationNotes(token, id, { page_size: 50 }),
+          getCustomerHistory(token, id).catch(() => null), // 실패해도 무시
+        ]);
 
       setApplication(appData);
       setPartners(partnersData.items);
       setAuditLogs(auditLogsData.items);
       setNotes(notesData.items);
+      setCustomerHistory(customerHistoryData);
 
-      // Initialize form
-      const parsedDate = appData.scheduled_date
-        ? parse(appData.scheduled_date, "yyyy-MM-dd", new Date())
-        : undefined;
-
+      // Initialize form (상태만 관리)
       setStatus(appData.status);
-      setAssignedPartnerId(appData.assigned_partner_id || "");
-      setScheduledDate(parsedDate);
-      setScheduledTime(appData.scheduled_time || "");
-      setEstimatedCost(appData.estimated_cost || "");
-      setFinalCost(appData.final_cost || "");
-
-      setOriginalValues({
-        status: appData.status,
-        assignedPartnerId: appData.assigned_partner_id || "",
-        scheduledDate: parsedDate,
-        scheduledTime: appData.scheduled_time || "",
-      });
+      setOriginalStatus(appData.status);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "데이터를 불러올 수 없습니다");
+      setError(
+        err instanceof Error ? err.message : "데이터를 불러올 수 없습니다"
+      );
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // 협력사 배정 시 자동 상태 변경 및 일정 제안
-  const handlePartnerChange = async (partnerId: number | "") => {
-    setAssignedPartnerId(partnerId);
-    setSuggestedDateMessage(null);
-
-    if (partnerId && (status === "new" || status === "consulting")) {
-      setStatus("assigned");
-    }
-    if (!partnerId && status === "assigned") {
-      setStatus("consulting");
-    }
-
-    if (partnerId && !scheduledDate) {
-      const suggestedDate = await suggestNextAvailableDate(partnerId as number);
-      if (suggestedDate) {
-        setScheduledDate(suggestedDate);
-        const formattedDate = format(suggestedDate, "M월 d일");
-        setSuggestedDateMessage(`${formattedDate}이(가) 가장 빠른 가용 일정으로 자동 설정되었습니다`);
-
-        if (status === "assigned" || status === "consulting") {
-          setStatus("scheduled");
-        }
-
-        setTimeout(() => setSuggestedDateMessage(null), 5000);
-      }
-    }
-  };
-
-  // 일정 설정 시 자동 상태 변경
-  const handleScheduleChange = (date: Date | undefined, time?: string) => {
-    if (date !== undefined) {
-      setScheduledDate(date);
-    }
-    if (time !== undefined) {
-      setScheduledTime(time);
-    }
-
-    const newDate = date !== undefined ? date : scheduledDate;
-
-    if (newDate && assignedPartnerId && (status === "assigned" || status === "consulting")) {
-      setStatus("scheduled");
     }
   };
 
@@ -394,41 +353,33 @@ export default function ApplicationDetailPage() {
         return;
       }
 
+      // 상태 변경만 처리 (협력사/일정/비용은 배정에서 관리)
       const updateData = {
         status,
-        assigned_partner_id: assignedPartnerId || undefined,
-        scheduled_date: scheduledDate ? format(scheduledDate, "yyyy-MM-dd") : undefined,
-        scheduled_time: scheduledTime || undefined,
-        estimated_cost: estimatedCost || undefined,
-        final_cost: finalCost || undefined,
-        send_sms: sendSms && (hasPartnerChanged || hasScheduleChanged),
+        send_sms: sendSms && hasStatusChanged,
       };
 
       const updated = await updateApplication(token, id, updateData);
       setApplication(updated);
 
-      if (updated.schedule_conflicts && updated.schedule_conflicts.length > 0) {
-        setScheduleConflicts(updated.schedule_conflicts);
-      } else {
-        setScheduleConflicts([]);
-      }
+      // 원본 상태 업데이트
+      setOriginalStatus(updated.status);
 
-      setOriginalValues({
-        status: updated.status,
-        assignedPartnerId: updated.assigned_partner_id || "",
-        scheduledDate: updated.scheduled_date
-          ? parse(updated.scheduled_date, "yyyy-MM-dd", new Date())
-          : undefined,
-        scheduledTime: updated.scheduled_time || "",
-      });
-
-      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, {
-        page_size: 20,
-      });
+      const updatedAuditLogs = await getEntityAuditLogs(
+        token,
+        "application",
+        id,
+        {
+          page_size: 20,
+        }
+      );
       setAuditLogs(updatedAuditLogs.items);
 
-      const smsNote =
-        sendSms && (hasPartnerChanged || hasScheduleChanged) ? " (SMS 알림 발송됨)" : "";
+      const willSendSms =
+        sendSms &&
+        hasStatusChanged &&
+        willSendSmsForStatusChange(originalStatus, status);
+      const smsNote = willSendSms ? " (SMS 알림 발송됨)" : "";
       setSuccessMessage(`저장되었습니다${smsNote}`);
 
       setTimeout(() => setSuccessMessage(null), 3000);
@@ -439,18 +390,17 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  // 메모 추가
-  const handleAddNote = async () => {
-    if (!newNoteContent.trim()) return;
-
+  // 메모 추가 (ActivityTimeline 컴포넌트용)
+  const handleAddNote = async (content: string) => {
     try {
       setIsAddingNote(true);
       const token = await getValidToken();
       if (!token) return;
 
-      const newNote = await createApplicationNote(token, id, { content: newNoteContent.trim() });
+      const newNote = await createApplicationNote(token, id, {
+        content: content.trim(),
+      });
       setNotes([newNote, ...notes]);
-      setNewNoteContent("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "메모 추가에 실패했습니다");
     } finally {
@@ -493,7 +443,7 @@ export default function ApplicationDetailPage() {
 
       const updateData = {
         status: "cancelled",
-        admin_memo: cancelReason || undefined,
+        admin_memo: finalCancelReason || undefined,
         send_sms: sendCancelSms,
       };
 
@@ -501,13 +451,19 @@ export default function ApplicationDetailPage() {
       setApplication(updated);
       setStatus("cancelled");
       setShowCancelModal(false);
-      setCancelReason("");
+      setCancelReasonSelect("");
+      setCancelReasonCustom("");
       setSendCancelSms(true);
 
       // Audit Log 갱신
-      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, {
-        page_size: 20,
-      });
+      const updatedAuditLogs = await getEntityAuditLogs(
+        token,
+        "application",
+        id,
+        {
+          page_size: 20,
+        }
+      );
       setAuditLogs(updatedAuditLogs.items);
 
       const smsNote = sendCancelSms ? " (SMS 알림 발송됨)" : "";
@@ -528,7 +484,9 @@ export default function ApplicationDetailPage() {
       setDownloadingPhoto(index);
 
       // 파일 URL에 download=true 쿼리 파라미터 추가
-      const downloadUrl = `${FILE_BASE_URL}${photoUrl}${photoUrl.includes("?") ? "&" : "?"}download=true`;
+      const downloadUrl = `${FILE_BASE_URL}${photoUrl}${
+        photoUrl.includes("?") ? "&" : "?"
+      }download=true`;
 
       // 파일명 추출 (URL에서)
       const filename = `사진_${index + 1}.jpg`;
@@ -565,7 +523,8 @@ export default function ApplicationDetailPage() {
         try {
           const fullUrl = `${FILE_BASE_URL}${photoUrl}`;
           const response = await fetch(fullUrl);
-          if (!response.ok) throw new Error(`Failed to fetch photo ${index + 1}`);
+          if (!response.ok)
+            throw new Error(`Failed to fetch photo ${index + 1}`);
           const blob = await response.blob();
 
           // 파일 확장자 추출
@@ -620,9 +579,12 @@ export default function ApplicationDetailPage() {
   const openNewAssignmentModal = () => {
     resetAssignmentForm();
     // 아직 배정되지 않은 서비스만 기본 선택
-    const assignedServices = application?.assignments?.flatMap((a) => a.assigned_services) || [];
+    const assignedServices =
+      application?.assignments?.flatMap((a) => a.assigned_services) || [];
     const unassignedServices =
-      application?.selected_services.filter((s) => !assignedServices.includes(s)) || [];
+      application?.selected_services.filter(
+        (s) => !assignedServices.includes(s)
+      ) || [];
     setAssignmentForm((prev) => ({
       ...prev,
       assigned_services: unassignedServices,
@@ -649,7 +611,10 @@ export default function ApplicationDetailPage() {
 
   // 배정 저장 (생성/수정)
   const handleSaveAssignment = async () => {
-    if (!assignmentForm.partner_id || assignmentForm.assigned_services.length === 0) {
+    if (
+      !assignmentForm.partner_id ||
+      assignmentForm.assigned_services.length === 0
+    ) {
       setError("협력사와 담당 서비스를 선택해주세요");
       return;
     }
@@ -677,7 +642,12 @@ export default function ApplicationDetailPage() {
           send_sms: assignmentForm.send_sms,
         };
 
-        await updateApplicationAssignment(token, id, editingAssignment.id, updateData);
+        await updateApplicationAssignment(
+          token,
+          id,
+          editingAssignment.id,
+          updateData
+        );
         setSuccessMessage("배정이 수정되었습니다");
       } else {
         // 생성
@@ -702,9 +672,14 @@ export default function ApplicationDetailPage() {
       setApplication(updatedApp);
 
       // Audit Log 갱신
-      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, {
-        page_size: 20,
-      });
+      const updatedAuditLogs = await getEntityAuditLogs(
+        token,
+        "application",
+        id,
+        {
+          page_size: 20,
+        }
+      );
       setAuditLogs(updatedAuditLogs.items);
 
       setIsAssignmentModalOpen(false);
@@ -746,9 +721,14 @@ export default function ApplicationDetailPage() {
       setApplication(updatedApp);
 
       // Audit Log 갱신
-      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, {
-        page_size: 20,
-      });
+      const updatedAuditLogs = await getEntityAuditLogs(
+        token,
+        "application",
+        id,
+        {
+          page_size: 20,
+        }
+      );
       setAuditLogs(updatedAuditLogs.items);
 
       setSuccessMessage("배정이 삭제되었습니다");
@@ -772,21 +752,78 @@ export default function ApplicationDetailPage() {
       completed: { label: "완료", color: "bg-primary-50 text-primary-700" },
       cancelled: { label: "취소", color: "bg-red-50 text-red-600" },
     };
-    return statusMap[statusValue] || { label: statusValue, color: "bg-gray-100 text-gray-700" };
+    return (
+      statusMap[statusValue] || {
+        label: statusValue,
+        color: "bg-gray-100 text-gray-700",
+      }
+    );
   };
 
   // 배정되지 않은 서비스 계산
   const unassignedServices = useMemo(() => {
     if (!application) return [];
-    const assignedServices = application.assignments?.flatMap((a) => a.assigned_services) || [];
-    return application.selected_services.filter((s) => !assignedServices.includes(s));
+    const assignedServices =
+      application.assignments?.flatMap((a) => a.assigned_services) || [];
+    return application.selected_services.filter(
+      (s) => !assignedServices.includes(s)
+    );
   }, [application]);
+
+  // 검색 필터링된 협력사 목록
+  const filteredPartners = useMemo(() => {
+    const query = partnerSearchQuery.toLowerCase().trim();
+    if (!query) return sortedPartners;
+
+    const filterFn = (p: PartnerWithMatch) =>
+      p.company_name.toLowerCase().includes(query) ||
+      p.representative_name?.toLowerCase().includes(query) ||
+      p.service_areas.some((s) =>
+        getServiceName(s).toLowerCase().includes(query)
+      );
+
+    return {
+      matched: sortedPartners.matched.filter(filterFn),
+      unmatched: sortedPartners.unmatched.filter(filterFn),
+    };
+  }, [sortedPartners, partnerSearchQuery]);
+
+  // 선택된 협력사 정보
+  const selectedPartner = useMemo(() => {
+    if (!assignmentForm.partner_id) return null;
+    return (
+      sortedPartners.matched.find((p) => p.id === assignmentForm.partner_id) ||
+      sortedPartners.unmatched.find((p) => p.id === assignmentForm.partner_id)
+    );
+  }, [sortedPartners, assignmentForm.partner_id]);
+
+  // ActivityTimeline용 노트 변환
+  const timelineNotes = useMemo<NoteItem[]>(() => {
+    return notes.map((note) => ({
+      id: note.id,
+      content: note.content,
+      admin_name: note.admin_name,
+      created_at: note.created_at,
+    }));
+  }, [notes]);
+
+  // ActivityTimeline용 변경 이력 변환
+  const timelineAuditLogs = useMemo<AuditItem[]>(() => {
+    return auditLogs.map((log) => ({
+      id: log.id,
+      summary: log.summary || "",
+      admin_name: log.admin_name || undefined,
+      created_at: log.created_at,
+    }));
+  }, [auditLogs]);
 
   // 헬퍼 함수들 (useMemo보다 먼저 정의)
   const formatPhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, "");
     if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(7)}`;
+      return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 7)}-${cleaned.slice(
+        7
+      )}`;
     }
     return phone;
   };
@@ -802,16 +839,6 @@ export default function ApplicationDetailPage() {
     const numericValue = value.replace(/[^\d]/g, "");
     if (numericValue === "") return "";
     return Number(numericValue);
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const formatRelativeTime = (dateString: string) => {
@@ -836,7 +863,9 @@ export default function ApplicationDetailPage() {
   };
 
   const getStatusInfo = (statusValue: string) => {
-    return STATUS_OPTIONS.find((s) => s.value === statusValue) || STATUS_OPTIONS[0];
+    return (
+      STATUS_OPTIONS.find((s) => s.value === statusValue) || STATUS_OPTIONS[0]
+    );
   };
 
   // 요약 카드 데이터
@@ -856,7 +885,6 @@ export default function ApplicationDetailPage() {
         iconColor: "text-green-600",
         label: "연락처",
         value: formatPhone(application.customer_phone),
-        href: `tel:${application.customer_phone}`,
       },
       {
         icon: <CalendarIcon size={20} />,
@@ -912,48 +940,41 @@ export default function ApplicationDetailPage() {
 
   const statusInfo = getStatusInfo(application.status);
 
-  // 활동 이력: 메모 + 변경 이력 통합 (최신순)
-  type ActivityItem =
-    | { type: "note"; data: ApplicationNote }
-    | { type: "audit"; data: AuditLog };
-
-  const activityItems: ActivityItem[] = [
-    ...notes.map((n) => ({ type: "note" as const, data: n })),
-    ...auditLogs.map((a) => ({ type: "audit" as const, data: a })),
-  ].sort((a, b) => {
-    const dateA = new Date(a.data.created_at).getTime();
-    const dateB = new Date(b.data.created_at).getTime();
-    return dateB - dateA;
-  });
-
-  const displayedActivities = showAllNotes ? activityItems : activityItems.slice(0, 5);
-
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* ===== Header: 신청 요약 ===== */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start gap-4">
+      {/* ===== 통합 헤더: 신청 요약 ===== */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        {/* 상단: 제목 + 상태 */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex items-start gap-3">
             <Link
               href="/admin/applications"
-              className="p-2 rounded-xl hover:bg-gray-100 transition-colors mt-1"
+              className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
             >
               <ArrowLeft size={20} className="text-gray-600" />
             </Link>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-xl font-bold text-gray-900">{application.application_number}</h1>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <h1 className="text-lg font-bold text-gray-900">
+                  {application.application_number}
+                </h1>
                 <span
-                  className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full border ${statusInfo.color}`}
+                  className={`inline-flex px-2.5 py-0.5 text-sm font-semibold rounded-full border ${statusInfo.color}`}
                 >
                   {statusInfo.label}
                 </span>
               </div>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                <span>등록: {new Date(application.created_at).toLocaleDateString("ko-KR")}</span>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                <span>
+                  등록:{" "}
+                  {new Date(application.created_at).toLocaleDateString("ko-KR")}
+                </span>
                 {application.updated_at !== application.created_at && (
-                  <span className="flex items-center gap-1">
-                    수정: {new Date(application.updated_at).toLocaleDateString("ko-KR")}
+                  <span>
+                    · 수정:{" "}
+                    {new Date(application.updated_at).toLocaleDateString(
+                      "ko-KR"
+                    )}
                   </span>
                 )}
               </div>
@@ -963,46 +984,68 @@ export default function ApplicationDetailPage() {
           {/* 상태 변경 드롭다운 */}
           <div className="relative">
             <button
-              onClick={() => setShowStatusHeaderDropdown(!showStatusHeaderDropdown)}
+              onClick={() =>
+                setShowStatusHeaderDropdown(!showStatusHeaderDropdown)
+              }
               disabled={isSaving}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium border ${statusInfo.color} hover:opacity-80 transition-opacity`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border ${statusInfo.color} hover:opacity-80 transition-opacity`}
             >
               {isSaving ? (
-                <Loader2 className="animate-spin" size={16} />
+                <Loader2 className="animate-spin" size={14} />
               ) : (
                 <>
                   {statusInfo.label}
-                  <ChevronDown size={16} />
+                  <ChevronDown size={14} />
                 </>
               )}
             </button>
 
             {showStatusHeaderDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                {STATUS_OPTIONS.filter((opt) => opt.value !== status).map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => {
-                      if (option.value === "cancelled") {
-                        setShowCancelModal(true);
-                      } else {
-                        setStatus(option.value);
-                      }
-                      setShowStatusHeaderDropdown(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
-                  >
-                    {option.label}
-                  </button>
-                ))}
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                {STATUS_OPTIONS.filter((opt) => opt.value !== status).map(
+                  (option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => {
+                        if (option.value === "cancelled") {
+                          setShowCancelModal(true);
+                        } else {
+                          setStatus(option.value);
+                        }
+                        setShowStatusHeaderDropdown(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
+                    >
+                      {option.label}
+                    </button>
+                  )
+                )}
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* 요약 카드 */}
-      <SummaryCards items={summaryItems} />
+        {/* 하단: 요약 정보 */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {summaryItems.map((item, index) => (
+              <div key={index} className="flex items-center gap-2.5">
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${item.iconBgColor}`}
+                >
+                  <span className={item.iconColor}>{item.icon}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500">{item.label}</p>
+                  <p className="text-sm font-medium text-gray-900 truncate">
+                    {item.value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* 드롭다운 외부 클릭 시 닫기 */}
       {showStatusHeaderDropdown && (
@@ -1025,41 +1068,6 @@ export default function ApplicationDetailPage() {
           <p className="text-sm">{successMessage}</p>
         </div>
       )}
-      {scheduleConflicts.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle size={20} className="text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-amber-800 mb-2">
-                일정 충돌: 같은 날짜에 다른 신청이 있습니다
-              </p>
-              <div className="space-y-1">
-                {scheduleConflicts.map((conflict) => (
-                  <div
-                    key={conflict.application_id}
-                    className="flex items-center gap-2 text-sm text-amber-700"
-                  >
-                    <span className="font-mono bg-amber-100 px-1.5 py-0.5 rounded text-xs">
-                      {conflict.application_number}
-                    </span>
-                    <span>{conflict.customer_name}</span>
-                    {conflict.scheduled_time && (
-                      <span className="text-amber-600">({conflict.scheduled_time})</span>
-                    )}
-                    <Link
-                      href={`/admin/applications/${conflict.application_id}`}
-                      className="text-amber-800 underline hover:text-amber-900 ml-auto text-xs"
-                    >
-                      확인
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* ===== Left Column: 서비스 상세 (3/5) ===== */}
         <div className="lg:col-span-3 space-y-6">
@@ -1073,7 +1081,11 @@ export default function ApplicationDetailPage() {
                 <Wrench size={18} className="text-primary" />
                 서비스 상세
               </h2>
-              {expandedSections.service ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              {expandedSections.service ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
             </button>
 
             {expandedSections.service && (
@@ -1095,11 +1107,22 @@ export default function ApplicationDetailPage() {
 
                 {/* 주소 */}
                 <div className="flex items-start gap-2 p-3 bg-gray-50 rounded-xl">
-                  <MapPin size={16} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                  <MapPin
+                    size={16}
+                    className="text-gray-400 mt-0.5 flex-shrink-0"
+                  />
                   <div className="text-sm">
-                    <SafeText text={application.address} className="font-medium text-gray-900" as="p" />
+                    <SafeText
+                      text={application.address}
+                      className="font-medium text-gray-900"
+                      as="p"
+                    />
                     {application.address_detail && (
-                      <SafeText text={application.address_detail} className="text-gray-600" as="p" />
+                      <SafeText
+                        text={application.address_detail}
+                        className="text-gray-600"
+                        as="p"
+                      />
                     )}
                   </div>
                 </div>
@@ -1114,7 +1137,8 @@ export default function ApplicationDetailPage() {
                 </div>
 
                 {/* 희망 일정 */}
-                {(application.preferred_consultation_date || application.preferred_work_date) && (
+                {(application.preferred_consultation_date ||
+                  application.preferred_work_date) && (
                   <div className="grid grid-cols-2 gap-3">
                     {application.preferred_consultation_date && (
                       <div className="flex items-center gap-2 p-2.5 bg-yellow-50 rounded-lg border border-yellow-100">
@@ -1172,7 +1196,7 @@ export default function ApplicationDetailPage() {
                       {application.photos.slice(0, 6).map((photo, idx) => (
                         <div
                           key={idx}
-                          className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden group"
+                          className="relative w-24 h-24 bg-gray-100 rounded-xl overflow-hidden group"
                         >
                           <button
                             type="button"
@@ -1189,7 +1213,7 @@ export default function ApplicationDetailPage() {
                             />
                           </button>
                           {/* 호버 시 버튼 표시 */}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 pointer-events-none">
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 pointer-events-none">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1197,10 +1221,10 @@ export default function ApplicationDetailPage() {
                                 setLightboxIndex(idx);
                                 setLightboxOpen(true);
                               }}
-                              className="p-1 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white"
+                              className="p-2.5 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white shadow-sm"
                               title="확대"
                             >
-                              <ZoomIn size={14} />
+                              <ZoomIn size={20} />
                             </button>
                             <button
                               type="button"
@@ -1209,13 +1233,13 @@ export default function ApplicationDetailPage() {
                                 handleDownloadPhoto(photo, idx);
                               }}
                               disabled={downloadingPhoto === idx}
-                              className="p-1 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white disabled:opacity-50"
+                              className="p-2.5 rounded-full bg-white/90 text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto hover:bg-white shadow-sm disabled:opacity-50"
                               title="다운로드"
                             >
                               {downloadingPhoto === idx ? (
-                                <Loader2 size={14} className="animate-spin" />
+                                <Loader2 size={20} className="animate-spin" />
                               ) : (
-                                <Download size={14} />
+                                <Download size={20} />
                               )}
                             </button>
                           </div>
@@ -1228,7 +1252,7 @@ export default function ApplicationDetailPage() {
                             setLightboxIndex(6);
                             setLightboxOpen(true);
                           }}
-                          className="w-16 h-16 bg-gray-200 rounded-lg flex items-center justify-center text-sm font-medium text-gray-600 hover:bg-gray-300 transition-colors"
+                          className="w-24 h-24 bg-gray-200 rounded-xl flex items-center justify-center text-lg font-medium text-gray-600 hover:bg-gray-300 transition-colors"
                         >
                           +{application.photos.length - 6}
                         </button>
@@ -1249,13 +1273,18 @@ export default function ApplicationDetailPage() {
               <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                 <Users size={18} className="text-primary" />
                 협력사 배정
-                {application.assignments && application.assignments.length > 0 && (
-                  <span className="text-xs font-normal text-gray-500 ml-1">
-                    ({application.assignments.length}개)
-                  </span>
-                )}
+                {application.assignments &&
+                  application.assignments.length > 0 && (
+                    <span className="text-xs font-normal text-gray-500 ml-1">
+                      ({application.assignments.length}개)
+                    </span>
+                  )}
               </h2>
-              {expandedSections.assignments ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              {expandedSections.assignments ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
             </button>
 
             {expandedSections.assignments && (
@@ -1264,7 +1293,10 @@ export default function ApplicationDetailPage() {
                 {unassignedServices.length > 0 && (
                   <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg">
                     <div className="flex items-start gap-2">
-                      <AlertCircle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                      <AlertCircle
+                        size={16}
+                        className="text-amber-600 flex-shrink-0 mt-0.5"
+                      />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-amber-800 mb-1">
                           미배정 서비스 ({unassignedServices.length}개)
@@ -1285,11 +1317,16 @@ export default function ApplicationDetailPage() {
                 )}
 
                 {/* 배정 목록 */}
-                {application.assignments && application.assignments.length > 0 ? (
+                {application.assignments &&
+                application.assignments.length > 0 ? (
                   <div className="space-y-3">
                     {application.assignments.map((assignment) => {
-                      const statusInfo = getAssignmentStatusInfo(assignment.status);
-                      const partner = partners.find((p) => p.id === assignment.partner_id);
+                      const statusInfo = getAssignmentStatusInfo(
+                        assignment.status
+                      );
+                      const partner = partners.find(
+                        (p) => p.id === assignment.partner_id
+                      );
 
                       return (
                         <div
@@ -1323,15 +1360,21 @@ export default function ApplicationDetailPage() {
                             </div>
                             <div className="flex items-center gap-1">
                               <button
-                                onClick={() => openEditAssignmentModal(assignment)}
+                                onClick={() =>
+                                  openEditAssignmentModal(assignment)
+                                }
                                 className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary-50 rounded-lg transition-colors"
                                 title="수정"
                               >
                                 <Pencil size={14} />
                               </button>
                               <button
-                                onClick={() => handleDeleteAssignment(assignment.id)}
-                                disabled={isDeletingAssignment === assignment.id}
+                                onClick={() =>
+                                  handleDeleteAssignment(assignment.id)
+                                }
+                                disabled={
+                                  isDeletingAssignment === assignment.id
+                                }
                                 className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
                                 title="삭제"
                               >
@@ -1358,16 +1401,22 @@ export default function ApplicationDetailPage() {
 
                           {/* 일정 & 비용 */}
                           <div className="grid grid-cols-2 gap-2 text-xs">
-                            {(assignment.scheduled_date || assignment.scheduled_time) && (
+                            {(assignment.scheduled_date ||
+                              assignment.scheduled_time) && (
                               <div className="flex items-center gap-1.5 text-gray-600">
-                                <CalendarIcon size={12} className="text-gray-400" />
+                                <CalendarIcon
+                                  size={12}
+                                  className="text-gray-400"
+                                />
                                 <span>
                                   {assignment.scheduled_date || "미정"}
-                                  {assignment.scheduled_time && ` ${assignment.scheduled_time}`}
+                                  {assignment.scheduled_time &&
+                                    ` ${assignment.scheduled_time}`}
                                 </span>
                               </div>
                             )}
-                            {(assignment.estimated_cost || assignment.final_cost) && (
+                            {(assignment.estimated_cost ||
+                              assignment.final_cost) && (
                               <div className="flex items-center gap-1.5 text-gray-600">
                                 <span className="text-gray-400">₩</span>
                                 <span>
@@ -1419,111 +1468,33 @@ export default function ApplicationDetailPage() {
                   (메모 {notes.length}개, 변경 {auditLogs.length}개)
                 </span>
               </h2>
-              {expandedSections.activity ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              {expandedSections.activity ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
             </button>
 
             {expandedSections.activity && (
-              <div className="px-4 pb-4 space-y-4">
-                {/* 메모 입력 */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newNoteContent}
-                    onChange={(e) => setNewNoteContent(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !isAddingNote && handleAddNote()}
-                    placeholder="메모를 입력하세요..."
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  />
-                  <button
-                    onClick={handleAddNote}
-                    disabled={isAddingNote || !newNoteContent.trim()}
-                    className="px-3 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {isAddingNote ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Send size={16} />
-                    )}
-                  </button>
-                </div>
-
-                {/* 타임라인 */}
-                <div className="space-y-3">
-                  {displayedActivities.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">활동 이력이 없습니다</p>
-                  ) : (
-                    displayedActivities.map((item, idx) => (
-                      <div
-                        key={`${item.type}-${item.data.id}`}
-                        className={`relative pl-5 ${
-                          idx !== displayedActivities.length - 1
-                            ? "pb-3 border-l-2 border-gray-200"
-                            : ""
-                        }`}
-                      >
-                        <div
-                          className={`absolute -left-1.5 top-1 w-3 h-3 rounded-full border-2 border-white ${
-                            item.type === "note" ? "bg-primary" : "bg-gray-400"
-                          }`}
-                        />
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          {item.type === "note" ? (
-                            <>
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <SafeText text={item.data.content} className="text-sm text-gray-900" as="p" />
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    <span className="font-medium">{item.data.admin_name}</span>
-                                    {" · "}
-                                    {formatRelativeTime(item.data.created_at)}
-                                  </p>
-                                </div>
-                                <button
-                                  onClick={() => handleDeleteNote(item.data.id)}
-                                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                  title="삭제"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <p className="text-sm text-gray-700">{item.data.summary}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                <span className="font-medium">
-                                  {item.data.admin_name || "시스템"}
-                                </span>
-                                {" · "}
-                                {formatRelativeTime(item.data.created_at)}
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* 더보기/접기 */}
-                {activityItems.length > 5 && (
-                  <button
-                    onClick={() => setShowAllNotes(!showAllNotes)}
-                    className="w-full text-sm text-primary hover:underline py-2"
-                  >
-                    {showAllNotes
-                      ? "접기"
-                      : `더보기 (${activityItems.length - 5}개 더)`}
-                  </button>
-                )}
+              <div className="px-4 pb-4">
+                <ActivityTimeline
+                  notes={timelineNotes}
+                  auditLogs={timelineAuditLogs}
+                  showInput={true}
+                  isAddingNote={isAddingNote}
+                  onAddNote={handleAddNote}
+                  onDeleteNote={handleDeleteNote}
+                  emptyMessage="활동 이력이 없습니다"
+                />
               </div>
             )}
           </div>
         </div>
 
         {/* ===== Right Column: 처리 관리 (2/5) ===== */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="lg:col-span-2">
+          <div className="lg:sticky lg:top-6 space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <button
               onClick={() => toggleSection("management")}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -1532,14 +1503,20 @@ export default function ApplicationDetailPage() {
                 <FileText size={18} className="text-primary" />
                 처리 관리
               </h2>
-              {expandedSections.management ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              {expandedSections.management ? (
+                <ChevronUp size={18} />
+              ) : (
+                <ChevronDown size={18} />
+              )}
             </button>
 
             {expandedSections.management && (
               <div className="px-4 pb-4 space-y-4">
                 {/* 상태 */}
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">상태</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                    상태
+                  </label>
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
@@ -1553,258 +1530,40 @@ export default function ApplicationDetailPage() {
                   </select>
                 </div>
 
-                {/* 담당 협력사 - Smart Matching UI */}
-                <div className="relative" data-partner-dropdown>
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    담당 협력사
-                    {sortedPartners.matched.length > 0 && (
-                      <span className="ml-2 text-primary font-normal">
-                        (추천 {sortedPartners.matched.length}개)
-                      </span>
-                    )}
-                  </label>
-
-                  {/* 커스텀 드롭다운 */}
-                  <button
-                    type="button"
-                    onClick={() => setIsPartnerDropdownOpen(!isPartnerDropdownOpen)}
-                    className="w-full flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary bg-white text-left"
-                  >
-                    <span className={selectedPartner ? "text-gray-900" : "text-gray-400"}>
-                      {selectedPartner ? selectedPartner.company_name : "협력사 선택"}
-                    </span>
-                    <ChevronDown
-                      size={16}
-                      className={`text-gray-400 transition-transform ${isPartnerDropdownOpen ? "rotate-180" : ""}`}
-                    />
-                  </button>
-
-                  {/* 드롭다운 목록 */}
-                  {isPartnerDropdownOpen && (
-                    <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                      {/* 선택 해제 옵션 */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handlePartnerChange("");
-                          setIsPartnerDropdownOpen(false);
-                        }}
-                        className="w-full px-3 py-2 text-left text-sm text-gray-400 hover:bg-gray-50"
-                      >
-                        선택 안함
-                      </button>
-
-                      {/* 추천 협력사 (서비스 매칭) */}
-                      {sortedPartners.matched.length > 0 && (
-                        <>
-                          <div className="px-3 py-1.5 bg-primary-50 text-xs font-semibold text-primary-700 flex items-center gap-1.5">
-                            <CheckCircle size={12} />
-                            추천 (서비스 매칭)
-                          </div>
-                          {sortedPartners.matched.map((partner) => (
-                            <button
-                              key={partner.id}
-                              type="button"
-                              onClick={() => {
-                                handlePartnerChange(partner.id);
-                                setIsPartnerDropdownOpen(false);
-                              }}
-                              className={`w-full px-3 py-2.5 text-left hover:bg-primary-50 ${
-                                assignedPartnerId === partner.id ? "bg-primary-50" : ""
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm text-gray-900">
-                                  {partner.company_name}
-                                </span>
-                                <span className="text-xs text-primary-600 bg-primary-100 px-1.5 py-0.5 rounded">
-                                  {partner.matchCount}개 매칭
-                                </span>
-                              </div>
-                              <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap gap-1">
-                                {partner.matchedServices.slice(0, 3).map((s: string, i: number) => (
-                                  <span
-                                    key={i}
-                                    className="bg-primary-50 text-primary-700 px-1.5 py-0.5 rounded"
-                                  >
-                                    {getServiceName(s)}
-                                  </span>
-                                ))}
-                                {partner.matchedServices.length > 3 && (
-                                  <span className="text-gray-400">
-                                    +{partner.matchedServices.length - 3}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
-                        </>
-                      )}
-
-                      {/* 기타 협력사 */}
-                      {sortedPartners.unmatched.length > 0 && (
-                        <>
-                          <div className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-500 flex items-center gap-1.5">
-                            <AlertCircle size={12} />
-                            기타 협력사 ({sortedPartners.unmatched.length})
-                          </div>
-                          {sortedPartners.unmatched.map((partner) => (
-                            <button
-                              key={partner.id}
-                              type="button"
-                              onClick={() => {
-                                handlePartnerChange(partner.id);
-                                setIsPartnerDropdownOpen(false);
-                              }}
-                              className={`w-full px-3 py-2.5 text-left hover:bg-gray-50 ${
-                                assignedPartnerId === partner.id ? "bg-gray-50" : ""
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm text-gray-700">
-                                  {partner.company_name}
-                                </span>
-                              </div>
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                {partner.service_areas.slice(0, 2).map(getServiceName).join(", ")}
-                                {partner.service_areas.length > 2 &&
-                                  ` 외 ${partner.service_areas.length - 2}개`}
-                              </div>
-                              <div className="text-xs text-amber-600 mt-0.5">
-                                ⚠️ 요청 서비스와 매칭되지 않음
-                              </div>
-                            </button>
-                          ))}
-                        </>
-                      )}
-
-                      {partners.length === 0 && (
-                        <div className="px-3 py-4 text-center text-sm text-gray-500">
-                          등록된 협력사가 없습니다
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* 선택된 협력사 정보 */}
-                {selectedPartner && (
-                  <div className="p-2.5 bg-purple-50 rounded-lg border border-purple-100">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <Building2 size={14} className="text-purple-600" />
-                      <span className="font-medium text-purple-900 text-sm">
-                        {selectedPartner.company_name}
-                      </span>
-                    </div>
-                    <div className="space-y-0.5 text-xs text-purple-700">
-                      <p className="flex items-center gap-1">
-                        <Phone size={10} />
-                        {formatPhone(selectedPartner.contact_phone)}
-                      </p>
-                      <p className="flex items-center gap-1">
-                        <Wrench size={10} />
-                        {selectedPartner.service_areas.slice(0, 2).map(getServiceName).join(", ")}
-                        {selectedPartner.service_areas.length > 2 &&
-                          ` 외 ${selectedPartner.service_areas.length - 2}개`}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {/* 일정 */}
-                <div className="pt-2 border-t border-gray-100">
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                    예정 일정
-                  </label>
-                  {suggestedDateMessage && (
-                    <div className="mb-2 p-2 bg-blue-50 border border-blue-100 rounded-lg">
-                      <p className="text-xs text-blue-700 flex items-center gap-1">
-                        <CalendarIcon size={12} />
-                        {suggestedDateMessage}
-                      </p>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-2">
-                    <DatePicker
-                      date={scheduledDate}
-                      onDateChange={(date) => handleScheduleChange(date)}
-                      placeholder="날짜"
-                      fromDate={startOfDay(new Date())}
-                    />
-                    <select
-                      value={scheduledTime}
-                      onChange={(e) => handleScheduleChange(undefined, e.target.value)}
-                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                    >
-                      {TIME_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 비용 */}
-                <div className="pt-2 border-t border-gray-100">
-                  <label className="block text-xs font-medium text-gray-600 mb-1.5">비용</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="relative">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatCurrency(estimatedCost)}
-                        onChange={(e) => setEstimatedCost(parseCurrency(e.target.value))}
-                        placeholder="견적"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                        원
-                      </span>
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={formatCurrency(finalCost)}
-                        onChange={(e) => setFinalCost(parseCurrency(e.target.value))}
-                        placeholder="최종"
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                        원
-                      </span>
-                    </div>
-                  </div>
+                {/* 안내 메시지 */}
+                <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                  <p className="text-xs text-blue-700">
+                    협력사 배정, 일정, 비용은 아래 &quot;협력사 배정&quot; 섹션에서 관리합니다.
+                  </p>
                 </div>
 
                 {/* SMS 알림 & 저장 */}
                 <div className="pt-3 border-t border-gray-100 space-y-3">
-                  {(hasPartnerChanged || hasScheduleChanged) && (
-                    <label className="flex items-start gap-2.5 p-2.5 bg-secondary-50 rounded-lg cursor-pointer hover:bg-secondary-100 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={sendSms}
-                        onChange={(e) => setSendSms(e.target.checked)}
-                        className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
-                      />
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <MessageSquare size={14} className="text-secondary" />
-                          <span className="font-medium text-secondary-800 text-sm">
-                            SMS 알림 발송
-                          </span>
+                  {hasStatusChanged &&
+                    willSendSmsForStatusChange(originalStatus, status) && (
+                      <label className="flex items-start gap-2.5 p-2.5 bg-secondary-50 rounded-lg cursor-pointer hover:bg-secondary-100 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={sendSms}
+                          onChange={(e) => setSendSms(e.target.checked)}
+                          className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <MessageSquare
+                              size={14}
+                              className="text-secondary"
+                            />
+                            <span className="font-medium text-secondary-800 text-sm">
+                              SMS 알림 발송
+                            </span>
+                          </div>
+                          <p className="text-xs text-secondary-600 mt-0.5">
+                            고객에게 상태 변경 알림
+                          </p>
                         </div>
-                        <p className="text-xs text-secondary-600 mt-0.5">
-                          {hasPartnerChanged && hasScheduleChanged
-                            ? "고객/협력사에게 배정 및 일정 알림"
-                            : hasPartnerChanged
-                            ? "고객에게 협력사 배정 알림"
-                            : "고객/협력사에게 일정 확정 알림"}
-                        </p>
-                      </div>
-                    </label>
-                  )}
+                      </label>
+                    )}
 
                   <button
                     onClick={handleSave}
@@ -1838,6 +1597,101 @@ export default function ApplicationDetailPage() {
               </div>
             )}
           </div>
+
+            {/* 빠른 정보 */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Zap size={16} className="text-amber-500" />
+                빠른 정보
+              </h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">배정 협력사</span>
+                  <span className="font-medium">
+                    {application.assignments?.length || 0}개
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">선택 서비스</span>
+                  <span className="font-medium">
+                    {application.selected_services.length}개
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">미배정 서비스</span>
+                  <span
+                    className={`font-medium ${
+                      unassignedServices.length > 0
+                        ? "text-amber-600"
+                        : "text-green-600"
+                    }`}
+                  >
+                    {unassignedServices.length}개
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">메모</span>
+                  <span className="font-medium">{notes.length}개</span>
+                </div>
+              </div>
+            </div>
+
+            {/* 고객 이력 */}
+            {customerHistory && customerHistory.total_applications > 1 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <User size={16} className="text-blue-500" />
+                  고객 이력
+                  <span className="text-xs font-normal text-gray-500 ml-auto">
+                    총 {customerHistory.total_applications}건
+                  </span>
+                </h3>
+                <p className="text-xs text-gray-500 mb-3">
+                  {customerHistory.customer_phone_masked}
+                </p>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {customerHistory.applications
+                    .filter((app) => app.id !== id) // 현재 신청 제외
+                    .map((app) => (
+                      <Link
+                        key={app.id}
+                        href={`/admin/applications/${app.id}`}
+                        className="block p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-sm font-medium text-gray-900">
+                            {app.application_number}
+                          </span>
+                          <span
+                            className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                              getStatusInfo(app.status).color
+                            }`}
+                          >
+                            {app.status_label}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                          <span>
+                            {new Date(app.created_at).toLocaleDateString("ko-KR")}
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {app.selected_services.slice(0, 2).map(getServiceName).join(", ")}
+                            {app.selected_services.length > 2 && ` 외 ${app.selected_services.length - 2}개`}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                </div>
+                {customerHistory.total_applications > 5 && (
+                  <p className="text-xs text-gray-400 text-center mt-2">
+                    최근 {Math.min(customerHistory.applications.length, 10)}건 표시
+                  </p>
+                )}
+              </div>
+            )}
+
+          </div>
         </div>
       </div>
 
@@ -1847,7 +1701,9 @@ export default function ApplicationDetailPage() {
           open={lightboxOpen}
           close={() => setLightboxOpen(false)}
           index={lightboxIndex}
-          slides={application.photos.map((photo) => ({ src: `${FILE_BASE_URL}${photo}` }))}
+          slides={application.photos.map((photo) => ({
+            src: `${FILE_BASE_URL}${photo}`,
+          }))}
         />
       )}
 
@@ -1860,27 +1716,48 @@ export default function ApplicationDetailPage() {
                 <AlertCircle size={20} className="text-red-600" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">신청 취소</h3>
-                <p className="text-sm text-gray-500">이 작업은 되돌릴 수 없습니다</p>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  신청 취소
+                </h3>
+                <p className="text-sm text-gray-500">
+                  이 작업은 되돌릴 수 없습니다
+                </p>
               </div>
             </div>
 
             <div className="mb-4 space-y-3">
               <p className="text-sm text-gray-700">
-                <span className="font-medium">{application.application_number}</span> 신청을 취소하시겠습니까?
+                <span className="font-medium">
+                  {application.application_number}
+                </span>{" "}
+                신청을 취소하시겠습니까?
               </p>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1.5">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-600">
                   취소 사유 (선택)
                 </label>
-                <textarea
-                  value={cancelReason}
-                  onChange={(e) => setCancelReason(e.target.value)}
-                  placeholder="취소 사유를 입력하세요..."
-                  rows={2}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
-                />
+                <select
+                  value={cancelReasonSelect}
+                  onChange={(e) => setCancelReasonSelect(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 bg-white"
+                >
+                  {CANCEL_REASONS.map((reason) => (
+                    <option key={reason.value} value={reason.value}>
+                      {reason.label}
+                    </option>
+                  ))}
+                </select>
+
+                {cancelReasonSelect === "other" && (
+                  <textarea
+                    value={cancelReasonCustom}
+                    onChange={(e) => setCancelReasonCustom(e.target.value)}
+                    placeholder="취소 사유를 직접 입력하세요..."
+                    rows={2}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500"
+                  />
+                )}
               </div>
 
               {/* SMS 발송 선택 */}
@@ -1906,7 +1783,8 @@ export default function ApplicationDetailPage() {
               <button
                 onClick={() => {
                   setShowCancelModal(false);
-                  setCancelReason("");
+                  setCancelReasonSelect("");
+                  setCancelReasonCustom("");
                 }}
                 disabled={isCancelling}
                 className="flex-1 py-2.5 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
@@ -1959,39 +1837,287 @@ export default function ApplicationDetailPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   담당 협력사 <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={assignmentForm.partner_id}
-                  onChange={(e) =>
-                    setAssignmentForm((prev) => ({
-                      ...prev,
-                      partner_id: e.target.value ? Number(e.target.value) : "",
-                    }))
-                  }
-                  disabled={!!editingAssignment}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:bg-gray-100"
-                >
-                  <option value="">협력사 선택</option>
-                  {/* 추천 협력사 */}
-                  {sortedPartners.matched.length > 0 && (
-                    <optgroup label="🎯 추천 (서비스 매칭)">
-                      {sortedPartners.matched.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.company_name} ({p.matchCount}개 매칭)
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {/* 기타 협력사 */}
-                  {sortedPartners.unmatched.length > 0 && (
-                    <optgroup label="기타 협력사">
-                      {sortedPartners.unmatched.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.company_name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+
+                {/* 수정 모드일 때는 읽기 전용으로 표시 */}
+                {editingAssignment ? (
+                  <div className="w-full border border-gray-200 bg-gray-50 rounded-lg px-3 py-2.5 text-sm text-gray-700">
+                    {selectedPartner?.company_name || "협력사 정보 없음"}
+                  </div>
+                ) : (
+                  <Popover
+                    open={isPartnerDropdownOpen}
+                    onOpenChange={setIsPartnerDropdownOpen}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className={`w-full flex items-center justify-between border rounded-lg px-3 py-2.5 text-sm text-left transition-colors ${
+                          isPartnerDropdownOpen
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "border-gray-200 hover:border-gray-300"
+                        } ${
+                          selectedPartner
+                            ? "text-gray-900"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        <span className="truncate">
+                          {selectedPartner
+                            ? selectedPartner.company_name
+                            : "협력사를 선택하세요"}
+                        </span>
+                        <ChevronDown
+                          size={16}
+                          className={`flex-shrink-0 ml-2 transition-transform ${
+                            isPartnerDropdownOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[var(--radix-popover-trigger-width)] p-0"
+                      align="start"
+                      sideOffset={4}
+                    >
+                      {/* 검색 입력 */}
+                      <div className="p-2 border-b border-gray-100">
+                        <div className="relative">
+                          <Search
+                            size={14}
+                            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
+                          <input
+                            type="text"
+                            value={partnerSearchQuery}
+                            onChange={(e) =>
+                              setPartnerSearchQuery(e.target.value)
+                            }
+                            placeholder="협력사명, 담당자, 서비스로 검색..."
+                            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      {/* 협력사 목록 */}
+                      <div className="max-h-64 overflow-y-auto">
+                        {/* 추천 협력사 */}
+                        {filteredPartners.matched.length > 0 && (
+                          <div>
+                            <div className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 flex items-center gap-1.5 sticky top-0">
+                              <Star size={12} className="fill-current" />
+                              추천 협력사 (서비스 매칭)
+                            </div>
+                            {filteredPartners.matched.map((partner) => (
+                              <button
+                                key={partner.id}
+                                type="button"
+                                onClick={() => {
+                                  setAssignmentForm((prev) => ({
+                                    ...prev,
+                                    partner_id: partner.id,
+                                  }));
+                                  setIsPartnerDropdownOpen(false);
+                                  setPartnerSearchQuery("");
+                                }}
+                                className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 ${
+                                  assignmentForm.partner_id === partner.id
+                                    ? "bg-primary-50"
+                                    : ""
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-gray-900 text-sm">
+                                        {partner.company_name}
+                                      </span>
+                                      <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+                                        {partner.matchCount}개 매칭
+                                      </span>
+                                    </div>
+                                    {partner.representative_name && (
+                                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                        <User size={10} />
+                                        {partner.representative_name}
+                                        {partner.contact_phone && (
+                                          <>
+                                            <span className="mx-1">·</span>
+                                            <Phone size={10} />
+                                            {formatPhone(partner.contact_phone)}
+                                          </>
+                                        )}
+                                      </p>
+                                    )}
+                                    {/* 매칭된 서비스 태그 */}
+                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                      {partner.matchedServices
+                                        .slice(0, 3)
+                                        .map((s, i) => (
+                                          <span
+                                            key={i}
+                                            className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded"
+                                          >
+                                            {getServiceName(s)}
+                                          </span>
+                                        ))}
+                                      {partner.matchedServices.length > 3 && (
+                                        <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
+                                          +{partner.matchedServices.length - 3}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {assignmentForm.partner_id === partner.id && (
+                                    <Check
+                                      size={16}
+                                      className="text-primary flex-shrink-0 mt-0.5"
+                                    />
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 기타 협력사 */}
+                        {filteredPartners.unmatched.length > 0 && (
+                          <div>
+                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 sticky top-0">
+                              기타 협력사
+                            </div>
+                            {filteredPartners.unmatched.map((partner) => (
+                              <button
+                                key={partner.id}
+                                type="button"
+                                onClick={() => {
+                                  setAssignmentForm((prev) => ({
+                                    ...prev,
+                                    partner_id: partner.id,
+                                  }));
+                                  setIsPartnerDropdownOpen(false);
+                                  setPartnerSearchQuery("");
+                                }}
+                                className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 ${
+                                  assignmentForm.partner_id === partner.id
+                                    ? "bg-primary-50"
+                                    : ""
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium text-gray-900 text-sm">
+                                      {partner.company_name}
+                                    </span>
+                                    {partner.representative_name && (
+                                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                        <User size={10} />
+                                        {partner.representative_name}
+                                        {partner.contact_phone && (
+                                          <>
+                                            <span className="mx-1">·</span>
+                                            <Phone size={10} />
+                                            {formatPhone(partner.contact_phone)}
+                                          </>
+                                        )}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {assignmentForm.partner_id === partner.id && (
+                                    <Check
+                                      size={16}
+                                      className="text-primary flex-shrink-0 mt-0.5"
+                                    />
+                                  )}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* 검색 결과 없음 */}
+                        {filteredPartners.matched.length === 0 &&
+                          filteredPartners.unmatched.length === 0 && (
+                            <div className="px-3 py-6 text-center text-gray-500">
+                              <Building2
+                                size={24}
+                                className="mx-auto mb-2 text-gray-300"
+                              />
+                              <p className="text-sm">
+                                {partnerSearchQuery
+                                  ? "검색 결과가 없습니다"
+                                  : "등록된 협력사가 없습니다"}
+                              </p>
+                            </div>
+                          )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )}
+
+                {/* 선택된 협력사 미리보기 카드 */}
+                {selectedPartner && !editingAssignment && (
+                  <div className="mt-2 p-3 bg-primary-50/50 border border-primary-100 rounded-lg">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Building2 size={14} className="text-primary" />
+                          <span className="font-semibold text-gray-900 text-sm">
+                            {selectedPartner.company_name}
+                          </span>
+                          {selectedPartner.isMatched && (
+                            <span className="px-1.5 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded">
+                              {selectedPartner.matchCount}개 매칭
+                            </span>
+                          )}
+                        </div>
+                        {selectedPartner.representative_name && (
+                          <p className="text-xs text-gray-600 flex items-center gap-1.5">
+                            <User size={10} />
+                            {selectedPartner.representative_name}
+                          </p>
+                        )}
+                        {selectedPartner.contact_phone && (
+                          <p className="text-xs text-gray-600 flex items-center gap-1.5 mt-0.5">
+                            <Phone size={10} />
+                            {formatPhone(selectedPartner.contact_phone)}
+                          </p>
+                        )}
+                        {/* 매칭 서비스 */}
+                        {selectedPartner.isMatched && (
+                          <div className="mt-2">
+                            <p className="text-xs text-gray-500 mb-1">
+                              매칭 서비스:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedPartner.matchedServices.map((s, i) => (
+                                <span
+                                  key={i}
+                                  className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded"
+                                >
+                                  {getServiceName(s)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setAssignmentForm((prev) => ({
+                            ...prev,
+                            partner_id: "",
+                          }))
+                        }
+                        className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                        title="선택 해제"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 담당 서비스 */}
@@ -2001,11 +2127,13 @@ export default function ApplicationDetailPage() {
                 </label>
                 <div className="border border-gray-200 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
                   {application?.selected_services.map((service) => {
-                    const isChecked = assignmentForm.assigned_services.includes(service);
+                    const isChecked =
+                      assignmentForm.assigned_services.includes(service);
                     // 다른 배정에 이미 할당된 서비스인지 확인 (현재 편집 중인 배정 제외)
                     const isAssignedToOther = application?.assignments?.some(
                       (a) =>
-                        a.id !== editingAssignment?.id && a.assigned_services.includes(service)
+                        a.id !== editingAssignment?.id &&
+                        a.assigned_services.includes(service)
                     );
 
                     return (
@@ -2027,14 +2155,18 @@ export default function ApplicationDetailPage() {
                             if (e.target.checked) {
                               setAssignmentForm((prev) => ({
                                 ...prev,
-                                assigned_services: [...prev.assigned_services, service],
+                                assigned_services: [
+                                  ...prev.assigned_services,
+                                  service,
+                                ],
                               }));
                             } else {
                               setAssignmentForm((prev) => ({
                                 ...prev,
-                                assigned_services: prev.assigned_services.filter(
-                                  (s) => s !== service
-                                ),
+                                assigned_services:
+                                  prev.assigned_services.filter(
+                                    (s) => s !== service
+                                  ),
                               }));
                             }
                           }}
@@ -2052,7 +2184,9 @@ export default function ApplicationDetailPage() {
                           {getServiceName(service)}
                         </span>
                         {isAssignedToOther && (
-                          <span className="ml-auto text-xs text-gray-400">(다른 배정)</span>
+                          <span className="ml-auto text-xs text-gray-400">
+                            (다른 배정)
+                          </span>
                         )}
                       </label>
                     );
@@ -2065,12 +2199,17 @@ export default function ApplicationDetailPage() {
 
               {/* 일정 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">예정 일정</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  예정 일정
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <DatePicker
                     date={assignmentForm.scheduled_date}
                     onDateChange={(date) =>
-                      setAssignmentForm((prev) => ({ ...prev, scheduled_date: date }))
+                      setAssignmentForm((prev) => ({
+                        ...prev,
+                        scheduled_date: date,
+                      }))
                     }
                     placeholder="날짜"
                     fromDate={startOfDay(new Date())}
@@ -2078,7 +2217,10 @@ export default function ApplicationDetailPage() {
                   <select
                     value={assignmentForm.scheduled_time}
                     onChange={(e) =>
-                      setAssignmentForm((prev) => ({ ...prev, scheduled_time: e.target.value }))
+                      setAssignmentForm((prev) => ({
+                        ...prev,
+                        scheduled_time: e.target.value,
+                      }))
                     }
                     className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   >
@@ -2093,7 +2235,9 @@ export default function ApplicationDetailPage() {
 
               {/* 견적 비용 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">견적 비용</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  견적 비용
+                </label>
                 <div className="relative">
                   <input
                     type="text"
@@ -2116,11 +2260,16 @@ export default function ApplicationDetailPage() {
 
               {/* 메모 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">메모</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  메모
+                </label>
                 <textarea
                   value={assignmentForm.note}
                   onChange={(e) =>
-                    setAssignmentForm((prev) => ({ ...prev, note: e.target.value }))
+                    setAssignmentForm((prev) => ({
+                      ...prev,
+                      note: e.target.value,
+                    }))
                   }
                   placeholder="배정 관련 메모를 입력하세요..."
                   rows={2}
@@ -2134,7 +2283,10 @@ export default function ApplicationDetailPage() {
                   type="checkbox"
                   checked={assignmentForm.send_sms}
                   onChange={(e) =>
-                    setAssignmentForm((prev) => ({ ...prev, send_sms: e.target.checked }))
+                    setAssignmentForm((prev) => ({
+                      ...prev,
+                      send_sms: e.target.checked,
+                    }))
                   }
                   className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                 />
