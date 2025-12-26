@@ -17,11 +17,22 @@ export interface ApplicationCreateRequest {
   preferred_work_date?: string; // YYYY-MM-DD
 }
 
+// 중복 신청 정보
+export interface DuplicateApplicationInfo {
+  existing_id: number;
+  existing_application_number: string;
+  existing_status: string;
+  existing_created_at: string;
+}
+
 // Response Types
 export interface ApplicationCreateResponse {
   success: boolean;
   application_number: string;
   message: string;
+  // 중복 신청 정보 (있는 경우)
+  duplicate_info?: DuplicateApplicationInfo;
+  is_duplicate: boolean;
 }
 
 /**

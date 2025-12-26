@@ -24,11 +24,23 @@ export interface PartnerCreateRequest {
   businessRegistrationFile?: File;  // 사업자등록증 파일
 }
 
+// 중복 협력사 정보
+export interface DuplicatePartnerInfo {
+  existing_id: number;
+  existing_company_name: string;
+  existing_status: string;
+  existing_created_at: string;
+  duplicate_type: "business_number" | "phone_company";
+}
+
 // Response Types
 export interface PartnerCreateResponse {
   success: boolean;
   partner_id: number;
   message: string;
+  // 중복 협력사 정보 (있는 경우)
+  duplicate_info?: DuplicatePartnerInfo;
+  is_duplicate: boolean;
 }
 
 /**
