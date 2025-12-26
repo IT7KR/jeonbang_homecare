@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
   description:
-    "전방 홈케어는 양평, 가평 지역 전원주택 관리 전문 서비스입니다. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
+    "전방 홈케어는 전원주택 관리 전문 서비스입니다. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
   keywords: [
     "전방 홈케어",
     "전원주택 관리",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
     description:
-      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
+      "전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
     type: "website",
     locale: "ko_KR",
     siteName: "전방 홈케어",
@@ -55,7 +55,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
     description:
-      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
+      "전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
     images: ["https://geonbang.com/homecare/og-image.png"],
   },
   robots: {

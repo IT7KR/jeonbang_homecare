@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "전방 홈케어",
     short_name: "전방홈케어",
     description:
-      "양평, 가평 지역 전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱 제공.",
+      "전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱 제공.",
     start_url: "/",
     display: "standalone",
     background_color: "#ffffff",
