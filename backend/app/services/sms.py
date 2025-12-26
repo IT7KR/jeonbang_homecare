@@ -179,6 +179,75 @@ def get_service_name(code: str) -> str:
     return _SERVICE_CODE_FALLBACK.get(code, code)
 
 
+def format_services_list(service_codes: list[str], max_display: int = 3) -> str:
+    """
+    서비스 코드 리스트를 한글 문자열로 변환
+
+    Args:
+        service_codes: 서비스 코드 리스트
+        max_display: 표시할 최대 서비스 수 (초과 시 "외 N건" 표시)
+
+    Returns:
+        포맷팅된 문자열 (예: "제초 작업, 정원 관리 외 2건")
+    """
+    if not service_codes:
+        return ""
+
+    service_names = [get_service_name(code) for code in service_codes[:max_display]]
+    result = ", ".join(service_names)
+
+    if len(service_codes) > max_display:
+        result += f" 외 {len(service_codes) - max_display}건"
+
+    return result
+
+
+def format_schedule_info(
+    consultation_date: Optional[date] = None,
+    work_date: Optional[date] = None,
+) -> str:
+    """
+    희망 일정 정보 포맷팅
+
+    Args:
+        consultation_date: 희망 상담일
+        work_date: 희망 작업일
+
+    Returns:
+        포맷팅된 일정 문자열
+    """
+    parts = []
+    if consultation_date:
+        parts.append(f"상담 {consultation_date.strftime('%Y-%m-%d')}")
+    if work_date:
+        parts.append(f"작업 {work_date.strftime('%Y-%m-%d')}")
+
+    return ", ".join(parts) if parts else "미정"
+
+
+def build_message_from_template(
+    template_key: str,
+    variables: dict,
+    db: Session,
+) -> Optional[str]:
+    """
+    템플릿 기반 메시지 생성
+
+    Args:
+        template_key: 템플릿 키
+        variables: 변수 딕셔너리
+        db: 데이터베이스 세션
+
+    Returns:
+        str: 변수 치환된 메시지
+        None: 템플릿 없거나 비활성화 시 (발송 중단)
+    """
+    message = get_template_message(template_key, db=db, **variables)
+    if message is None:
+        logger.warning(f"SMS 템플릿 없음/비활성: {template_key} - 발송 중단")
+    return message
+
+
 async def send_sms(
     receiver: str,
     message: str,
@@ -252,6 +321,7 @@ async def send_application_notification(
     services: list[str],
     preferred_consultation_date: Optional[date] = None,
     preferred_work_date: Optional[date] = None,
+    db: Optional[Session] = None,
 ) -> list[dict]:
     """
     서비스 신청 알림 SMS 발송 (모든 활성 관리자에게)
@@ -262,49 +332,60 @@ async def send_application_notification(
         services: 신청 서비스 목록 (서비스 코드)
         preferred_consultation_date: 희망 상담일
         preferred_work_date: 희망 작업일
+        db: 데이터베이스 세션
 
     Returns:
         각 관리자별 발송 결과 리스트
     """
-    # 활성 관리자들의 전화번호 조회
-    admin_phones = get_admin_phones()
+    template_key = "admin_new_application"
 
-    if not admin_phones:
-        logger.warning("No admin phones found for notification")
-        return []
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    # 서비스 코드를 한글 명칭으로 변환
-    service_names = [get_service_name(code) for code in services[:3]]
-    services_str = ", ".join(service_names)
-    if len(services) > 3:
-        services_str += f" 외 {len(services) - 3}건"
+    try:
+        # 활성 관리자들의 전화번호 조회
+        admin_phones = get_admin_phones()
 
-    # 희망 일정 정보 구성
-    schedule_info = ""
-    if preferred_consultation_date:
-        schedule_info += f"\n희망상담일: {preferred_consultation_date.strftime('%Y-%m-%d')}"
-    if preferred_work_date:
-        schedule_info += f"\n희망작업일: {preferred_work_date.strftime('%Y-%m-%d')}"
+        if not admin_phones:
+            logger.warning("No admin phones found for notification")
+            return []
 
-    message = f"""[전방홈케어] 신규 서비스 신청
-신청번호: {application_number}
-고객연락처: {customer_phone}
-서비스: {services_str}{schedule_info}
-관리자 페이지에서 확인해주세요."""
+        # 템플릿 변수 준비
+        variables = {
+            "application_number": application_number,
+            "customer_phone": customer_phone,
+            "services": format_services_list(services),
+            "schedule_info": format_schedule_info(
+                preferred_consultation_date, preferred_work_date
+            ),
+        }
 
-    # 모든 관리자에게 발송
-    results = []
-    for phone in admin_phones:
-        result = await send_sms(phone, message, "[신규신청]")
-        results.append({"phone": phone, "result": result})
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
 
-    return results
+        if message is None:
+            return []
+
+        # 모든 관리자에게 발송
+        results = []
+        for phone in admin_phones:
+            result = await send_sms(phone, message, "[신규신청]")
+            results.append({"phone": phone, "result": result})
+
+        return results
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_partner_notification(
     company_name: str,
     contact_phone: str,
     service_areas: list[str],
+    db: Optional[Session] = None,
 ) -> list[dict]:
     """
     협력사 등록 알림 SMS 발송 (모든 활성 관리자에게)
@@ -313,36 +394,50 @@ async def send_partner_notification(
         company_name: 회사/상호명
         contact_phone: 연락처
         service_areas: 서비스 분야 (서비스 코드)
+        db: 데이터베이스 세션
 
     Returns:
         각 관리자별 발송 결과 리스트
     """
-    # 활성 관리자들의 전화번호 조회
-    admin_phones = get_admin_phones()
+    template_key = "admin_new_partner"
 
-    if not admin_phones:
-        logger.warning("No admin phones found for notification")
-        return []
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    # 서비스 코드를 한글 명칭으로 변환
-    service_names = [get_service_name(code) for code in service_areas[:3]]
-    services_str = ", ".join(service_names)
-    if len(service_areas) > 3:
-        services_str += f" 외 {len(service_areas) - 3}건"
+    try:
+        # 활성 관리자들의 전화번호 조회
+        admin_phones = get_admin_phones()
 
-    message = f"""[전방홈케어] 신규 협력사 등록
-업체명: {company_name}
-연락처: {contact_phone}
-서비스: {services_str}
-관리자 페이지에서 확인해주세요."""
+        if not admin_phones:
+            logger.warning("No admin phones found for notification")
+            return []
 
-    # 모든 관리자에게 발송
-    results = []
-    for phone in admin_phones:
-        result = await send_sms(phone, message, "[협력사등록]")
-        results.append({"phone": phone, "result": result})
+        # 템플릿 변수 준비
+        variables = {
+            "company_name": company_name,
+            "contact_phone": contact_phone,
+            "services": format_services_list(service_areas),
+        }
 
-    return results
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return []
+
+        # 모든 관리자에게 발송
+        results = []
+        for phone in admin_phones:
+            result = await send_sms(phone, message, "[협력사등록]")
+            results.append({"phone": phone, "result": result})
+
+        return results
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_partner_assignment_notification(
@@ -350,17 +445,59 @@ async def send_partner_assignment_notification(
     application_number: str,
     partner_name: str,
     partner_phone: str,
+    customer_name: str = "",
+    scheduled_date: str = "",
+    scheduled_time: str = "",
+    estimated_cost: str = "",
+    db: Optional[Session] = None,
 ) -> dict:
     """
     협력사 배정 알림 SMS 발송 (고객에게)
-    """
-    message = f"""[전방홈케어] 서비스 배정 안내
-신청번호: {application_number}
-담당 협력사: {partner_name}
-연락처: {partner_phone}
-담당 협력사에서 곧 연락드릴 예정입니다."""
 
-    return await send_sms(customer_phone, message, "[배정안내]")
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        partner_name: 협력사명
+        partner_phone: 협력사 연락처
+        customer_name: 고객명 (템플릿 변수용)
+        scheduled_date: 예정일 (예: "2025-01-15" 또는 "미정")
+        scheduled_time: 예정 시간 (예: "오전 10시" 또는 "미정")
+        estimated_cost: 견적 비용 (예: "150,000원" 또는 "협의")
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
+    """
+    template_key = "partner_assigned"
+
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+            "partner_name": partner_name,
+            "partner_phone": partner_phone,
+            "scheduled_date": scheduled_date or "미정",
+            "scheduled_time": scheduled_time or "미정",
+            "estimated_cost": estimated_cost or "협의",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[배정안내]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_schedule_confirmation(
@@ -369,19 +506,52 @@ async def send_schedule_confirmation(
     scheduled_date: str,
     scheduled_time: str,
     partner_name: Optional[str] = None,
+    customer_name: str = "",
+    db: Optional[Session] = None,
 ) -> dict:
     """
     일정 확정 알림 SMS 발송 (고객에게)
+
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        scheduled_date: 예정 날짜
+        scheduled_time: 예정 시간
+        partner_name: 협력사명
+        customer_name: 고객명 (템플릿 변수용)
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
     """
-    time_str = scheduled_time or "시간 미정"
-    partner_str = f"\n담당 협력사: {partner_name}" if partner_name else ""
+    template_key = "schedule_confirmed"
 
-    message = f"""[전방홈케어] 일정 확정 안내
-신청번호: {application_number}
-방문예정: {scheduled_date} {time_str}{partner_str}
-방문 전 연락드리겠습니다."""
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    return await send_sms(customer_phone, message, "[일정확정]")
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+            "scheduled_date": scheduled_date,
+            "scheduled_time": scheduled_time or "시간 미정",
+            "partner_name": partner_name or "",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[일정확정]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_partner_schedule_notification(
@@ -393,27 +563,55 @@ async def send_partner_schedule_notification(
     scheduled_date: str,
     scheduled_time: str,
     services: list[str],
+    db: Optional[Session] = None,
 ) -> dict:
     """
     일정 확정 알림 SMS 발송 (협력사에게)
+
+    Args:
+        partner_phone: 협력사 연락처
+        application_number: 신청번호
+        customer_name: 고객명
+        customer_phone: 고객 연락처
+        address: 서비스 주소
+        scheduled_date: 예정 날짜
+        scheduled_time: 예정 시간
+        services: 서비스 코드 리스트
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
     """
-    time_str = scheduled_time or "시간 미정"
+    template_key = "partner_schedule_notify"
 
-    # 서비스 코드를 한글 명칭으로 변환
-    service_names = [get_service_name(code) for code in services[:3]]
-    services_str = ", ".join(service_names)
-    if len(services) > 3:
-        services_str += f" 외 {len(services) - 3}건"
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    message = f"""[전방홈케어] 작업 일정 안내
-신청번호: {application_number}
-고객: {customer_name}
-연락처: {customer_phone}
-주소: {address[:30]}
-일정: {scheduled_date} {time_str}
-서비스: {services_str}"""
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "application_number": application_number,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "address": address[:30] if address else "",
+            "scheduled_date": scheduled_date,
+            "scheduled_time": scheduled_time or "시간 미정",
+            "services": format_services_list(services),
+        }
 
-    return await send_sms(partner_phone, message, "[작업일정]")
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(partner_phone, message, "[작업일정]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_partner_approval_notification(
@@ -421,6 +619,8 @@ async def send_partner_approval_notification(
     partner_name: str,
     approved: bool,
     rejection_reason: Optional[str] = None,
+    company_name: str = "",
+    db: Optional[Session] = None,
 ) -> dict:
     """
     협력사 승인/거절 알림 SMS 발송 (협력사에게)
@@ -430,29 +630,46 @@ async def send_partner_approval_notification(
         partner_name: 협력사명/대표자명
         approved: 승인 여부
         rejection_reason: 거절 사유 (거절 시)
+        company_name: 회사명 (템플릿 변수용)
+        db: 데이터베이스 세션
 
     Returns:
         발송 결과
     """
-    if approved:
-        message = f"""[전방홈케어] 협력사 등록 승인
-{partner_name}님, 협력사 등록이 승인되었습니다.
-앞으로 전방홈케어와 함께해주세요.
-감사합니다."""
-    else:
-        reason = f"\n사유: {rejection_reason}" if rejection_reason else ""
-        message = f"""[전방홈케어] 협력사 등록 반려
-{partner_name}님, 죄송합니다.
-협력사 등록이 반려되었습니다.{reason}
-문의사항이 있으시면 연락주세요."""
+    template_key = "partner_approved" if approved else "partner_rejected"
 
-    return await send_sms(partner_phone, message, "[협력사안내]")
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "company_name": company_name or partner_name,
+            "representative_name": partner_name,
+            "rejection_reason": rejection_reason or "",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(partner_phone, message, "[협력사안내]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_application_cancelled_notification(
     customer_phone: str,
     application_number: str,
     cancel_reason: Optional[str] = None,
+    customer_name: str = "",
+    db: Optional[Session] = None,
 ) -> dict:
     """
     신청 취소 알림 SMS 발송 (고객에게)
@@ -461,23 +678,100 @@ async def send_application_cancelled_notification(
         customer_phone: 고객 연락처
         application_number: 신청번호
         cancel_reason: 취소 사유
+        customer_name: 고객명 (템플릿 변수용)
+        db: 데이터베이스 세션
 
     Returns:
         발송 결과
     """
-    reason = f"\n사유: {cancel_reason}" if cancel_reason else ""
-    message = f"""[전방홈케어] 신청 취소 안내
-신청번호: {application_number}
-해당 신청이 취소되었습니다.{reason}
-문의사항이 있으시면 연락주세요."""
+    template_key = "application_cancelled"
 
-    return await send_sms(customer_phone, message, "[신청취소]")
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비 (취소 사유 기본값: 고객 요청)
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+            "cancel_reason": cancel_reason or "고객 요청",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[신청취소]")
+    finally:
+        if close_db:
+            db.close()
+
+
+async def send_assignment_changed_notification(
+    customer_phone: str,
+    application_number: str,
+    customer_name: str = "",
+    scheduled_date: str = "",
+    scheduled_time: str = "",
+    estimated_cost: str = "",
+    db: Optional[Session] = None,
+) -> dict:
+    """
+    배정 정보 변경 알림 SMS 발송 (고객에게)
+
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        customer_name: 고객명 (템플릿 변수용)
+        scheduled_date: 변경된 예정일
+        scheduled_time: 변경된 예정 시간
+        estimated_cost: 변경된 견적 비용
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
+    """
+    template_key = "assignment_changed"
+
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+            "scheduled_date": scheduled_date or "미정",
+            "scheduled_time": scheduled_time or "미정",
+            "estimated_cost": estimated_cost or "협의",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[배정변경]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_completion_notification(
     customer_phone: str,
     application_number: str,
     partner_name: Optional[str] = None,
+    customer_name: str = "",
+    db: Optional[Session] = None,
 ) -> dict:
     """
     작업 완료 알림 SMS 발송 (고객에게)
@@ -486,17 +780,38 @@ async def send_completion_notification(
         customer_phone: 고객 연락처
         application_number: 신청번호
         partner_name: 협력사명
+        customer_name: 고객명 (템플릿 변수용)
+        db: 데이터베이스 세션
 
     Returns:
         발송 결과
     """
-    partner_str = f"\n담당: {partner_name}" if partner_name else ""
-    message = f"""[전방홈케어] 작업 완료 안내
-신청번호: {application_number}{partner_str}
-서비스가 완료되었습니다.
-이용해주셔서 감사합니다."""
+    template_key = "service_completed"
 
-    return await send_sms(customer_phone, message, "[완료안내]")
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+            "partner_name": partner_name or "",
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[완료안내]")
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_schedule_changed_notification(
@@ -506,6 +821,7 @@ async def send_schedule_changed_notification(
     old_date: str,
     new_date: str,
     new_time: Optional[str] = None,
+    db: Optional[Session] = None,
 ) -> dict:
     """
     일정 변경 알림 SMS 발송 (고객 및 협력사에게)
@@ -517,25 +833,45 @@ async def send_schedule_changed_notification(
         old_date: 기존 일정
         new_date: 변경된 일정
         new_time: 변경된 시간
+        db: 데이터베이스 세션
 
     Returns:
         발송 결과
     """
-    time_str = new_time or "시간 미정"
-    message = f"""[전방홈케어] 일정 변경 안내
-신청번호: {application_number}
-기존일정: {old_date}
-변경일정: {new_date} {time_str}
-변경된 일정을 확인해주세요."""
+    template_key = "schedule_changed"
 
-    # 고객에게 발송
-    customer_result = await send_sms(customer_phone, message, "[일정변경]")
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
 
-    # 협력사에게도 발송
-    if partner_phone:
-        await send_sms(partner_phone, message, "[일정변경]")
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "application_number": application_number,
+            "old_date": old_date,
+            "new_date": new_date,
+            "new_time": new_time or "시간 미정",
+        }
 
-    return customer_result
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        # 고객에게 발송
+        customer_result = await send_sms(customer_phone, message, "[일정변경]")
+
+        # 협력사에게도 발송
+        if partner_phone:
+            await send_sms(partner_phone, message, "[일정변경]")
+
+        return customer_result
+    finally:
+        if close_db:
+            db.close()
 
 
 async def send_sms_direct(
@@ -547,6 +883,7 @@ async def send_sms_direct(
     db: Optional[Session] = None,
     bulk_job_id: Optional[int] = None,
     batch_index: Optional[int] = None,
+    template_key: Optional[str] = None,
 ) -> dict:
     """
     SMS 발송 (로그 기록 포함)
@@ -560,6 +897,7 @@ async def send_sms_direct(
         db: 데이터베이스 세션 (로그 기록용)
         bulk_job_id: 복수 발송 Job ID (복수 발송 시)
         batch_index: 배치 번호 (복수 발송 시)
+        template_key: 사용된 템플릿 키 (템플릿 발송 시)
 
     Returns:
         발송 결과
@@ -587,6 +925,7 @@ async def send_sms_direct(
                 msg_id=result.get("msg_id"),
                 sender_phone=settings.ALIGO_SENDER,
                 sent_at=datetime.now(timezone.utc) if is_success else None,
+                template_key=template_key,
             )
             db.add(sms_log)
             db.commit()
