@@ -25,6 +25,14 @@ import { formatDate, formatPhone } from "@/lib/utils";
 import { AdminListLayout, ColumnDef, StatsCards, type StatsCardItem } from "@/components/admin";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DirectSMSSheet } from "@/components/features/admin/sms";
+import {
+  UnifiedSearchInput,
+  FilterChips,
+  AdvancedFilters,
+  type FilterChip,
+  type SearchType,
+} from "@/components/admin/filters";
+import { format } from "date-fns";
 
 // Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
 const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
@@ -52,7 +60,12 @@ export default function PartnersPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
+  const [searchType, setSearchType] = useState<SearchType>("auto");
+
+  // Advanced Filters
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
 
   // Approval modal
   const [approvalTarget, setApprovalTarget] = useState<PartnerListItem | null>(null);
@@ -87,6 +100,58 @@ export default function PartnersPage() {
     [serviceNameMap]
   );
 
+  // AdvancedFilters용 서비스 카테고리 (API 응답 직접 사용)
+  const serviceCategories = useMemo(() => {
+    return services?.categories ?? [];
+  }, [services]);
+
+  // 활성 필터 칩 생성
+  const filterChips = useMemo(() => {
+    const chips: FilterChip[] = [];
+
+    if (statusFilter) {
+      const statusLabel = PARTNER_STATUS_OPTIONS.find(
+        (opt) => opt.value === statusFilter
+      )?.label;
+      chips.push({
+        key: "status",
+        label: `상태: ${statusLabel || statusFilter}`,
+        onRemove: () => {
+          setStatusFilter("");
+          setPage(1);
+        },
+      });
+    }
+
+    if (dateFrom || dateTo) {
+      const fromStr = dateFrom ? format(dateFrom, "MM/dd") : "";
+      const toStr = dateTo ? format(dateTo, "MM/dd") : "";
+      chips.push({
+        key: "date",
+        label: `기간: ${fromStr}${fromStr && toStr ? " ~ " : ""}${toStr}`,
+        onRemove: () => {
+          setDateFrom(undefined);
+          setDateTo(undefined);
+          setPage(1);
+        },
+      });
+    }
+
+    selectedServices.forEach((serviceCode) => {
+      const serviceName = getServiceName(serviceCode);
+      chips.push({
+        key: `service-${serviceCode}`,
+        label: serviceName,
+        onRemove: () => {
+          setSelectedServices((prev) => prev.filter((s) => s !== serviceCode));
+          setPage(1);
+        },
+      });
+    });
+
+    return chips;
+  }, [statusFilter, dateFrom, dateTo, selectedServices, getServiceName]);
+
   const loadPartners = async () => {
     try {
       setIsLoading(true);
@@ -105,6 +170,10 @@ export default function PartnersPage() {
           page_size: pageSize,
           status: statusFilter || undefined,
           search: searchQuery || undefined,
+          search_type: searchType !== "auto" ? searchType : undefined,
+          date_from: dateFrom ? format(dateFrom, "yyyy-MM-dd") : undefined,
+          date_to: dateTo ? format(dateTo, "yyyy-MM-dd") : undefined,
+          services: selectedServices.length > 0 ? selectedServices.join(",") : undefined,
         }),
         getDashboard(token),
       ]);
@@ -122,10 +191,24 @@ export default function PartnersPage() {
 
   useEffect(() => {
     loadPartners();
-  }, [page, statusFilter, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, statusFilter, searchQuery, searchType, dateFrom, dateTo, selectedServices]);
 
-  const handleSearch = () => {
-    setSearchQuery(searchInput);
+  // 통합 검색 핸들러
+  const handleSearch = (query: string, type: SearchType) => {
+    setSearchQuery(query);
+    setSearchType(type);
+    setPage(1);
+  };
+
+  // 필터 전체 초기화
+  const handleClearAllFilters = () => {
+    setStatusFilter("");
+    setSearchQuery("");
+    setSearchType("auto");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setSelectedServices([]);
     setPage(1);
   };
 
@@ -346,13 +429,13 @@ export default function PartnersPage() {
       header: "관리",
       headerClassName: "text-center",
       render: (partner) => (
-        <div className="flex items-center justify-center gap-1">
+        <div className="flex items-center justify-center gap-2">
           <Link
             href={`/admin/partners/${partner.id}`}
-            className="p-2 text-primary hover:bg-primary-50 rounded-lg transition-colors"
-            title="상세보기"
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-primary hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors"
           >
-            <Eye size={18} />
+            <Eye size={16} />
+            <span className="hidden sm:inline">상세</span>
           </Link>
           {partner.status === "pending" && (
             <button
@@ -360,10 +443,10 @@ export default function PartnersPage() {
                 e.stopPropagation();
                 setApprovalTarget(partner);
               }}
-              className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-              title="승인/거절"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
             >
-              <CheckCircle size={18} />
+              <CheckCircle size={16} />
+              <span className="hidden sm:inline">승인</span>
             </button>
           )}
         </div>
@@ -393,6 +476,52 @@ export default function PartnersPage() {
         <MessageSquare size={16} />
         SMS 발송
       </button>
+    </div>
+  );
+
+  // 새로운 필터 섹션 (통합 검색 + 고급 필터)
+  const FilterSectionNew = (
+    <div className="space-y-4">
+      {/* 통합 검색창 */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <UnifiedSearchInput
+          placeholder="회사명, 대표자, 연락처로 검색..."
+          onSearch={handleSearch}
+          defaultValue={searchQuery}
+        />
+      </div>
+
+      {/* 고급 필터 */}
+      <AdvancedFilters
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onDateFromChange={(date) => {
+          setDateFrom(date);
+          setPage(1);
+        }}
+        onDateToChange={(date) => {
+          setDateTo(date);
+          setPage(1);
+        }}
+        serviceCategories={serviceCategories}
+        selectedServices={selectedServices}
+        onServicesChange={(services) => {
+          setSelectedServices(services);
+          setPage(1);
+        }}
+      />
+
+      {/* 활성 필터 칩 */}
+      {filterChips.length > 0 && (
+        <FilterChips chips={filterChips} onClearAll={handleClearAllFilters} />
+      )}
+
+      {/* 상태 카드 */}
+      <StatsCards
+        cards={statusCards}
+        activeStatus={statusFilter}
+        onCardClick={handleStatusCardClick}
+      />
     </div>
   );
 
@@ -486,14 +615,8 @@ export default function PartnersPage() {
           </button>
         ) : undefined
       }
-      // 필터
-      statusOptions={PARTNER_STATUS_OPTIONS}
-      statusFilter={statusFilter}
-      onStatusFilterChange={setStatusFilter}
-      searchPlaceholder="회사명 검색..."
-      searchValue={searchInput}
-      onSearchChange={setSearchInput}
-      onSearch={handleSearch}
+      // 기본 필터 섹션 숨기고 커스텀 필터 사용
+      hideFilters
       // 상태
       isLoading={isLoading}
       error={error}
@@ -504,14 +627,8 @@ export default function PartnersPage() {
       emptyIcon={<Users className="w-5 h-5 text-gray-400" />}
       emptyMessage="협력사가 없습니다"
       getRowClassName={getRowClassName}
-      // 통계 카드
-      beforeTable={
-        <StatsCards
-          cards={statusCards}
-          activeStatus={statusFilter}
-          onCardClick={handleStatusCardClick}
-        />
-      }
+      // 새로운 필터 섹션 (통합 검색 + 고급 필터 + 상태 카드)
+      beforeTable={FilterSectionNew}
       // 페이지네이션
       page={page}
       totalPages={totalPages}
