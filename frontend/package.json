@@ -35,7 +35,8 @@
     "yet-another-react-lightbox": "^3.25.0",
     "zod": "^4.1.13",
     "zustand": "^5.0.8",
-    "sonner": "^1.7.1"
+    "sonner": "^1.7.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
