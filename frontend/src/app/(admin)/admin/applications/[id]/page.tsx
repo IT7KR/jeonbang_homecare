@@ -388,7 +388,7 @@ export default function ApplicationDetailPage() {
     }
   };
 
-  const handleExtendUrl = async () => {
+  const handleExtendUrl = async (days: number) => {
     if (!urlAssignmentId) return;
     try {
       setIsLoadingUrl(true);
@@ -396,10 +396,10 @@ export default function ApplicationDetailPage() {
       if (!token) return;
 
       const newUrlInfo = await extendAssignmentURL(token, id, urlAssignmentId, {
-        expires_in_days: 7,
+        expires_in_days: days,
       });
       setUrlInfo(newUrlInfo);
-      setSuccessMessage("URL이 7일 연장되었습니다");
+      setSuccessMessage(`URL이 ${days}일 연장되었습니다`);
     } catch (err) {
       console.error("Failed to extend URL:", err);
     } finally {
@@ -409,7 +409,14 @@ export default function ApplicationDetailPage() {
 
   const handleRevokeUrl = async () => {
     if (!urlAssignmentId) return;
-    if (!confirm("이 URL을 만료 처리하시겠습니까?")) return;
+    const confirmed = await confirm({
+      title: "URL 만료 처리",
+      description: "이 URL을 만료 처리하시겠습니까?",
+      type: "warning",
+      confirmText: "만료 처리",
+      confirmVariant: "destructive",
+    });
+    if (!confirmed) return;
 
     try {
       setIsLoadingUrl(true);
@@ -2689,31 +2696,40 @@ export default function ApplicationDetailPage() {
                   </div>
 
                   {/* 액션 버튼들 */}
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      onClick={handleRenewUrl}
-                      disabled={isLoadingUrl}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
-                    >
-                      <RefreshCw size={14} />
-                      재발급
-                    </button>
-                    <button
-                      onClick={handleExtendUrl}
-                      disabled={isLoadingUrl}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium disabled:opacity-50"
-                    >
-                      <Clock size={14} />
-                      7일 연장
-                    </button>
-                    <button
-                      onClick={handleRevokeUrl}
-                      disabled={isLoadingUrl}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium disabled:opacity-50"
-                    >
-                      <XCircle size={14} />
-                      만료
-                    </button>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={handleRenewUrl}
+                        disabled={isLoadingUrl}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
+                      >
+                        <RefreshCw size={14} />
+                        재발급
+                      </button>
+                      <button
+                        onClick={handleRevokeUrl}
+                        disabled={isLoadingUrl}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium disabled:opacity-50"
+                      >
+                        <XCircle size={14} />
+                        만료
+                      </button>
+                    </div>
+                    <div className="border-t pt-3">
+                      <p className="text-xs text-gray-500 mb-2">기간 연장</p>
+                      <div className="grid grid-cols-5 gap-1.5">
+                        {[1, 3, 7, 14, 30].map((days) => (
+                          <button
+                            key={days}
+                            onClick={() => handleExtendUrl(days)}
+                            disabled={isLoadingUrl}
+                            className="flex items-center justify-center px-2 py-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors text-xs font-medium disabled:opacity-50"
+                          >
+                            {days}일
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </>
               ) : (
