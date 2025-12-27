@@ -56,6 +56,7 @@ import {
   deleteApplicationAssignment,
   getCustomerHistory,
   getAssignmentURL,
+  generateAssignmentURL,
   renewAssignmentURL,
   revokeAssignmentURL,
   extendAssignmentURL,
@@ -430,6 +431,25 @@ export default function ApplicationDetailPage() {
       setSuccessMessage("URL이 만료 처리되었습니다");
     } catch (err) {
       console.error("Failed to revoke URL:", err);
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
+  const handleGenerateUrl = async (days: number = 7) => {
+    if (!urlAssignmentId) return;
+    try {
+      setIsLoadingUrl(true);
+      const token = await getValidToken();
+      if (!token) return;
+
+      const newUrlInfo = await generateAssignmentURL(token, id, urlAssignmentId, {
+        expires_in_days: days,
+      });
+      setUrlInfo(newUrlInfo);
+      setSuccessMessage("URL이 발급되었습니다");
+    } catch (err) {
+      console.error("Failed to generate URL:", err);
     } finally {
       setIsLoadingUrl(false);
     }
@@ -2663,7 +2683,62 @@ export default function ApplicationDetailPage() {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                 </div>
-              ) : urlInfo ? (
+              ) : urlInfo && !urlInfo.is_issued ? (
+                /* URL 미발급 상태 - 발급 버튼 표시 */
+                <div className="text-center py-6 space-y-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-2">
+                    <Link2 size={28} className="text-gray-400" />
+                  </div>
+                  <div>
+                    <p className="text-gray-700 font-medium mb-1">URL이 발급되지 않았습니다</p>
+                    <p className="text-sm text-gray-500">협력사에게 공유할 URL을 발급하세요</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">유효 기간 선택</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[1, 3, 7, 14, 30].map((days) => (
+                        <button
+                          key={days}
+                          onClick={() => handleGenerateUrl(days)}
+                          disabled={isLoadingUrl}
+                          className="flex items-center justify-center px-2 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50"
+                        >
+                          {days}일
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : urlInfo && urlInfo.is_issued && urlInfo.is_expired ? (
+                /* URL 만료 상태 - 재발급 안내 */
+                <div className="text-center py-6 space-y-4">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-2">
+                    <XCircle size={28} className="text-red-500" />
+                  </div>
+                  <div>
+                    <p className="text-gray-700 font-medium mb-1">URL이 만료되었습니다</p>
+                    <p className="text-sm text-gray-500">
+                      만료일: {urlInfo.expires_at ? new Date(urlInfo.expires_at).toLocaleString("ko-KR") : "-"}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">새 URL 발급 (유효 기간 선택)</p>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[1, 3, 7, 14, 30].map((days) => (
+                        <button
+                          key={days}
+                          onClick={() => handleRenewUrl()}
+                          disabled={isLoadingUrl}
+                          className="flex items-center justify-center px-2 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium disabled:opacity-50"
+                        >
+                          {days}일
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : urlInfo && urlInfo.is_issued && urlInfo.view_url ? (
+                /* URL 활성 상태 - URL 관리 UI */
                 <>
                   {/* URL 표시 및 복사 */}
                   <div>
@@ -2678,7 +2753,7 @@ export default function ApplicationDetailPage() {
                         className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
                       />
                       <button
-                        onClick={() => copyToClipboard(urlInfo.view_url)}
+                        onClick={() => copyToClipboard(urlInfo.view_url!)}
                         className="p-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
                         title="URL 복사"
                       >
@@ -2691,7 +2766,7 @@ export default function ApplicationDetailPage() {
                   <div className="flex items-center gap-2 text-sm text-gray-600">
                     <Clock size={14} />
                     <span>
-                      만료: {new Date(urlInfo.expires_at).toLocaleString("ko-KR")}
+                      만료: {urlInfo.expires_at ? new Date(urlInfo.expires_at).toLocaleString("ko-KR") : "-"}
                     </span>
                   </div>
 
