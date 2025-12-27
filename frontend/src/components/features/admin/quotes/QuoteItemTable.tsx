@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,20 +20,19 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Loader2, FileDown } from "lucide-react";
-import { toast, useConfirm } from "@/hooks";
+import { Plus, Pencil, Trash2, Calculator, Loader2, FileDown } from "lucide-react";
 import {
   getQuoteItems,
   createQuoteItem,
   updateQuoteItem,
   deleteQuoteItem,
+  calculateQuote,
   downloadQuotePdf,
   type QuoteItem,
   type QuoteItemCreate,
   type QuoteItemUpdate,
   type QuoteSummary,
 } from "@/lib/api/admin";
-import { numberToKoreanCurrency } from "@/lib/utils/formatters";
 
 interface QuoteItemTableProps {
   assignmentId: number;
@@ -51,11 +50,7 @@ const UNIT_OPTIONS = [
   { value: "회", label: "회" },
 ];
 
-export function QuoteItemTable({
-  assignmentId,
-  onTotalChange,
-}: QuoteItemTableProps) {
-  const { confirm } = useConfirm();
+export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTableProps) {
   const [summary, setSummary] = useState<QuoteSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -75,19 +70,13 @@ export function QuoteItemTable({
     unit_price: 0,
   });
 
-  // onTotalChange를 ref로 관리하여 무한 루프 방지
-  const onTotalChangeRef = useRef(onTotalChange);
-  useEffect(() => {
-    onTotalChangeRef.current = onTotalChange;
-  }, [onTotalChange]);
-
   // 견적 항목 로드
   const loadQuoteItems = useCallback(async () => {
     try {
       setLoading(true);
       const data = await getQuoteItems(assignmentId);
       setSummary(data);
-      onTotalChangeRef.current?.(data.total_amount);
+      onTotalChange?.(data.total_amount);
       setError(null);
     } catch (err) {
       console.error("Failed to load quote items:", err);
@@ -95,7 +84,7 @@ export function QuoteItemTable({
     } finally {
       setLoading(false);
     }
-  }, [assignmentId]);
+  }, [assignmentId, onTotalChange]);
 
   useEffect(() => {
     loadQuoteItems();
@@ -130,7 +119,7 @@ export function QuoteItemTable({
   // 저장
   const handleSave = async () => {
     if (!formData.item_name.trim()) {
-      toast.warning("항목명을 입력해주세요.");
+      alert("항목명을 입력해주세요.");
       return;
     }
 
@@ -153,11 +142,10 @@ export function QuoteItemTable({
       }
 
       setIsModalOpen(false);
-      toast.success("저장되었습니다.");
       await loadQuoteItems();
     } catch (err) {
       console.error("Failed to save quote item:", err);
-      toast.error("저장에 실패했습니다.");
+      alert("저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -165,23 +153,32 @@ export function QuoteItemTable({
 
   // 삭제
   const handleDelete = async (item: QuoteItem) => {
-    const confirmed = await confirm({
-      title: "항목 삭제",
-      description: `"${item.item_name}" 항목을 삭제하시겠습니까?`,
-      type: "warning",
-      confirmText: "삭제",
-      confirmVariant: "destructive",
-    });
-
-    if (!confirmed) return;
+    if (!confirm(`"${item.item_name}" 항목을 삭제하시겠습니까?`)) {
+      return;
+    }
 
     try {
       await deleteQuoteItem(assignmentId, item.id);
-      toast.success("삭제되었습니다.");
       await loadQuoteItems();
     } catch (err) {
       console.error("Failed to delete quote item:", err);
-      toast.error("삭제에 실패했습니다.");
+      alert("삭제에 실패했습니다.");
+    }
+  };
+
+  // 합계 계산 및 저장
+  const handleCalculate = async () => {
+    try {
+      setSaving(true);
+      const data = await calculateQuote(assignmentId, { update_assignment: true });
+      setSummary(data);
+      onTotalChange?.(data.total_amount);
+      alert("견적 금액이 저장되었습니다.");
+    } catch (err) {
+      console.error("Failed to calculate quote:", err);
+      alert("계산에 실패했습니다.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -200,12 +197,9 @@ export function QuoteItemTable({
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success("PDF가 다운로드되었습니다.");
     } catch (err) {
       console.error("Failed to download PDF:", err);
-      toast.error(
-        err instanceof Error ? err.message : "견적서 다운로드에 실패했습니다."
-      );
+      alert(err instanceof Error ? err.message : "PDF 다운로드에 실패했습니다.");
     } finally {
       setDownloading(false);
     }
@@ -268,15 +262,11 @@ export function QuoteItemTable({
             <TableBody>
               {summary.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium">
-                    {item.item_name}
-                  </TableCell>
+                  <TableCell className="font-medium">{item.item_name}</TableCell>
                   <TableCell className="text-gray-500 text-sm">
                     {item.description || "-"}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {Number.isInteger(item.quantity) ? item.quantity : Math.floor(item.quantity)}
-                  </TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
                   <TableCell>{item.unit || "-"}</TableCell>
                   <TableCell className="text-right">
                     {formatCurrency(item.unit_price)}
@@ -331,7 +321,7 @@ export function QuoteItemTable({
 
       {/* 버튼 영역 */}
       {summary && summary.items.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
           <Button
             variant="outline"
             onClick={handleDownloadPdf}
@@ -342,7 +332,15 @@ export function QuoteItemTable({
             ) : (
               <FileDown className="h-4 w-4 mr-1" />
             )}
-            견적서 다운로드
+            PDF 다운로드
+          </Button>
+          <Button onClick={handleCalculate} disabled={saving}>
+            {saving ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            ) : (
+              <Calculator className="h-4 w-4 mr-1" />
+            )}
+            견적 금액 저장
           </Button>
         </div>
       )}
@@ -437,11 +435,6 @@ export function QuoteItemTable({
                   })
                 }
               />
-              {formData.unit_price > 0 && (
-                <p className="text-xs text-blue-600">
-                  {numberToKoreanCurrency(formData.unit_price)}
-                </p>
-              )}
             </div>
 
             {/* 금액 미리보기 */}
@@ -453,14 +446,8 @@ export function QuoteItemTable({
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                = {formData.quantity} ×{" "}
-                {formatCurrency(formData.unit_price || 0)}
+                = {formData.quantity} × {formatCurrency(formData.unit_price || 0)}
               </p>
-              {previewAmount > 0 && (
-                <p className="text-xs text-blue-600 mt-1">
-                  {numberToKoreanCurrency(previewAmount)}
-                </p>
-              )}
             </div>
           </div>
 
