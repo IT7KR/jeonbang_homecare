@@ -229,9 +229,11 @@ export async function getCustomerHistory(
  */
 export interface URLInfo {
   assignment_id: number;
-  token: string;
-  view_url: string;
-  expires_at: string;
+  token: string | null;
+  view_url: string | null;
+  expires_at: string | null;
+  is_issued: boolean;
+  is_expired: boolean;
 }
 
 /**
@@ -249,7 +251,7 @@ export interface URLRevokeRequest {
 }
 
 /**
- * 배정의 협력사 포털 URL 조회
+ * 배정의 협력사 포털 URL 조회 (발급된 URL만 반환)
  */
 export async function getAssignmentURL(
   token: string,
@@ -259,6 +261,25 @@ export async function getAssignmentURL(
   return fetchWithToken<URLInfo>(
     `/admin/applications/${applicationId}/assignments/${assignmentId}/url`,
     token
+  );
+}
+
+/**
+ * 배정의 협력사 포털 URL 발급 (명시적 발급)
+ */
+export async function generateAssignmentURL(
+  token: string,
+  applicationId: number,
+  assignmentId: number,
+  data: URLRenewRequest = {}
+): Promise<URLInfo> {
+  return fetchWithToken<URLInfo>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/generate-url`,
+    token,
+    {
+      method: "POST",
+      body: data,
+    }
   );
 }
 
