@@ -191,6 +191,80 @@ export function formatNumber(value: number | null | undefined): string {
   return value.toLocaleString("ko-KR");
 }
 
+/**
+ * 숫자를 한글 금액으로 변환
+ * @param num 변환할 숫자
+ * @returns 한글 금액 문자열 (예: "일억 오천이백만 원")
+ *
+ * @example
+ * numberToKoreanCurrency(50000) // "오만 원"
+ * numberToKoreanCurrency(150000) // "십오만 원"
+ * numberToKoreanCurrency(1500000) // "백오십만 원"
+ * numberToKoreanCurrency(15000000) // "천오백만 원"
+ * numberToKoreanCurrency(152000000) // "일억 오천이백만 원"
+ */
+export function numberToKoreanCurrency(
+  num: number | null | undefined
+): string {
+  if (num === null || num === undefined || num === 0) return "";
+
+  const digits = ["", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구"];
+  const smallUnits = ["", "십", "백", "천"];
+  const bigUnits = ["", "만", "억", "조", "경"];
+
+  // 음수 처리
+  const isNegative = num < 0;
+  const absNum = Math.abs(Math.floor(num));
+
+  if (absNum === 0) return "";
+
+  // 4자리씩 끊어서 처리
+  const groups: number[] = [];
+  let remaining = absNum;
+
+  while (remaining > 0) {
+    groups.push(remaining % 10000);
+    remaining = Math.floor(remaining / 10000);
+  }
+
+  // 각 그룹을 한글로 변환
+  const convertGroup = (n: number): string => {
+    if (n === 0) return "";
+
+    let result = "";
+    let pos = 0;
+
+    while (n > 0) {
+      const digit = n % 10;
+
+      if (digit > 0) {
+        // 일의 자리가 아니면서 1인 경우 "일" 생략 (십, 백, 천)
+        const digitStr = digit === 1 && pos > 0 ? "" : digits[digit];
+        result = digitStr + smallUnits[pos] + result;
+      }
+
+      n = Math.floor(n / 10);
+      pos++;
+    }
+
+    return result;
+  };
+
+  // 결과 조합
+  const parts: string[] = [];
+
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const groupStr = convertGroup(groups[i]);
+    if (groupStr) {
+      parts.push(groupStr + bigUnits[i]);
+    }
+  }
+
+  const koreanNum = (isNegative ? "마이너스 " : "") + parts.join(" ");
+
+  return koreanNum + " 원";
+}
+
 // ===== 텍스트 포맷팅 =====
 
 /**
