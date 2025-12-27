@@ -10,6 +10,7 @@ import type {
   SMSSendRequest,
   SMSSendResponse,
   SMSLogListParams,
+  MMSSendRequest,
   // Bulk SMS Types
   SMSRecipientsResponse,
   SMSRecipientsParams,
@@ -67,6 +68,19 @@ export async function retrySMS(
 ): Promise<SMSSendResponse> {
   return fetchWithToken<SMSSendResponse>(`/admin/sms/retry/${logId}`, token, {
     method: "POST",
+  });
+}
+
+/**
+ * MMS 발송 (이미지 첨부 가능)
+ */
+export async function sendMMS(
+  token: string,
+  data: MMSSendRequest
+): Promise<SMSSendResponse> {
+  return fetchWithToken<SMSSendResponse>("/admin/sms/send-mms", token, {
+    method: "POST",
+    body: data,
   });
 }
 
