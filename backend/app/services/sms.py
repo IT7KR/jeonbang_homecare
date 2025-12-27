@@ -315,6 +315,144 @@ async def send_sms(
         }
 
 
+async def send_mms(
+    receiver: str,
+    message: str,
+    title: Optional[str] = None,
+    image1: Optional[str] = None,
+    image2: Optional[str] = None,
+    image3: Optional[str] = None,
+) -> dict:
+    """
+    MMS 발송 (이미지 첨부)
+
+    Args:
+        receiver: 수신자 전화번호
+        message: 메시지 내용
+        title: MMS 제목 (선택)
+        image1, image2, image3: Base64 인코딩된 이미지 데이터 (data:image/...;base64,... 형태)
+
+    Returns:
+        API 응답 결과
+    """
+    import base64
+    import tempfile
+    from pathlib import Path
+
+    # 전화번호 형식 정리 (하이픈 제거)
+    receiver = receiver.replace("-", "")
+
+    # API 키가 설정되지 않은 경우 (개발 환경)
+    if not settings.ALIGO_API_KEY:
+        logger.warning("ALIGO_API_KEY is not set. MMS not sent.")
+        return {
+            "result_code": "-1",
+            "message": "SMS API key not configured (development mode)",
+            "msg_id": None,
+        }
+
+    # 이미지가 있으면 MMS, 없으면 LMS/SMS
+    images = [img for img in [image1, image2, image3] if img]
+    msg_type = "MMS" if images else ("LMS" if len(message) > 45 else "SMS")
+
+    # API 요청 데이터
+    data = {
+        "key": settings.ALIGO_API_KEY,
+        "user_id": settings.ALIGO_USER_ID,
+        "sender": settings.ALIGO_SENDER.replace("-", ""),
+        "receiver": receiver,
+        "msg": message,
+        "msg_type": msg_type,
+    }
+
+    if msg_type in ["LMS", "MMS"] and title:
+        data["title"] = title
+
+    # 임시 파일 목록 (정리용)
+    temp_files = []
+    files = {}
+
+    try:
+        # Base64 이미지를 임시 파일로 변환
+        for idx, base64_data in enumerate(images, start=1):
+            try:
+                # data:image/jpeg;base64,... 형태에서 실제 데이터 추출
+                if ";base64," in base64_data:
+                    header, encoded = base64_data.split(";base64,", 1)
+                    # 확장자 결정
+                    if "jpeg" in header or "jpg" in header:
+                        ext = ".jpg"
+                    elif "png" in header:
+                        ext = ".png"
+                    elif "gif" in header:
+                        ext = ".gif"
+                    else:
+                        ext = ".jpg"  # 기본값
+                else:
+                    encoded = base64_data
+                    ext = ".jpg"
+
+                image_bytes = base64.b64decode(encoded)
+
+                # 임시 파일 생성
+                temp_file = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=ext,
+                    prefix=f"mms_image{idx}_"
+                )
+                temp_file.write(image_bytes)
+                temp_file.flush()
+                temp_file.close()
+                temp_files.append(temp_file.name)
+
+                # files 딕셔너리에 추가 (파일 핸들)
+                files[f"image{idx}"] = (
+                    f"image{idx}{ext}",
+                    open(temp_file.name, "rb"),
+                    f"image/{ext[1:]}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to process image{idx}: {e}")
+                continue
+
+        # API 요청
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            if files:
+                response = await client.post(ALIGO_API_URL, data=data, files=files)
+            else:
+                response = await client.post(ALIGO_API_URL, data=data)
+
+            result = response.json()
+
+            if result.get("result_code") == "1":
+                logger.info(f"MMS sent successfully to {receiver[:3]}***{receiver[-4:]} (images: {len(images)})")
+            else:
+                logger.error(f"MMS send failed: {result.get('message')}")
+
+            return result
+    except Exception as e:
+        logger.error(f"MMS send error: {str(e)}")
+        return {
+            "result_code": "-1",
+            "message": str(e),
+            "msg_id": None,
+        }
+    finally:
+        # 파일 핸들 닫기
+        for key in files:
+            try:
+                files[key][1].close()
+            except Exception:
+                pass
+
+        # 임시 파일 삭제
+        for temp_path in temp_files:
+            try:
+                Path(temp_path).unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete temp file {temp_path}: {e}")
+
+
 async def send_application_notification(
     application_number: str,
     customer_phone: str,

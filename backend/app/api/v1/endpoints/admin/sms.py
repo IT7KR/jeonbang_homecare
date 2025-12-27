@@ -9,6 +9,10 @@ from sqlalchemy import desc, func
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 import math
+import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
@@ -25,6 +29,7 @@ from app.schemas.sms_log import (
     SMSSendRequest,
     SMSSendResponse,
     SMSStatsResponse,
+    MMSSendRequest,
 )
 from app.schemas.bulk_sms import (
     BulkSMSSendRequest,
@@ -35,8 +40,9 @@ from app.schemas.bulk_sms import (
     SMSRecipientsResponse,
     FailedRecipient,
 )
-from app.services.sms import send_sms, send_sms_direct
+from app.services.sms import send_sms, send_sms_direct, send_mms
 from app.services.bulk_sms import execute_bulk_sms_job
+from app.services.image import process_uploaded_image
 
 router = APIRouter(prefix="/sms", tags=["Admin - SMS"])
 
@@ -108,6 +114,60 @@ async def test_sms_send(
         }
 
 
+def save_mms_images(base64_images: list[str]) -> list[str]:
+    """
+    MMS 이미지들을 저장하고 경로 목록 반환
+
+    Args:
+        base64_images: Base64 인코딩된 이미지 목록 (data:image/...;base64,... 형태)
+
+    Returns:
+        저장된 이미지 경로 목록
+    """
+    saved_paths = []
+
+    for base64_img in base64_images:
+        if not base64_img:
+            continue
+
+        try:
+            # data:image/jpeg;base64,... 형태에서 Base64 부분 추출
+            if "," in base64_img:
+                header, data = base64_img.split(",", 1)
+                # MIME 타입에서 확장자 추출
+                if "jpeg" in header or "jpg" in header:
+                    ext = "jpg"
+                elif "png" in header:
+                    ext = "png"
+                elif "gif" in header:
+                    ext = "gif"
+                else:
+                    ext = "jpg"
+            else:
+                data = base64_img
+                ext = "jpg"
+
+            # Base64 디코딩
+            image_data = base64.b64decode(data)
+
+            # 이미지 처리 및 저장
+            result = process_uploaded_image(
+                image_data=image_data,
+                original_filename=f"mms_image.{ext}",
+                upload_dir=settings.UPLOAD_DIR,
+                entity_type="mms",
+            )
+
+            saved_paths.append(result["path"])
+            logger.info(f"MMS image saved: {result['path']}")
+
+        except Exception as e:
+            logger.error(f"Failed to save MMS image: {e}")
+            continue
+
+    return saved_paths
+
+
 def decrypt_sms_log(log: SMSLog) -> dict:
     """SMS 로그의 암호화된 필드를 복호화"""
     return {
@@ -120,6 +180,7 @@ def decrypt_sms_log(log: SMSLog) -> dict:
         "status": log.status,
         "result_code": log.result_code,
         "result_message": log.result_message,
+        "mms_images": log.mms_images,
         "created_at": log.created_at,
         "sent_at": log.sent_at,
     }
@@ -261,6 +322,76 @@ async def send_manual_sms(
         return SMSSendResponse(
             success=False,
             message=f"SMS 발송 중 오류가 발생했습니다: {str(e)}",
+        )
+
+
+@router.post("/send-mms", response_model=SMSSendResponse)
+async def send_manual_mms(
+    data: MMSSendRequest,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    MMS 수동 발송 (이미지 첨부 가능)
+
+    - receiver_phone: 수신자 전화번호
+    - message: 메시지 내용 (2000자 이내)
+    - image1, image2, image3: Base64 인코딩된 이미지 (선택, 각각 data:image/...;base64,... 형태)
+    """
+    try:
+        # 이미지 목록 생성
+        base64_images = [img for img in [data.image1, data.image2, data.image3] if img]
+        has_images = len(base64_images) > 0
+
+        # 이미지가 있으면 저장
+        saved_image_paths = []
+        if has_images:
+            saved_image_paths = save_mms_images(base64_images)
+
+        # MMS 발송
+        result = await send_mms(
+            receiver=data.receiver_phone,
+            message=data.message,
+            title="[전방홈케어]",
+            image1=data.image1,
+            image2=data.image2,
+            image3=data.image3,
+        )
+
+        success = result.get("result_code") == "1"
+
+        # SMS 로그 기록 (이미지 경로 포함)
+        log = SMSLog(
+            receiver_phone=encrypt_value(data.receiver_phone),
+            message=data.message,
+            sms_type=data.sms_type if not has_images else "mms_manual",
+            status="sent" if success else "failed",
+            result_code=result.get("result_code"),
+            result_message=result.get("message"),
+            msg_id=result.get("msg_id"),
+            mms_images=saved_image_paths if saved_image_paths else None,
+            sent_at=datetime.now(timezone.utc) if success else None,
+        )
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+
+        if success:
+            return SMSSendResponse(
+                success=True,
+                message="MMS가 발송되었습니다" if has_images else "SMS가 발송되었습니다",
+                sms_log_id=log.id,
+            )
+        else:
+            return SMSSendResponse(
+                success=False,
+                message=result.get("message", "발송에 실패했습니다"),
+                sms_log_id=log.id,
+            )
+    except Exception as e:
+        return SMSSendResponse(
+            success=False,
+            message=f"발송 중 오류가 발생했습니다: {str(e)}",
         )
 
 
