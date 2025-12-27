@@ -336,7 +336,6 @@ export interface SMSLogItem {
   status: string;
   result_code: string | null;
   result_message: string | null;
-  mms_images: string[] | null;  // MMS 이미지 경로 목록
   created_at: string;
   sent_at: string | null;
 }
@@ -362,23 +361,6 @@ export interface SMSSendRequest {
   receiver_phone: string;
   message: string;
   sms_type?: string;
-}
-
-export interface MMSSendRequest {
-  receiver_phone: string;
-  message: string;
-  sms_type?: string;
-  image1?: string;  // Base64 인코딩된 이미지 (data:image/jpeg;base64,...)
-  image2?: string;
-  image3?: string;
-}
-
-export interface ImageFile {
-  id: string;
-  file: File;
-  preview: string;
-  size: number;
-  type: string;
 }
 
 export interface SMSSendResponse {
