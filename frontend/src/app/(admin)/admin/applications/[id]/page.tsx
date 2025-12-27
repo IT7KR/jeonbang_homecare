@@ -40,6 +40,7 @@ import {
   Link2,
   Copy,
   RefreshCw,
+  Camera,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useConfirm } from "@/hooks";
@@ -88,6 +89,7 @@ import {
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 import { QuoteItemTable } from "@/components/features/admin/quotes";
 import { MMSSheet } from "@/components/features/admin/sms";
+import { WorkPhotoUpload, CustomerUrlManager } from "@/components/features/admin/photos";
 
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
 const FILE_BASE_URL = (
@@ -268,11 +270,19 @@ export default function ApplicationDetailPage() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [quoteAssignmentId, setQuoteAssignmentId] = useState<number | null>(null);
 
-  // URL 관리 모달 상태
+  // URL 관리 모달 상태 (협력사 포털)
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [urlAssignmentId, setUrlAssignmentId] = useState<number | null>(null);
   const [urlInfo, setUrlInfo] = useState<URLInfo | null>(null);
   const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+
+  // 시공 사진 모달 상태
+  const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
+  const [photosAssignmentId, setPhotosAssignmentId] = useState<number | null>(null);
+
+  // 고객 URL 관리 모달 상태
+  const [isCustomerUrlModalOpen, setIsCustomerUrlModalOpen] = useState(false);
+  const [customerUrlAssignmentId, setCustomerUrlAssignmentId] = useState<number | null>(null);
 
   // Form state
   const [status, setStatus] = useState("");
@@ -1542,14 +1552,36 @@ export default function ApplicationDetailPage() {
                               </button>
                               <button
                                 onClick={() => {
+                                  setPhotosAssignmentId(assignment.id);
+                                  setIsPhotosModalOpen(true);
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors border border-gray-200 hover:border-purple-200"
+                              >
+                                <Camera size={12} />
+                                <span>사진</span>
+                              </button>
+                              <button
+                                onClick={() => {
                                   setUrlAssignmentId(assignment.id);
                                   loadAssignmentUrl(assignment.id);
                                   setIsUrlModalOpen(true);
                                 }}
                                 className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 hover:border-blue-200"
+                                title="협력사 포털 URL"
                               >
                                 <Link2 size={12} />
-                                <span>URL</span>
+                                <span>협력사</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setCustomerUrlAssignmentId(assignment.id);
+                                  setIsCustomerUrlModalOpen(true);
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition-colors border border-gray-200 hover:border-cyan-200"
+                                title="고객 열람 URL"
+                              >
+                                <Link2 size={12} />
+                                <span>고객</span>
                               </button>
                               <button
                                 onClick={() =>
@@ -2820,6 +2852,86 @@ export default function ApplicationDetailPage() {
                   setIsUrlModalOpen(false);
                   setUrlAssignmentId(null);
                   setUrlInfo(null);
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 시공 사진 모달 */}
+      {isPhotosModalOpen && photosAssignmentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Camera size={18} className="text-primary" />
+                시공 사진 관리
+              </h3>
+              <button
+                onClick={() => {
+                  setIsPhotosModalOpen(false);
+                  setPhotosAssignmentId(null);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto flex-1">
+              <WorkPhotoUpload
+                applicationId={id}
+                assignmentId={photosAssignmentId}
+              />
+            </div>
+            <div className="flex justify-end p-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setIsPhotosModalOpen(false);
+                  setPhotosAssignmentId(null);
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 고객 열람 URL 모달 */}
+      {isCustomerUrlModalOpen && customerUrlAssignmentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Link2 size={18} className="text-primary" />
+                고객 열람 URL 관리
+              </h3>
+              <button
+                onClick={() => {
+                  setIsCustomerUrlModalOpen(false);
+                  setCustomerUrlAssignmentId(null);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-4">
+              <CustomerUrlManager
+                applicationId={id}
+                assignmentId={customerUrlAssignmentId}
+              />
+            </div>
+            <div className="flex justify-end p-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setIsCustomerUrlModalOpen(false);
+                  setCustomerUrlAssignmentId(null);
                 }}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
               >
