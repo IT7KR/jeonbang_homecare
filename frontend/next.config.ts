@@ -70,6 +70,10 @@ const nextConfig: NextConfig = {
         source: "/uploads/:path*",
         destination: `${backendHost}/uploads/:path*`,
       },
+      {
+        source: "/api/v1/files/:path*",
+        destination: `${backendHost}/api/v1/files/:path*`,
+      },
     ];
   },
 
