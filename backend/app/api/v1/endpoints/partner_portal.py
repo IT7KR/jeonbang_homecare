@@ -5,13 +5,14 @@ Partner Portal API endpoints
 인증 없이 토큰 기반으로 신청 정보를 열람할 수 있는 협력사용 엔드포인트
 """
 
+import hashlib
 import logging
 import os
 import re
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -21,6 +22,7 @@ from app.core.config import settings
 from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
+from app.models.revoked_token import RevokedToken
 from app.schemas.partner_portal import (
     PartnerViewResponse,
     PartnerViewPhoto,
@@ -133,11 +135,41 @@ def validate_partner_view_token(token: str) -> Optional[int]:
     return result.entity_id
 
 
+def hash_token(token: str) -> str:
+    """
+    토큰을 SHA256으로 해시
+
+    Args:
+        token: 토큰 문자열
+
+    Returns:
+        해시된 토큰 (64자리 hex)
+    """
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def is_token_revoked(db: Session, token: str) -> bool:
+    """
+    토큰이 블랙리스트에 있는지 확인
+
+    Args:
+        db: 데이터베이스 세션
+        token: 토큰 문자열
+
+    Returns:
+        블랙리스트에 있으면 True
+    """
+    token_hash = hash_token(token)
+    return db.query(RevokedToken).filter(
+        RevokedToken.token_hash == token_hash
+    ).first() is not None
+
+
 @router.get("/view/{token}", response_model=PartnerViewResponse)
 async def view_assignment(
     token: str,
     request: Request,
-    db: Session = next(get_db()),
+    db: Session = Depends(get_db),
 ):
     """
     협력사용 배정 정보 열람
@@ -147,6 +179,13 @@ async def view_assignment(
 
     - **token**: 배정 열람 토큰 (SMS로 전달됨)
     """
+    # 블랙리스트 확인 (먼저 체크)
+    if is_token_revoked(db, token):
+        raise HTTPException(
+            status_code=404,
+            detail="유효하지 않거나 만료된 링크입니다."
+        )
+
     # 토큰 검증
     assignment_id = validate_partner_view_token(token)
     if assignment_id is None:
