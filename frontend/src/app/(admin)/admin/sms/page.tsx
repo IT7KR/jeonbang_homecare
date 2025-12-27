@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Send,
   RefreshCw,
@@ -13,6 +14,7 @@ import {
   Users,
   X,
   FileText,
+  ImageIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
@@ -87,6 +89,13 @@ export default function SMSPage() {
 
   // Message detail modal
   const [selectedLog, setSelectedLog] = useState<SMSLogItem | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+
+  // 이미지 URL 생성 (파일 API 경로)
+  // Next.js rewrites가 /api/v1/files를 백엔드로 프록시함
+  const getImageUrl = (path: string) => {
+    return `/api/v1/files${path}`;
+  };
 
   const loadStats = async () => {
     try {
@@ -206,9 +215,14 @@ export default function SMSPage() {
       header: "유형",
       headerClassName: "hidden sm:table-cell",
       render: (log) => (
-        <span className="text-sm text-gray-600">
-          {TYPE_LABELS[log.sms_type] || log.sms_type}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {log.mms_images && log.mms_images.length > 0 && (
+            <ImageIcon size={14} className="text-purple-500" />
+          )}
+          <span className="text-sm text-gray-600">
+            {TYPE_LABELS[log.sms_type] || log.sms_type}
+          </span>
+        </div>
       ),
       className: "px-5 py-4 whitespace-nowrap hidden sm:table-cell",
     },
@@ -483,6 +497,28 @@ export default function SMSPage() {
                       {selectedLog.message}
                     </div>
                   </div>
+                  {/* MMS 이미지 (이미지가 있는 경우만 표시) */}
+                  {selectedLog.mms_images && selectedLog.mms_images.length > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-500 mb-2">첨부 이미지</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {selectedLog.mms_images.map((imgPath, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => setFullscreenImage(imgPath)}
+                            className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-primary transition-colors"
+                          >
+                            <Image
+                              src={getImageUrl(imgPath)}
+                              alt={`첨부 이미지 ${idx + 1}`}
+                              fill
+                              className="object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {selectedLog.result_message && selectedLog.status === "failed" && (
                     <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
                       <span className="font-medium">실패 사유:</span>{" "}
@@ -499,6 +535,26 @@ export default function SMSPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+          {/* 이미지 전체화면 보기 */}
+          {fullscreenImage && (
+            <div
+              className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center cursor-pointer"
+              onClick={() => setFullscreenImage(null)}
+            >
+              <Image
+                src={getImageUrl(fullscreenImage)}
+                alt="확대 이미지"
+                fill
+                className="object-contain p-4"
+              />
+              <button
+                className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
+                onClick={() => setFullscreenImage(null)}
+              >
+                <X size={24} className="text-white" />
+              </button>
             </div>
           )}
         </>

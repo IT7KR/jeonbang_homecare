@@ -1,18 +1,18 @@
 "use client";
 
-import { useRef } from "react";
-import { ImagePlus, X, AlertCircle } from "lucide-react";
+import { useRef, useState } from "react";
+import { ImagePlus, X, AlertCircle, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks";
+import { compressImage } from "@/lib/utils/image";
 import type { ImageFile } from "@/lib/api/admin/types";
 
 interface ImageUploadProps {
   images: ImageFile[];
   onChange: (images: ImageFile[]) => void;
   maxImages?: number;
-  maxSizePerFile?: number; // bytes
-  maxTotalSize?: number; // bytes
+  maxSizePerFile?: number; // bytes (자동 압축 전 최대 크기)
   className?: string;
 }
 
@@ -22,67 +22,76 @@ export function ImageUpload({
   images,
   onChange,
   maxImages = 3,
-  maxSizePerFile = 5 * 1024 * 1024, // 5MB
-  maxTotalSize = 10 * 1024 * 1024, // 10MB
+  maxSizePerFile = 20 * 1024 * 1024, // 20MB (자동 압축되므로 여유 있게)
   className,
 }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
 
-  const currentTotalSize = images.reduce((sum, img) => sum + img.size, 0);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const newImages: ImageFile[] = [];
+    // 개수 제한 체크
+    const availableSlots = maxImages - images.length;
+    if (availableSlots <= 0) {
+      toast.warning(`최대 ${maxImages}개까지만 첨부 가능합니다`);
+      return;
+    }
+
+    const filesToProcess = files.slice(0, availableSlots);
     const errors: string[] = [];
 
-    for (const file of files) {
-      // Check max images limit
-      if (images.length + newImages.length >= maxImages) {
-        errors.push(`최대 ${maxImages}개까지만 첨부 가능합니다`);
-        break;
-      }
-
-      // Check file type
+    // 파일 타입 검증
+    const validFiles = filesToProcess.filter((file) => {
       if (!ACCEPTED_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: 지원하지 않는 파일 형식입니다 (JPEG, PNG, GIF만 가능)`);
-        continue;
+        errors.push(`${file.name}: 지원하지 않는 파일 형식입니다`);
+        return false;
       }
-
-      // Check file size
       if (file.size > maxSizePerFile) {
-        errors.push(`${file.name}: 파일 크기가 ${formatFileSize(maxSizePerFile)}를 초과합니다`);
-        continue;
+        errors.push(`${file.name}: 파일 크기가 너무 큽니다`);
+        return false;
       }
+      return true;
+    });
 
-      // Check total size
-      const newTotalSize = currentTotalSize + newImages.reduce((sum, img) => sum + img.size, 0) + file.size;
-      if (newTotalSize > maxTotalSize) {
-        errors.push(`전체 용량이 ${formatFileSize(maxTotalSize)}를 초과합니다`);
-        break;
-      }
-
-      newImages.push({
-        id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        file,
-        preview: URL.createObjectURL(file),
-        size: file.size,
-        type: file.type,
-      });
+    if (validFiles.length === 0) {
+      if (errors.length > 0) toast.warning(errors[0]);
+      return;
     }
 
-    if (errors.length > 0) {
-      toast.warning(errors[0]);
-    }
+    setIsCompressing(true);
 
-    if (newImages.length > 0) {
+    try {
+      const newImages: ImageFile[] = [];
+
+      for (const file of validFiles) {
+        // 기존 compressImage 함수로 압축
+        const compressedFile = await compressImage(file);
+
+        newImages.push({
+          id: `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          file: compressedFile,
+          preview: URL.createObjectURL(compressedFile),
+          size: compressedFile.size,
+          type: compressedFile.type,
+        });
+      }
+
       onChange([...images, ...newImages]);
-    }
 
-    // Reset input
-    if (inputRef.current) {
-      inputRef.current.value = "";
+      // 압축된 경우 안내
+      const compressed = validFiles.some((f, i) => f.size !== newImages[i]?.size);
+      if (compressed) {
+        toast.success("이미지가 자동 최적화되었습니다");
+      }
+    } catch (error) {
+      toast.error("이미지 처리 중 오류가 발생했습니다");
+    } finally {
+      setIsCompressing(false);
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     }
   };
 
@@ -135,10 +144,20 @@ export function ImageUpload({
           <button
             type="button"
             onClick={() => inputRef.current?.click()}
-            className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1 transition-colors"
+            disabled={isCompressing}
+            className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-primary hover:bg-primary/5 flex flex-col items-center justify-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <ImagePlus className="w-6 h-6 text-gray-400" />
-            <span className="text-xs text-gray-500">추가</span>
+            {isCompressing ? (
+              <>
+                <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                <span className="text-xs text-gray-500">처리중</span>
+              </>
+            ) : (
+              <>
+                <ImagePlus className="w-6 h-6 text-gray-400" />
+                <span className="text-xs text-gray-500">추가</span>
+              </>
+            )}
           </button>
         )}
       </div>
@@ -157,8 +176,7 @@ export function ImageUpload({
       <div className="flex items-start gap-1.5 text-xs text-gray-500">
         <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
         <span>
-          JPEG, PNG, GIF 형식만 지원 / 파일당 {formatFileSize(maxSizePerFile)},
-          총 {formatFileSize(maxTotalSize)}까지
+          JPEG, PNG, GIF 형식 지원 / 고용량 이미지는 자동 최적화됩니다
         </span>
       </div>
     </div>
