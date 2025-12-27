@@ -64,10 +64,21 @@ class ApplicationPartnerAssignment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
-    # URL 토큰 관리 (명시적 발급 필요)
+    # URL 토큰 관리 - 협력사 포털 (명시적 발급 필요)
     url_token = Column(String(500), nullable=True)  # 발급된 토큰
     url_expires_at = Column(DateTime(timezone=True), nullable=True)  # 토큰 만료 시간
     url_invalidated_before = Column(DateTime(timezone=True), nullable=True)  # 무효화 시점
+
+    # 시공 사진 (관리자가 업로드)
+    work_photos_before = Column(JSONB, nullable=True, default=list)  # 시공 전 사진 경로 배열
+    work_photos_after = Column(JSONB, nullable=True, default=list)  # 시공 후 사진 경로 배열
+    work_photos_uploaded_at = Column(DateTime(timezone=True), nullable=True)  # 최초 업로드 시각
+    work_photos_updated_at = Column(DateTime(timezone=True), nullable=True)  # 마지막 수정 시각
+
+    # 고객 열람 토큰 관리
+    customer_token = Column(String(500), nullable=True)  # 고객 열람 토큰
+    customer_token_expires_at = Column(DateTime(timezone=True), nullable=True)  # 토큰 만료 시간
+    customer_token_invalidated_before = Column(DateTime(timezone=True), nullable=True)  # 무효화 시점
 
     def __repr__(self):
         return f"<ApplicationPartnerAssignment app={self.application_id} partner={self.partner_id} status={self.status}>"

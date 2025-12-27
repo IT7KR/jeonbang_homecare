@@ -80,7 +80,57 @@ class AssignmentResponse(BaseModel):
     partner_phone: Optional[str] = None
     partner_company: Optional[str] = None
 
+    # 시공 사진 (관리자 업로드)
+    work_photos_before: Optional[list[str]] = None
+    work_photos_after: Optional[list[str]] = None
+    work_photos_uploaded_at: Optional[datetime] = None
+    work_photos_updated_at: Optional[datetime] = None
+
+    # 고객 열람 토큰 (URL 정보도 포함)
+    customer_token: Optional[str] = None
+    customer_token_expires_at: Optional[datetime] = None
+    customer_url: Optional[str] = None  # 프론트엔드에서 조립된 전체 URL
+
     model_config = {"from_attributes": True}
+
+
+class WorkPhotoUploadResponse(BaseModel):
+    """시공 사진 업로드 응답"""
+
+    assignment_id: int
+    photo_type: str  # "before" | "after"
+    photos: list[str]  # 업로드된 사진 경로 목록
+    total_count: int
+    message: str
+
+
+class WorkPhotosResponse(BaseModel):
+    """시공 사진 조회 응답"""
+
+    assignment_id: int
+    before_photos: list[str]
+    after_photos: list[str]
+    before_photo_urls: list[str]  # 토큰화된 URL
+    after_photo_urls: list[str]  # 토큰화된 URL
+    uploaded_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class CustomerUrlCreate(BaseModel):
+    """고객 열람 URL 생성 요청"""
+
+    expires_in_days: int = Field(30, ge=1, le=365, description="유효 기간 (일)")
+
+
+class CustomerUrlResponse(BaseModel):
+    """고객 열람 URL 응답"""
+
+    assignment_id: int
+    token: Optional[str] = None
+    url: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    is_valid: bool = False
+    message: Optional[str] = None
 
 
 class AssignmentListResponse(BaseModel):
