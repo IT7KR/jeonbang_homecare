@@ -186,13 +186,21 @@ async def view_assignment(
             detail="유효하지 않거나 만료된 링크입니다."
         )
 
-    # 토큰 검증
-    assignment_id = validate_partner_view_token(token)
-    if assignment_id is None:
+    # 토큰 검증 및 정보 추출
+    token_result = decode_file_token_extended(token)
+    if isinstance(token_result, str):
         raise HTTPException(
             status_code=404,
             detail="유효하지 않거나 만료된 링크입니다."
         )
+
+    # assignment_id 추출
+    if token_result.entity_type != "assignment" or token_result.entity_id is None:
+        raise HTTPException(
+            status_code=404,
+            detail="유효하지 않거나 만료된 링크입니다."
+        )
+    assignment_id = token_result.entity_id
 
     # 배정 정보 조회
     assignment = db.query(ApplicationPartnerAssignment).filter(
@@ -204,6 +212,27 @@ async def view_assignment(
             status_code=404,
             detail="배정 정보를 찾을 수 없습니다."
         )
+
+    # URL 무효화 시점 확인
+    # url_invalidated_before가 설정되어 있으면, 해당 시점 이전에 발급된 토큰은 무효
+    if assignment.url_invalidated_before:
+        invalidation_timestamp = assignment.url_invalidated_before.timestamp()
+
+        # 토큰에 created_at이 있으면 정확히 비교 (v2 토큰)
+        if token_result.created_at is not None:
+            if token_result.created_at < invalidation_timestamp:
+                raise HTTPException(
+                    status_code=404,
+                    detail="유효하지 않거나 만료된 링크입니다."
+                )
+        else:
+            # v1 토큰 (created_at 없음): 만료 시간이 무효화 시점 이전이면 무효
+            # 이미 무효화된 시점보다 먼저 만료되는 토큰은 확실히 이전에 발급된 것
+            if token_result.expires_at <= invalidation_timestamp:
+                raise HTTPException(
+                    status_code=404,
+                    detail="유효하지 않거나 만료된 링크입니다."
+                )
 
     # 신청 정보 조회
     application = db.query(Application).filter(
