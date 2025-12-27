@@ -267,9 +267,6 @@ async def delete_all_quote_items(
     ).delete()
     db.commit()
 
-    # 배정의 estimated_cost 자동 업데이트 (0으로)
-    update_assignment_estimated_cost(db, assignment_id)
-
 
 @router.post("/calculate", response_model=QuoteSummary)
 async def calculate_and_save(
