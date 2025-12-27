@@ -764,3 +764,59 @@ export interface QuoteItemBulkCreate {
 export interface QuoteCalculateRequest {
   update_assignment?: boolean;
 }
+
+// ===== Work Photos Types (시공 사진) =====
+
+export interface WorkPhoto {
+  url: string;
+  filename: string;
+}
+
+export interface WorkPhotosResponse {
+  assignment_id: number;
+  before_photos: string[];
+  after_photos: string[];
+  before_photo_urls: string[];
+  after_photo_urls: string[];
+  uploaded_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WorkPhotoUploadResponse {
+  assignment_id: number;
+  photo_type: "before" | "after";
+  photos: string[];
+  total_count: number;
+  message: string;
+}
+
+// ===== Customer URL Types (고객 열람 URL) =====
+
+export interface CustomerUrlResponse {
+  assignment_id: number;
+  token: string | null;
+  url: string | null;
+  expires_at: string | null;
+  is_valid: boolean;
+  message: string | null;
+}
+
+export interface CustomerUrlCreate {
+  expires_in_days?: number;
+}
+
+export interface CustomerUrlExtend {
+  additional_days: number;
+}
+
+// ===== Extended Assignment Types (시공 사진 + 고객 URL 포함) =====
+
+export interface AssignmentWithPhotos extends Assignment {
+  work_photos_before: string[] | null;
+  work_photos_after: string[] | null;
+  work_photos_uploaded_at: string | null;
+  work_photos_updated_at: string | null;
+  customer_token: string | null;
+  customer_token_expires_at: string | null;
+  customer_url: string | null;
+}
