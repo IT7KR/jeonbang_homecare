@@ -10,17 +10,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies (including WeasyPrint requirements)
+# Install system dependencies (including wkhtmltopdf for PDF generation)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     libpq-dev \
     gcc \
-    # WeasyPrint dependencies
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libgdk-pixbuf-2.0-0 \
-    libffi-dev \
-    shared-mime-info \
+    # wkhtmltopdf for PDF generation
+    wkhtmltopdf \
     # Korean fonts
     fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
