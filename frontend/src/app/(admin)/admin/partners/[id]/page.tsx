@@ -21,6 +21,7 @@ import {
   StickyNote,
   Settings,
   Globe,
+  MessageSquare,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useConfirm } from "@/hooks";
@@ -46,6 +47,7 @@ import {
   type AuditItem,
 } from "@/components/admin";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
+import { MMSSheet } from "@/components/features/admin/sms";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
@@ -97,6 +99,7 @@ export default function PartnerDetailPage() {
   const [showStatusReasonModal, setShowStatusReasonModal] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<PartnerStatusChange["new_status"] | null>(null);
   const [isDeletingNote, setIsDeletingNote] = useState(false);
+  const [showMMSSheet, setShowMMSSheet] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -359,36 +362,48 @@ export default function PartnerDetailPage() {
             </div>
           </div>
 
-          {/* 상태 변경 드롭다운 */}
-          <div className="relative">
+          {/* 헤더 액션 버튼들 */}
+          <div className="flex items-center gap-2">
+            {/* 문자 발송 버튼 */}
             <button
-              onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-              disabled={isChangingStatus}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80 transition-opacity`}
+              onClick={() => setShowMMSSheet(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              {isChangingStatus ? (
-                <Loader2 className="animate-spin" size={14} />
-              ) : (
-                <>
-                  {statusConfig.label}
-                  <ChevronDown size={14} />
-                </>
-              )}
+              <MessageSquare size={14} />
+              문자 발송
             </button>
 
-            {showStatusDropdown && (
-              <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                {STATUS_OPTIONS.filter((opt) => opt.value !== partner.status).map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => handleStatusChange(option.value)}
-                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* 상태 변경 드롭다운 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                disabled={isChangingStatus}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${statusConfig.bgColor} ${statusConfig.color} hover:opacity-80 transition-opacity`}
+              >
+                {isChangingStatus ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <>
+                    {statusConfig.label}
+                    <ChevronDown size={14} />
+                  </>
+                )}
+              </button>
+
+              {showStatusDropdown && (
+                <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                  {STATUS_OPTIONS.filter((opt) => opt.value !== partner.status).map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => handleStatusChange(option.value)}
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -790,6 +805,21 @@ export default function PartnerDetailPage() {
           )}
         </div>
       </div>
+
+      {/* MMS 발송 시트 */}
+      {partner && (
+        <MMSSheet
+          open={showMMSSheet}
+          onOpenChange={setShowMMSSheet}
+          recipientName={partner.representative_name}
+          recipientPhone={partner.contact_phone}
+          smsType="partner"
+          onComplete={() => {
+            setSuccessMessage("문자가 성공적으로 발송되었습니다");
+            setTimeout(() => setSuccessMessage(null), 3000);
+          }}
+        />
+      )}
     </div>
   );
 }
