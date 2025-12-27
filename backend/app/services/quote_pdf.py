@@ -1,6 +1,10 @@
 """
 견적서 PDF 생성 서비스
-WeasyPrint를 사용하여 HTML 템플릿을 PDF로 변환
+pdfkit(wkhtmltopdf)를 사용하여 HTML 템플릿을 PDF로 변환
+
+성능:
+- wkhtmltopdf는 WebKit 렌더링 엔진 사용으로 빠른 PDF 생성 (~0.5초)
+- 한글 폰트 지원 (Noto Sans CJK)
 """
 import os
 import tempfile
@@ -8,9 +12,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import pdfkit
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML, CSS
-from weasyprint.text.fonts import FontConfiguration
 
 from sqlalchemy.orm import Session
 from sqlalchemy import asc
@@ -19,12 +22,47 @@ from app.models.quote_item import QuoteItem
 from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.application import Application
 from app.models.partner import Partner
-from app.core.encryption import decrypt_field
+from app.core.encryption import decrypt_value
 
 
 # 템플릿 디렉토리 경로
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
+# ============================================================
+# 캐싱된 리소스 (모듈 로드 시 한 번만 초기화)
+# ============================================================
+
+# Jinja2 Environment 캐싱
+_jinja_env: Optional[Environment] = None
+
+# pdfkit 옵션 (wkhtmltopdf 설정)
+PDFKIT_OPTIONS = {
+    'page-size': 'A4',
+    'margin-top': '20mm',
+    'margin-right': '20mm',
+    'margin-bottom': '20mm',
+    'margin-left': '20mm',
+    'encoding': 'UTF-8',
+    'enable-local-file-access': None,  # 로컬 파일 접근 허용
+    'no-outline': None,
+    'quiet': '',  # wkhtmltopdf 출력 억제
+}
+
+
+def _get_jinja_env() -> Environment:
+    """캐싱된 Jinja2 Environment 반환"""
+    global _jinja_env
+    if _jinja_env is None:
+        _jinja_env = Environment(
+            loader=FileSystemLoader(TEMPLATE_DIR),
+            auto_reload=False,  # 프로덕션에서는 자동 리로드 비활성화
+        )
+    return _jinja_env
+
+
+# ============================================================
+# PDF 생성 함수
+# ============================================================
 
 def get_quote_data(
     db: Session,
@@ -58,8 +96,8 @@ def get_quote_data(
     ).order_by(asc(QuoteItem.sort_order)).all()
 
     # 고객 정보 복호화
-    customer_name = decrypt_field(application.customer_name) if application.customer_name else "고객"
-    customer_address = decrypt_field(application.customer_address) if application.customer_address else ""
+    customer_name = decrypt_value(application.customer_name) if application.customer_name else "고객"
+    customer_address = decrypt_value(application.address) if application.address else ""
 
     # 합계 계산
     total_amount = sum(item.amount for item in items)
@@ -80,7 +118,7 @@ def get_quote_data(
             {
                 "item_name": item.item_name,
                 "description": item.description,
-                "quantity": float(item.quantity),
+                "quantity": item.quantity,
                 "unit": item.unit,
                 "unit_price": item.unit_price,
                 "amount": item.amount,
@@ -98,30 +136,21 @@ def render_quote_html(data: dict) -> str:
     """
     Jinja2 템플릿을 사용하여 견적서 HTML 렌더링
     """
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+    env = _get_jinja_env()
     template = env.get_template("quote_template.html")
     return template.render(**data)
 
 
 def generate_pdf_from_html(html_content: str) -> bytes:
     """
-    HTML을 PDF로 변환
+    HTML을 PDF로 변환 (pdfkit/wkhtmltopdf 사용)
     """
-    font_config = FontConfiguration()
-
-    # 한글 폰트 CSS 추가
-    css = CSS(string='''
-        @font-face {
-            font-family: 'Noto Sans KR';
-            src: local('Noto Sans KR'), local('NotoSansKR');
-        }
-        body {
-            font-family: 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
-        }
-    ''', font_config=font_config)
-
-    html = HTML(string=html_content)
-    pdf_bytes = html.write_pdf(stylesheets=[css], font_config=font_config)
+    # pdfkit.from_string은 바이트로 반환
+    pdf_bytes = pdfkit.from_string(
+        html_content,
+        False,  # False를 전달하면 바이트로 반환
+        options=PDFKIT_OPTIONS
+    )
 
     return pdf_bytes
 
@@ -188,3 +217,10 @@ def get_quote_filename(quote_number: str) -> str:
     # 파일명에 사용할 수 없는 문자 제거
     safe_number = quote_number.replace("/", "-").replace("\\", "-")
     return f"견적서_{safe_number}.pdf"
+
+
+def warmup_pdf_engine():
+    """
+    PDF 엔진 워밍업 (서버 시작 시 호출하면 첫 요청 지연 방지)
+    """
+    _get_jinja_env()
