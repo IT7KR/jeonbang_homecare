@@ -51,7 +51,10 @@ const UNIT_OPTIONS = [
   { value: "회", label: "회" },
 ];
 
-export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTableProps) {
+export function QuoteItemTable({
+  assignmentId,
+  onTotalChange,
+}: QuoteItemTableProps) {
   const { confirm } = useConfirm();
   const [summary, setSummary] = useState<QuoteSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -200,7 +203,9 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
       toast.success("PDF가 다운로드되었습니다.");
     } catch (err) {
       console.error("Failed to download PDF:", err);
-      toast.error(err instanceof Error ? err.message : "PDF 다운로드에 실패했습니다.");
+      toast.error(
+        err instanceof Error ? err.message : "견적서 다운로드에 실패했습니다."
+      );
     } finally {
       setDownloading(false);
     }
@@ -263,11 +268,15 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
             <TableBody>
               {summary.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.item_name}</TableCell>
+                  <TableCell className="font-medium">
+                    {item.item_name}
+                  </TableCell>
                   <TableCell className="text-gray-500 text-sm">
                     {item.description || "-"}
                   </TableCell>
-                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">
+                    {Number.isInteger(item.quantity) ? item.quantity : Math.floor(item.quantity)}
+                  </TableCell>
                   <TableCell>{item.unit || "-"}</TableCell>
                   <TableCell className="text-right">
                     {formatCurrency(item.unit_price)}
@@ -333,7 +342,7 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
             ) : (
               <FileDown className="h-4 w-4 mr-1" />
             )}
-            PDF 다운로드
+            견적서 다운로드
           </Button>
         </div>
       )}
@@ -444,7 +453,8 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                = {formData.quantity} × {formatCurrency(formData.unit_price || 0)}
+                = {formData.quantity} ×{" "}
+                {formatCurrency(formData.unit_price || 0)}
               </p>
               {previewAmount > 0 && (
                 <p className="text-xs text-blue-600 mt-1">
