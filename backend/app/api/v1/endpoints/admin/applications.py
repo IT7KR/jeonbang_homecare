@@ -1546,3 +1546,428 @@ def extend_assignment_url(
         is_issued=True,
         is_expired=False,
     )
+
+
+# =============================================================================
+# 시공 사진 관리 API
+# =============================================================================
+
+from fastapi import UploadFile, File
+from app.services.file_upload import process_uploaded_files
+from app.core.file_token import encode_file_token
+from app.schemas.application_assignment import (
+    WorkPhotoUploadResponse,
+    WorkPhotosResponse,
+    CustomerUrlCreate,
+    CustomerUrlResponse,
+)
+
+MAX_WORK_PHOTOS_PER_TYPE = 10  # 시공 전/후 각각 최대 10장
+
+
+@router.get("/{application_id}/assignments/{assignment_id}/work-photos", response_model=WorkPhotosResponse)
+def get_work_photos(
+    application_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    시공 사진 조회
+
+    - 시공 전/후 사진 목록과 토큰화된 URL 반환
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    before_photos = assignment.work_photos_before or []
+    after_photos = assignment.work_photos_after or []
+
+    # 토큰화된 URL 생성
+    def get_photo_urls(photos: list) -> list:
+        return [get_file_url(photo) for photo in photos]
+
+    return WorkPhotosResponse(
+        assignment_id=assignment_id,
+        before_photos=before_photos,
+        after_photos=after_photos,
+        before_photo_urls=get_photo_urls(before_photos),
+        after_photo_urls=get_photo_urls(after_photos),
+        uploaded_at=assignment.work_photos_uploaded_at,
+        updated_at=assignment.work_photos_updated_at,
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/work-photos/{photo_type}", response_model=WorkPhotoUploadResponse)
+async def upload_work_photos(
+    application_id: int,
+    assignment_id: int,
+    photo_type: str,
+    photos: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    시공 사진 업로드
+
+    - photo_type: "before" (시공 전) 또는 "after" (시공 후)
+    - 각 유형별 최대 10장까지
+    """
+    if photo_type not in ["before", "after"]:
+        raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
+
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 기존 사진 목록
+    if photo_type == "before":
+        existing_photos = assignment.work_photos_before or []
+    else:
+        existing_photos = assignment.work_photos_after or []
+
+    # 최대 개수 체크
+    if len(existing_photos) + len(photos) > MAX_WORK_PHOTOS_PER_TYPE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"시공 {photo_type} 사진은 최대 {MAX_WORK_PHOTOS_PER_TYPE}장까지 업로드할 수 있습니다. "
+                   f"현재 {len(existing_photos)}장, 추가 요청 {len(photos)}장"
+        )
+
+    # 파일 업로드 처리
+    try:
+        uploaded_paths = await process_uploaded_files(
+            files=photos,
+            upload_dir=settings.UPLOAD_DIR,
+            entity_type="assignments",
+        )
+    except Exception as e:
+        logger.error(f"Work photo upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"사진 업로드 중 오류가 발생했습니다: {str(e)}")
+
+    # 사진 목록 업데이트
+    new_photos = existing_photos + uploaded_paths
+    now = datetime.now(timezone.utc)
+
+    if photo_type == "before":
+        assignment.work_photos_before = new_photos
+    else:
+        assignment.work_photos_after = new_photos
+
+    if not assignment.work_photos_uploaded_at:
+        assignment.work_photos_uploaded_at = now
+    assignment.work_photos_updated_at = now
+
+    db.commit()
+
+    logger.info(f"Work photos uploaded: assignment={assignment_id}, type={photo_type}, count={len(uploaded_paths)}")
+
+    return WorkPhotoUploadResponse(
+        assignment_id=assignment_id,
+        photo_type=photo_type,
+        photos=new_photos,
+        total_count=len(new_photos),
+        message=f"{len(uploaded_paths)}개 이미지가 업로드되었습니다.",
+    )
+
+
+@router.delete("/{application_id}/assignments/{assignment_id}/work-photos/{photo_type}")
+def delete_work_photo(
+    application_id: int,
+    assignment_id: int,
+    photo_type: str,
+    photo_index: int = Query(..., ge=0, description="삭제할 사진 인덱스"),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    시공 사진 삭제
+
+    - photo_type: "before" 또는 "after"
+    - photo_index: 삭제할 사진의 인덱스 (0부터 시작)
+    """
+    if photo_type not in ["before", "after"]:
+        raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
+
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 기존 사진 목록
+    if photo_type == "before":
+        photos = list(assignment.work_photos_before or [])
+    else:
+        photos = list(assignment.work_photos_after or [])
+
+    if photo_index >= len(photos):
+        raise HTTPException(status_code=404, detail="해당 인덱스의 사진을 찾을 수 없습니다")
+
+    # 사진 삭제
+    deleted_photo = photos.pop(photo_index)
+
+    if photo_type == "before":
+        assignment.work_photos_before = photos
+    else:
+        assignment.work_photos_after = photos
+
+    assignment.work_photos_updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    logger.info(f"Work photo deleted: assignment={assignment_id}, type={photo_type}, index={photo_index}")
+
+    return {
+        "success": True,
+        "message": "사진이 삭제되었습니다",
+        "deleted_photo": deleted_photo,
+        "remaining_count": len(photos),
+    }
+
+
+# =============================================================================
+# 고객 열람 URL 관리 API
+# =============================================================================
+
+
+def generate_customer_view_token(assignment_id: int, expires_in_days: int = 30) -> str:
+    """고객 열람용 토큰 생성"""
+    virtual_path = f"/customer-view/assignment/{assignment_id}"
+    return encode_file_token(
+        file_path=virtual_path,
+        expires_in=expires_in_days * 24 * 60 * 60,
+        entity_type="customer_view",
+        entity_id=assignment_id,
+        requires_auth=False,
+    )
+
+
+def _build_customer_view_url(token: str) -> str:
+    """토큰으로 고객 열람 URL 생성"""
+    base_url = getattr(settings, 'FRONTEND_URL', 'https://jeonbang-homecare.com')
+    base_path = getattr(settings, 'BASE_PATH', '/homecare')
+    return f"{base_url}{base_path}/view/quote/{token}"
+
+
+@router.get("/{application_id}/assignments/{assignment_id}/customer-url", response_model=CustomerUrlResponse)
+def get_customer_url(
+    application_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 열람 URL 조회
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    if not assignment.customer_token:
+        return CustomerUrlResponse(
+            assignment_id=assignment_id,
+            is_valid=False,
+            message="발급된 URL이 없습니다",
+        )
+
+    # 만료 여부 확인
+    now = datetime.now(timezone.utc)
+    is_valid = True
+    message = None
+
+    if assignment.customer_token_expires_at and assignment.customer_token_expires_at < now:
+        is_valid = False
+        message = "URL이 만료되었습니다"
+
+    return CustomerUrlResponse(
+        assignment_id=assignment_id,
+        token=assignment.customer_token,
+        url=_build_customer_view_url(assignment.customer_token),
+        expires_at=assignment.customer_token_expires_at,
+        is_valid=is_valid,
+        message=message,
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/customer-url", response_model=CustomerUrlResponse)
+def create_customer_url(
+    application_id: int,
+    assignment_id: int,
+    data: CustomerUrlCreate = CustomerUrlCreate(),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 열람 URL 발급
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 새 토큰 생성
+    token = generate_customer_view_token(assignment_id, expires_in_days=data.expires_in_days)
+
+    # 토큰에서 만료 시간 추출
+    token_info = decode_file_token_extended(token)
+    expires_at = None
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc)
+
+    # DB에 저장
+    assignment.customer_token = token
+    assignment.customer_token_expires_at = expires_at
+    db.commit()
+
+    logger.info(f"Customer URL created: assignment={assignment_id} by admin={current_admin.id}")
+
+    return CustomerUrlResponse(
+        assignment_id=assignment_id,
+        token=token,
+        url=_build_customer_view_url(token),
+        expires_at=expires_at,
+        is_valid=True,
+        message="URL이 발급되었습니다",
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/customer-url/extend", response_model=CustomerUrlResponse)
+def extend_customer_url(
+    application_id: int,
+    assignment_id: int,
+    data: CustomerUrlCreate,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 열람 URL 연장
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    if not assignment.customer_token:
+        raise HTTPException(status_code=400, detail="발급된 URL이 없습니다. 먼저 URL을 발급해주세요.")
+
+    # 기존 토큰 무효화 및 새 토큰 생성
+    from datetime import timedelta
+    assignment.customer_token_invalidated_before = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    token = generate_customer_view_token(assignment_id, expires_in_days=data.expires_in_days)
+
+    token_info = decode_file_token_extended(token)
+    expires_at = None
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc)
+
+    assignment.customer_token = token
+    assignment.customer_token_expires_at = expires_at
+    db.commit()
+
+    logger.info(f"Customer URL extended: assignment={assignment_id} by admin={current_admin.id}")
+
+    return CustomerUrlResponse(
+        assignment_id=assignment_id,
+        token=token,
+        url=_build_customer_view_url(token),
+        expires_at=expires_at,
+        is_valid=True,
+        message="URL이 연장되었습니다",
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/customer-url/renew", response_model=CustomerUrlResponse)
+def renew_customer_url(
+    application_id: int,
+    assignment_id: int,
+    data: CustomerUrlCreate,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 열람 URL 재발급 (기존 토큰 무효화)
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 기존 토큰 무효화
+    from datetime import timedelta
+    assignment.customer_token_invalidated_before = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    # 새 토큰 생성
+    token = generate_customer_view_token(assignment_id, expires_in_days=data.expires_in_days)
+
+    token_info = decode_file_token_extended(token)
+    expires_at = None
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc)
+
+    assignment.customer_token = token
+    assignment.customer_token_expires_at = expires_at
+    db.commit()
+
+    logger.info(f"Customer URL renewed: assignment={assignment_id} by admin={current_admin.id}")
+
+    return CustomerUrlResponse(
+        assignment_id=assignment_id,
+        token=token,
+        url=_build_customer_view_url(token),
+        expires_at=expires_at,
+        is_valid=True,
+        message="URL이 재발급되었습니다",
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/customer-url/revoke")
+def revoke_customer_url(
+    application_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    고객 열람 URL 만료(취소)
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    assignment.customer_token = None
+    assignment.customer_token_expires_at = None
+    assignment.customer_token_invalidated_before = datetime.now(timezone.utc)
+    db.commit()
+
+    logger.info(f"Customer URL revoked: assignment={assignment_id} by admin={current_admin.id}")
+
+    return {"success": True, "message": "URL이 만료 처리되었습니다"}
