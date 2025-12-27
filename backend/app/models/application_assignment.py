@@ -64,5 +64,8 @@ class ApplicationPartnerAssignment(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     cancelled_at = Column(DateTime(timezone=True), nullable=True)
 
+    # URL 무효화 시점 (이 시간 이전에 발급된 토큰은 무효)
+    url_invalidated_before = Column(DateTime(timezone=True), nullable=True)
+
     def __repr__(self):
         return f"<ApplicationPartnerAssignment app={self.application_id} partner={self.partner_id} status={self.status}>"
