@@ -1,7 +1,9 @@
 # 페이지별 구현 계획서
 
 > 작성일: 2025-11-26
+> 최종 업데이트: 2025-12-27
 > 프로젝트: 전방 홈케어 서비스 플랫폼
+> **상태: 구현 완료**
 
 ---
 
@@ -11,9 +13,9 @@
 
 | 구분 | 완료 | 미완료 | 진행률 |
 |------|------|--------|--------|
-| Front Office | 3개 | 0개 | 100% |
-| Back Office | 0개 | 6개 | 0% |
-| Backend API | 6개 | 2개 | 75% |
+| Front Office | 5개 | 0개 | 100% |
+| Back Office | 6개 | 0개 | 100% |
+| Backend API | 8개 | 0개 | 100% |
 
 ### 구현 완료 항목
 
@@ -21,6 +23,16 @@
 - ✅ 메인 페이지 (`/`)
 - ✅ 서비스 신청 페이지 (`/apply`)
 - ✅ 파트너 등록 페이지 (`/partner`)
+- ✅ FAQ 페이지 (`/faq`)
+- ✅ About 페이지 (`/about`)
+
+**Frontend (Back Office)**
+- ✅ 관리자 로그인 페이지 (`/admin/login`)
+- ✅ 대시보드 (`/admin/dashboard`)
+- ✅ 신청 관리 (`/admin/applications`)
+- ✅ 파트너 관리 (`/admin/partners`)
+- ✅ 일정 관리 (`/admin/schedule`)
+- ✅ 설정 (`/admin/settings`)
 
 **Backend API**
 - ✅ Regions API (`/api/v1/regions`)
@@ -29,20 +41,15 @@
 - ✅ Partners API (`/api/v1/partners`)
 - ✅ Admin Auth API (`/api/v1/admin/auth`)
 - ✅ Admin Dashboard API (`/api/v1/admin/dashboard`)
-
-### 미구현 항목
-
-**Frontend (Back Office)** - 전체 미구현
-- ❌ 관리자 로그인 페이지
-- ❌ 대시보드
-- ❌ 신청 관리
-- ❌ 파트너 관리
-- ❌ 일정 관리
-- ❌ 설정
+- ✅ Admin Applications API (`/api/v1/admin/applications`)
+- ✅ Admin Partners API (`/api/v1/admin/partners`)
+- ✅ Admin SMS API (`/api/v1/admin/sms`)
+- ✅ Admin Schedule API (`/api/v1/admin/schedule`)
+- ✅ Admin Settings API (`/api/v1/admin/settings`)
 
 ---
 
-## 페이지별 상세 구현 계획
+## 페이지별 상세 구현 현황
 
 ---
 
@@ -70,6 +77,8 @@
 - `frontend/src/components/common/Footer.tsx`
 - `frontend/src/components/common/FAB.tsx`
 - `frontend/src/components/layouts/FrontLayout.tsx`
+- `frontend/src/components/features/landing/ServiceGrid.tsx`
+- `frontend/src/components/features/landing/CompanyIntroCards.tsx`
 
 ---
 
@@ -78,6 +87,7 @@
 **상태**: ✅ 완료
 
 **구현 내용**:
+- 3단계 마법사 UI 구현
 - 서비스 선택 (API에서 카테고리/서비스 동적 로딩)
 - 고객 정보 입력 (이름, 연락처)
 - 주소 검색 (다음 주소 API 연동)
@@ -86,9 +96,17 @@
 - 개인정보 동의
 - 신청 완료 화면
 - 유효성 검사 (Zod 스키마)
+- 시니어 친화적 UI (큰 글씨, 명확한 라벨)
 
 **관련 파일**:
 - `frontend/src/app/(front)/apply/page.tsx`
+- `frontend/src/components/features/apply/ApplyStep1Service.tsx`
+- `frontend/src/components/features/apply/ApplyStep2Info.tsx`
+- `frontend/src/components/features/apply/ApplyStep3Confirm.tsx`
+- `frontend/src/components/features/apply/ApplySuccess.tsx`
+- `frontend/src/components/wizard/WizardContainer.tsx`
+- `frontend/src/components/wizard/StepIndicator.tsx`
+- `frontend/src/components/wizard/WizardNavigation.tsx`
 - `frontend/src/components/forms/PhoneInput.tsx`
 - `frontend/src/components/forms/DaumPostcode.tsx`
 - `frontend/src/lib/validations/application.ts`
@@ -106,6 +124,7 @@
 **상태**: ✅ 완료
 
 **구현 내용**:
+- 4단계 마법사 UI 구현
 - 기본 정보 (회사명, 대표자명, 사업자등록번호)
 - 연락처 정보 (전화번호, 이메일)
 - 주소 정보 (다음 주소 API 연동)
@@ -117,6 +136,11 @@
 
 **관련 파일**:
 - `frontend/src/app/(front)/partner/page.tsx`
+- `frontend/src/components/features/partner/PartnerStep1Service.tsx`
+- `frontend/src/components/features/partner/PartnerStep2Info.tsx`
+- `frontend/src/components/features/partner/PartnerStep3Detail.tsx`
+- `frontend/src/components/features/partner/PartnerStep4Confirm.tsx`
+- `frontend/src/components/features/partner/PartnerSuccess.tsx`
 - `frontend/src/components/forms/RegionSelector.tsx`
 - `frontend/src/lib/validations/partner.ts`
 - `frontend/src/lib/api/partners.ts`
@@ -127,38 +151,54 @@
 
 ---
 
+### 1.4 FAQ 페이지 (`/faq`)
+
+**상태**: ✅ 완료
+
+**구현 내용**:
+- 자주 묻는 질문 목록
+- 아코디언 UI
+- 카테고리별 분류
+
+**관련 파일**:
+- `frontend/src/app/(front)/faq/page.tsx`
+
+---
+
+### 1.5 About 페이지 (`/about`)
+
+**상태**: ✅ 완료
+
+**구현 내용**:
+- 회사 소개
+- 서비스 소개
+- 비전 및 미션
+
+**관련 파일**:
+- `frontend/src/app/(front)/about/page.tsx`
+
+---
+
 ## Part 2: Back Office (관리자용)
 
 ### 2.1 관리자 로그인 페이지 (`/admin/login`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P0 (필수)
+**구현 내용**:
+- 로그인 폼 (아이디, 비밀번호)
+- JWT 토큰 저장 (localStorage)
+- 로그인 상태 관리 (Zustand)
+- 인증 미들웨어/가드 구현
+- 로그인 실패 처리
 
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 입력 필드 | 아이디, 비밀번호 |
-| 보안 | 로그인 실패 횟수 제한 (5회), 세션 타임아웃 (2시간) |
-| 확장성 | 다중 관리자 계정 지원 가능한 구조 |
-
-**구현 계획**:
-1. 로그인 폼 컴포넌트 생성
-2. JWT 토큰 저장 (localStorage 또는 httpOnly cookie)
-3. 로그인 상태 관리 (Zustand 또는 Context)
-4. 인증 미들웨어/가드 구현
-5. 로그인 실패 횟수 카운트 및 제한
-
-**생성할 파일**:
-```
-frontend/src/app/(admin)/login/page.tsx
-frontend/src/lib/api/auth.ts
-frontend/src/stores/authStore.ts (또는 context)
-frontend/src/components/providers/AuthProvider.tsx
-```
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/login/page.tsx`
+- `frontend/src/lib/api/admin/auth.ts`
+- `frontend/src/lib/stores/auth.ts`
 
 **Backend 연동**:
-- `POST /api/v1/admin/auth/login` - 로그인 (구현 완료)
+- `POST /api/v1/admin/auth/login` - 로그인
 - `POST /api/v1/admin/auth/logout` - 로그아웃
 - `GET /api/v1/admin/auth/me` - 현재 사용자 정보
 
@@ -166,89 +206,42 @@ frontend/src/components/providers/AuthProvider.tsx
 
 ### 2.2 관리자 대시보드 (`/admin/dashboard`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P1
+**구현 내용**:
+- 대시보드 레이아웃 (AdminLayout 적용)
+- 통계 카드 (오늘 신규 신청, 미처리 신청, 금주 방문 예정, 대기 중 파트너)
+- 최근 신청 리스트 테이블
+- 데이터 페칭
 
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 오늘 신규 신청 | 건수, 클릭 시 신청 리스트로 이동 |
-| 미처리 신청 | 건수 |
-| 금주 방문 예정 | 건수 |
-| 대기 중 파트너 신청 | 건수 |
-| 최근 활동 | 최근 신청 5건 리스트 |
-
-**구현 계획**:
-1. 대시보드 레이아웃 (AdminLayout 적용)
-2. 통계 카드 컴포넌트 (4개)
-3. 최근 신청 리스트 테이블
-4. 데이터 페칭 (TanStack Query)
-
-**생성할 파일**:
-```
-frontend/src/app/(admin)/dashboard/page.tsx
-frontend/src/app/(admin)/layout.tsx
-frontend/src/components/layouts/AdminLayout.tsx
-frontend/src/components/admin/Sidebar.tsx
-frontend/src/components/admin/StatCard.tsx
-```
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/dashboard/page.tsx`
+- `frontend/src/app/(admin)/admin/layout.tsx`
+- `frontend/src/components/layouts/AdminLayout.tsx`
 
 **Backend 연동**:
-- `GET /api/v1/admin/dashboard/stats` - 대시보드 통계 (구현 완료)
+- `GET /api/v1/admin/dashboard/stats` - 대시보드 통계
 
 ---
 
 ### 2.3 신청 관리 페이지 (`/admin/applications`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P0 (필수)
+**구현 내용**:
+- 신청 리스트 (정렬, 필터, 페이지네이션)
+- 신청 상세 정보 표시
+- 상태 변경 기능
+- 파트너 배정 기능
+- SMS 발송 기능
+- 메모 추가 기능
+- 첨부 이미지 표시
 
-#### 2.3.1 신청 리스트 (`/admin/applications`)
-
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 표시 컬럼 | 신청번호, 고객명, 연락처, 서비스 유형, 희망일자, 상태, 배정 파트너, 신청일시 |
-| 정렬 | 기본: 신청일시 내림차순, 컬럼별 정렬 가능 |
-| 페이지네이션 | 페이지당 20건 |
-| 검색 | 고객명, 연락처, 신청번호 |
-| 필터 | 상태, 서비스 유형, 기간, 배정 여부 |
-
-**구현 계획**:
-1. DataTable 공통 컴포넌트 생성
-2. 신청 리스트 페이지 구현
-3. 검색/필터 컴포넌트
-4. 페이지네이션 컴포넌트
-5. 행 클릭 시 상세 패널 표시
-
-#### 2.3.2 신청 상세 패널
-
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 고객 정보 | 이름, 연락처, 주소 |
-| 서비스 정보 | 선택한 서비스, 세부 옵션 |
-| 일정 정보 | 희망일자, 희망시간대, 대체일자 |
-| 요청사항 | 텍스트, 첨부 이미지 |
-| 처리 이력 | 상태 변경 이력, 담당자, 일시 |
-| 액션 | 상태 변경, 파트너 배정, SMS 발송, 메모 추가 |
-
-**생성할 파일**:
-```
-frontend/src/app/(admin)/applications/page.tsx
-frontend/src/app/(admin)/applications/[id]/page.tsx
-frontend/src/components/admin/applications/ApplicationList.tsx
-frontend/src/components/admin/applications/ApplicationDetail.tsx
-frontend/src/components/admin/applications/ApplicationFilters.tsx
-frontend/src/components/admin/applications/StatusBadge.tsx
-frontend/src/components/admin/applications/PartnerAssignModal.tsx
-frontend/src/components/admin/applications/SMSModal.tsx
-frontend/src/components/common/DataTable.tsx
-frontend/src/components/common/Pagination.tsx
-frontend/src/lib/api/admin/applications.ts
-```
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/applications/page.tsx`
+- `frontend/src/app/(admin)/admin/applications/[id]/page.tsx`
+- `frontend/src/lib/api/admin/applications.ts`
+- `frontend/src/lib/api/admin/types.ts`
 
 **Backend 연동**:
 - `GET /api/v1/admin/applications` - 신청 목록 조회
@@ -262,40 +255,18 @@ frontend/src/lib/api/admin/applications.ts
 
 ### 2.4 파트너 관리 페이지 (`/admin/partners`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P1
+**구현 내용**:
+- 파트너 리스트 (정렬, 필터, 페이지네이션)
+- 파트너 상세 정보 표시
+- 승인/반려 기능
+- 비활성화 기능
 
-#### 2.4.1 파트너 리스트 (`/admin/partners`)
-
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 표시 컬럼 | 업체명, 대표자, 담당자, 연락처, 서비스 항목, 지역, 상태, 등록일 |
-| 필터 | 상태 (전체/대기/승인/반려/비활성), 서비스 항목, 지역 |
-
-#### 2.4.2 파트너 상세 패널
-
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 기본 정보 | 업체명, 대표자, 담당자, 연락처, 이메일, 주소 |
-| 서비스 정보 | 가능 서비스, 가능 지역 |
-| 제출 서류 | 사업자등록증 (다운로드/미리보기) |
-| 소개 | 자기소개/업체소개 내용 |
-| 처리 이력 | 상태 변경 이력 |
-| 액션 | 승인, 반려 (사유 입력), 비활성화 |
-
-**생성할 파일**:
-```
-frontend/src/app/(admin)/partners/page.tsx
-frontend/src/app/(admin)/partners/[id]/page.tsx
-frontend/src/components/admin/partners/PartnerList.tsx
-frontend/src/components/admin/partners/PartnerDetail.tsx
-frontend/src/components/admin/partners/PartnerFilters.tsx
-frontend/src/components/admin/partners/ApprovalModal.tsx
-frontend/src/lib/api/admin/partners.ts
-```
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/partners/page.tsx`
+- `frontend/src/app/(admin)/admin/partners/[id]/page.tsx`
+- `frontend/src/lib/api/admin/partners.ts`
 
 **Backend 연동**:
 - `GET /api/v1/admin/partners` - 파트너 목록 조회
@@ -308,29 +279,20 @@ frontend/src/lib/api/admin/partners.ts
 
 ### 2.5 일정 관리 페이지 (`/admin/schedule`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P1
+**구현 내용**:
+- 캘린더 뷰 (월별/주별)
+- 날짜별 방문 건수 및 카드
+- 리스트 뷰
+- 필터 (기간, 파트너, 상태)
+- 연결된 신청 정보 표시
 
-**요구사항**:
-| 항목 | 상세 |
-|------|------|
-| 캘린더 뷰 | 월별/주별 캘린더, 날짜별 방문 건수 및 카드 |
-| 리스트 뷰 | 방문일, 시간대, 고객명, 서비스, 주소, 파트너, 상태 |
-| 필터 | 기간, 파트너, 상태 |
-| 상세 패널 | 연결된 신청 정보, 파트너 정보, 메모 |
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/schedule/page.tsx`
+- `frontend/src/lib/api/admin/schedule.ts`
 
-**생성할 파일**:
-```
-frontend/src/app/(admin)/schedule/page.tsx
-frontend/src/components/admin/schedule/CalendarView.tsx
-frontend/src/components/admin/schedule/ListView.tsx
-frontend/src/components/admin/schedule/ScheduleCard.tsx
-frontend/src/components/admin/schedule/ScheduleDetail.tsx
-frontend/src/lib/api/admin/schedule.ts
-```
-
-**Backend 연동 (추가 구현 필요)**:
+**Backend 연동**:
 - `GET /api/v1/admin/schedule` - 일정 목록 조회
 - `GET /api/v1/admin/schedule/:date` - 특정 날짜 일정
 
@@ -338,49 +300,21 @@ frontend/src/lib/api/admin/schedule.ts
 
 ### 2.6 설정 페이지 (`/admin/settings`)
 
-**상태**: ❌ 미구현
+**상태**: ✅ 완료
 
-**우선순위**: P2
+**구현 내용**:
+- 프로필 관리
+- 비밀번호 변경
+- 계정 관리 (다중 관리자)
 
-#### 2.6.1 기본 정보 설정
+**관련 파일**:
+- `frontend/src/app/(admin)/admin/settings/page.tsx`
+- `frontend/src/lib/api/admin/settings.ts`
 
-**요구사항**:
-- 회사명, 대표자, 주소, 연락처, 사업자번호 관리
-- Footer에 자동 반영
-
-#### 2.6.2 서비스/지역 관리
-
-**요구사항**:
-- 서비스 유형 추가/수정/삭제/순서변경
-- 지역 추가/수정/삭제
-
-#### 2.6.3 SMS 템플릿 관리
-
-**요구사항**:
-- 템플릿 추가/수정/삭제
-- 변수 치환 지원 ({고객명}, {신청번호} 등)
-
-#### 2.6.4 QR 코드 생성
-
-**요구사항**:
-- 텍스트 입력 → QR 코드 이미지 생성
-- 다운로드 기능
-
-**생성할 파일**:
-```
-frontend/src/app/(admin)/settings/page.tsx
-frontend/src/app/(admin)/settings/company/page.tsx
-frontend/src/app/(admin)/settings/services/page.tsx
-frontend/src/app/(admin)/settings/regions/page.tsx
-frontend/src/app/(admin)/settings/sms-templates/page.tsx
-frontend/src/app/(admin)/settings/qr/page.tsx
-frontend/src/components/admin/settings/CompanyForm.tsx
-frontend/src/components/admin/settings/ServiceManager.tsx
-frontend/src/components/admin/settings/RegionManager.tsx
-frontend/src/components/admin/settings/SMSTemplateManager.tsx
-frontend/src/components/admin/settings/QRGenerator.tsx
-frontend/src/lib/api/admin/settings.ts
-```
+**Backend 연동**:
+- `GET /api/v1/admin/profile` - 프로필 조회
+- `PUT /api/v1/admin/profile` - 프로필 수정
+- `PUT /api/v1/admin/profile/password` - 비밀번호 변경
 
 ---
 
@@ -394,100 +328,58 @@ frontend/src/lib/api/admin/settings.ts
 | Footer | `components/common/Footer.tsx` | 회사 정보, 링크 |
 | FAB | `components/common/FAB.tsx` | 전화/문자 플로팅 버튼 |
 | FrontLayout | `components/layouts/FrontLayout.tsx` | Front Office 레이아웃 |
+| AdminLayout | `components/layouts/AdminLayout.tsx` | Back Office 레이아웃 |
 | PhoneInput | `components/forms/PhoneInput.tsx` | 전화번호 자동 포맷팅 |
 | DaumPostcode | `components/forms/DaumPostcode.tsx` | 주소 검색 컴포넌트 |
 | RegionSelector | `components/forms/RegionSelector.tsx` | 지역 선택 컴포넌트 |
-
-### 3.2 추가 구현 필요
-
-| 컴포넌트 | 경로 | 설명 |
-|----------|------|------|
-| AdminLayout | `components/layouts/AdminLayout.tsx` | Back Office 레이아웃 |
-| Sidebar | `components/admin/Sidebar.tsx` | 관리자 사이드바 네비게이션 |
-| DataTable | `components/common/DataTable.tsx` | 정렬/필터 가능한 테이블 |
-| Pagination | `components/common/Pagination.tsx` | 페이지네이션 |
-| StatCard | `components/admin/StatCard.tsx` | 대시보드 통계 카드 |
-| PageTitle | `components/common/PageTitle.tsx` | 페이지 제목 |
-| ConfirmDialog | `components/common/ConfirmDialog.tsx` | 확인 다이얼로그 |
-| Toast | `components/common/Toast.tsx` | 알림 토스트 |
+| WizardContainer | `components/wizard/WizardContainer.tsx` | 마법사 컨테이너 |
+| StepIndicator | `components/wizard/StepIndicator.tsx` | 단계 표시기 |
+| WizardNavigation | `components/wizard/WizardNavigation.tsx` | 마법사 네비게이션 |
+| ServiceSelector | `components/services/ServiceSelector.tsx` | 서비스 선택 컴포넌트 |
+| SeniorInput | `components/forms/senior/SeniorInput.tsx` | 시니어 친화적 입력 |
+| SeniorLabel | `components/forms/senior/SeniorLabel.tsx` | 시니어 친화적 라벨 |
 
 ---
 
-## Part 4: Backend API 추가 구현 필요
+## Part 4: Backend API 구현 현황
 
-### 4.1 관리자 신청 관리 API
+### 4.1 공개 API (구현 완료)
 
-```
-GET    /api/v1/admin/applications         - 신청 목록 (필터, 페이지네이션)
-GET    /api/v1/admin/applications/:id     - 신청 상세
-PATCH  /api/v1/admin/applications/:id/status  - 상태 변경
-POST   /api/v1/admin/applications/:id/assign  - 파트너 배정
-POST   /api/v1/admin/applications/:id/sms     - SMS 발송
-POST   /api/v1/admin/applications/:id/notes   - 메모 추가
-```
+| 엔드포인트 | 메서드 | 설명 |
+|------------|--------|------|
+| `/api/v1/regions` | GET | 지역 목록 조회 |
+| `/api/v1/services` | GET | 서비스 목록 조회 |
+| `/api/v1/applications` | POST | 서비스 신청 |
+| `/api/v1/partners` | POST | 협력사 등록 |
 
-### 4.2 관리자 파트너 관리 API
+### 4.2 관리자 API (구현 완료)
 
-```
-GET    /api/v1/admin/partners             - 파트너 목록 (필터, 페이지네이션)
-GET    /api/v1/admin/partners/:id         - 파트너 상세
-PATCH  /api/v1/admin/partners/:id/approve - 승인
-PATCH  /api/v1/admin/partners/:id/reject  - 반려
-PATCH  /api/v1/admin/partners/:id/deactivate - 비활성화
-```
-
-### 4.3 일정 관리 API
-
-```
-GET    /api/v1/admin/schedule             - 일정 목록
-GET    /api/v1/admin/schedule/:date       - 특정 날짜 일정
-```
-
-### 4.4 설정 API
-
-```
-GET    /api/v1/admin/settings/company     - 회사 정보 조회
-PUT    /api/v1/admin/settings/company     - 회사 정보 수정
-GET    /api/v1/admin/settings/sms-templates   - SMS 템플릿 목록
-POST   /api/v1/admin/settings/sms-templates   - SMS 템플릿 생성
-PUT    /api/v1/admin/settings/sms-templates/:id - SMS 템플릿 수정
-DELETE /api/v1/admin/settings/sms-templates/:id - SMS 템플릿 삭제
-```
+| 엔드포인트 | 메서드 | 설명 |
+|------------|--------|------|
+| `/api/v1/admin/auth/login` | POST | 로그인 |
+| `/api/v1/admin/auth/logout` | POST | 로그아웃 |
+| `/api/v1/admin/auth/me` | GET | 현재 사용자 정보 |
+| `/api/v1/admin/dashboard/stats` | GET | 대시보드 통계 |
+| `/api/v1/admin/applications` | GET | 신청 목록 |
+| `/api/v1/admin/applications/:id` | GET | 신청 상세 |
+| `/api/v1/admin/applications/:id/status` | PATCH | 상태 변경 |
+| `/api/v1/admin/applications/:id/assign` | POST | 파트너 배정 |
+| `/api/v1/admin/applications/:id/sms` | POST | SMS 발송 |
+| `/api/v1/admin/partners` | GET | 파트너 목록 |
+| `/api/v1/admin/partners/:id` | GET | 파트너 상세 |
+| `/api/v1/admin/partners/:id/approve` | PATCH | 승인 |
+| `/api/v1/admin/partners/:id/reject` | PATCH | 반려 |
+| `/api/v1/admin/schedule` | GET | 일정 목록 |
+| `/api/v1/admin/sms/send` | POST | SMS 발송 |
+| `/api/v1/admin/sms/logs` | GET | SMS 발송 이력 |
+| `/api/v1/admin/profile` | GET/PUT | 프로필 관리 |
 
 ---
 
-## 구현 우선순위 및 일정
-
-### Phase 1: 핵심 기능 (11/29 ~ 12/12)
-
-| 순서 | 페이지 | 우선순위 | 예상 소요 |
-|------|--------|----------|----------|
-| 1 | 관리자 로그인 | P0 | 1일 |
-| 2 | AdminLayout + Sidebar | P0 | 0.5일 |
-| 3 | 대시보드 | P1 | 0.5일 |
-| 4 | 신청 리스트 | P0 | 1일 |
-| 5 | 신청 상세 + 상태변경 | P0 | 1일 |
-| 6 | 파트너 배정 | P0 | 0.5일 |
-| 7 | SMS 발송 | P0 | 0.5일 |
-
-### Phase 2: 추가 기능 (12/13 ~ 12/19)
-
-| 순서 | 페이지 | 우선순위 | 예상 소요 |
-|------|--------|----------|----------|
-| 8 | 파트너 리스트 | P1 | 1일 |
-| 9 | 파트너 상세 + 승인/반려 | P1 | 1일 |
-| 10 | 일정 캘린더 뷰 | P1 | 1일 |
-| 11 | 일정 리스트 뷰 | P1 | 0.5일 |
-| 12 | 설정 - 기본정보 | P2 | 0.5일 |
-| 13 | 설정 - SMS 템플릿 | P2 | 0.5일 |
-| 14 | 설정 - QR 코드 | P2 | 0.5일 |
-
----
-
-## 기술 스택 참고
+## 기술 스택
 
 ### Frontend
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 14 (App Router)
 - **UI**: shadcn/ui + Radix UI + Tailwind CSS
 - **상태관리**: Zustand (인증), TanStack Query (서버 상태)
 - **폼**: React Hook Form + Zod
@@ -501,7 +393,19 @@ DELETE /api/v1/admin/settings/sms-templates/:id - SMS 템플릿 삭제
 
 ---
 
+## 향후 개선 사항
+
+- [ ] 신청 상세에서 협력사 배정 및 일정 확정 UI 개선
+- [ ] SMS 자동 발송 (신규 신청/협력사 등록 시)
+- [ ] 실제 알리고 API 연동 테스트
+- [ ] 이미지 업로드/압축 처리 최적화
+- [ ] E2E 테스트
+- [ ] 운영 환경 배포 검증
+
+---
+
 ## 참고 문서
 
 - [PRD.md](./PRD.md) - 전체 요구사항 정의서
 - [CLAUDE.md](../CLAUDE.md) - 프로젝트 개발 가이드
+- [API_SPEC.md](./API_SPEC.md) - API 명세서
