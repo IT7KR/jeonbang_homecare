@@ -4,7 +4,8 @@
 
 확장된 페이로드 형식:
 - 기본: {file_path}|{expires_at}
-- 확장: {file_path}|{expires_at}|{entity_type}|{entity_id}|{requires_auth}
+- 확장 v1: {file_path}|{expires_at}|{entity_type}|{entity_id}|{requires_auth}
+- 확장 v2: {file_path}|{expires_at}|{entity_type}|{entity_id}|{requires_auth}|{created_at}
 """
 
 import base64
@@ -26,6 +27,7 @@ class FileTokenInfo:
     entity_type: Optional[str] = None
     entity_id: Optional[int] = None
     requires_auth: bool = False
+    created_at: Optional[int] = None  # 토큰 생성 시간 (v2 이상)
 
 
 def _get_signing_key() -> bytes:
@@ -53,8 +55,9 @@ def encode_file_token(
     Returns:
         인코딩된 토큰
     """
-    # 만료 시간 계산
-    expires_at = int(time.time()) + expires_in
+    # 현재 시간 및 만료 시간 계산
+    created_at = int(time.time())
+    expires_at = created_at + expires_in
 
     # 페이로드 구성
     payload_parts = [file_path, str(expires_at)]
@@ -64,7 +67,8 @@ def encode_file_token(
         payload_parts.extend([
             entity_type,
             str(entity_id),
-            "1" if requires_auth else "0"
+            "1" if requires_auth else "0",
+            str(created_at),  # v2: 생성 시간 추가
         ])
 
     payload = "|".join(payload_parts)
@@ -147,11 +151,15 @@ def decode_file_token_extended(token: str) -> FileTokenInfo | str:
         entity_type = None
         entity_id = None
         requires_auth = False
+        created_at = None
 
         if len(parts) >= 5:
             entity_type = parts[2]
             entity_id = int(parts[3])
             requires_auth = parts[4] == "1"
+            # v2: created_at 파싱
+            if len(parts) >= 6:
+                created_at = int(parts[5])
 
         return FileTokenInfo(
             file_path=file_path,
@@ -159,6 +167,7 @@ def decode_file_token_extended(token: str) -> FileTokenInfo | str:
             entity_type=entity_type,
             entity_id=entity_id,
             requires_auth=requires_auth,
+            created_at=created_at,
         )
 
     except Exception as e:
