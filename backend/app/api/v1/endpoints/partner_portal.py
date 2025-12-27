@@ -5,7 +5,6 @@ Partner Portal API endpoints
 인증 없이 토큰 기반으로 신청 정보를 열람할 수 있는 협력사용 엔드포인트
 """
 
-import hashlib
 import logging
 import os
 import re
@@ -22,7 +21,6 @@ from app.core.config import settings
 from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
-from app.models.revoked_token import RevokedToken
 from app.schemas.partner_portal import (
     PartnerViewResponse,
     PartnerViewPhoto,
@@ -135,36 +133,6 @@ def validate_partner_view_token(token: str) -> Optional[int]:
     return result.entity_id
 
 
-def hash_token(token: str) -> str:
-    """
-    토큰을 SHA256으로 해시
-
-    Args:
-        token: 토큰 문자열
-
-    Returns:
-        해시된 토큰 (64자리 hex)
-    """
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def is_token_revoked(db: Session, token: str) -> bool:
-    """
-    토큰이 블랙리스트에 있는지 확인
-
-    Args:
-        db: 데이터베이스 세션
-        token: 토큰 문자열
-
-    Returns:
-        블랙리스트에 있으면 True
-    """
-    token_hash = hash_token(token)
-    return db.query(RevokedToken).filter(
-        RevokedToken.token_hash == token_hash
-    ).first() is not None
-
-
 @router.get("/view/{token}", response_model=PartnerViewResponse)
 async def view_assignment(
     token: str,
@@ -179,28 +147,13 @@ async def view_assignment(
 
     - **token**: 배정 열람 토큰 (SMS로 전달됨)
     """
-    # 블랙리스트 확인 (먼저 체크)
-    if is_token_revoked(db, token):
+    # 토큰 검증
+    assignment_id = validate_partner_view_token(token)
+    if assignment_id is None:
         raise HTTPException(
             status_code=404,
             detail="유효하지 않거나 만료된 링크입니다."
         )
-
-    # 토큰 검증 및 정보 추출
-    token_result = decode_file_token_extended(token)
-    if isinstance(token_result, str):
-        raise HTTPException(
-            status_code=404,
-            detail="유효하지 않거나 만료된 링크입니다."
-        )
-
-    # assignment_id 추출
-    if token_result.entity_type != "assignment" or token_result.entity_id is None:
-        raise HTTPException(
-            status_code=404,
-            detail="유효하지 않거나 만료된 링크입니다."
-        )
-    assignment_id = token_result.entity_id
 
     # 배정 정보 조회
     assignment = db.query(ApplicationPartnerAssignment).filter(
@@ -212,27 +165,6 @@ async def view_assignment(
             status_code=404,
             detail="배정 정보를 찾을 수 없습니다."
         )
-
-    # URL 무효화 시점 확인
-    # url_invalidated_before가 설정되어 있으면, 해당 시점 이전에 발급된 토큰은 무효
-    if assignment.url_invalidated_before:
-        invalidation_timestamp = assignment.url_invalidated_before.timestamp()
-
-        # 토큰에 created_at이 있으면 정확히 비교 (v2 토큰)
-        if token_result.created_at is not None:
-            if token_result.created_at < invalidation_timestamp:
-                raise HTTPException(
-                    status_code=404,
-                    detail="유효하지 않거나 만료된 링크입니다."
-                )
-        else:
-            # v1 토큰 (created_at 없음): 만료 시간이 무효화 시점 이전이면 무효
-            # 이미 무효화된 시점보다 먼저 만료되는 토큰은 확실히 이전에 발급된 것
-            if token_result.expires_at <= invalidation_timestamp:
-                raise HTTPException(
-                    status_code=404,
-                    detail="유효하지 않거나 만료된 링크입니다."
-                )
 
     # 신청 정보 조회
     application = db.query(Application).filter(
