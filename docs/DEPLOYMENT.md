@@ -1,5 +1,7 @@
 # 배포 가이드
 
+> 최종 검토: 2025-12-27
+
 ## Quick Start (Docker Compose)
 
 ### 개발 환경 실행
