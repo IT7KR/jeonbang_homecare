@@ -76,6 +76,7 @@ import {
   type AuditItem,
 } from "@/components/admin";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
+import { QuoteItemTable } from "@/components/features/admin/quotes";
 
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
 const FILE_BASE_URL = (
@@ -229,6 +230,8 @@ export default function ApplicationDetailPage() {
     scheduled_date: Date | undefined;
     scheduled_time: string;
     estimated_cost: number | "";
+    final_cost: number | "";
+    estimate_note: string;
     note: string;
     send_sms: boolean;
   }>({
@@ -237,6 +240,8 @@ export default function ApplicationDetailPage() {
     scheduled_date: undefined,
     scheduled_time: "",
     estimated_cost: "",
+    final_cost: "",
+    estimate_note: "",
     note: "",
     send_sms: true,
   });
@@ -244,6 +249,10 @@ export default function ApplicationDetailPage() {
   // 협력사 선택 드롭다운 상태
   const [isPartnerDropdownOpen, setIsPartnerDropdownOpen] = useState(false);
   const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
+
+  // 견적 상세 모달 상태
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [quoteAssignmentId, setQuoteAssignmentId] = useState<number | null>(null);
 
   // Form state
   const [status, setStatus] = useState("");
@@ -569,6 +578,8 @@ export default function ApplicationDetailPage() {
       scheduled_date: undefined,
       scheduled_time: "",
       estimated_cost: "",
+      final_cost: "",
+      estimate_note: "",
       note: "",
       send_sms: true,
     });
@@ -603,7 +614,9 @@ export default function ApplicationDetailPage() {
         : undefined,
       scheduled_time: assignment.scheduled_time || "",
       estimated_cost: assignment.estimated_cost || "",
-      note: "",
+      final_cost: assignment.final_cost || "",
+      estimate_note: assignment.estimate_note || "",
+      note: assignment.note || "",
       send_sms: true,
     });
     setIsAssignmentModalOpen(true);
@@ -638,6 +651,8 @@ export default function ApplicationDetailPage() {
             : undefined,
           scheduled_time: assignmentForm.scheduled_time || undefined,
           estimated_cost: assignmentForm.estimated_cost || undefined,
+          final_cost: assignmentForm.final_cost || undefined,
+          estimate_note: assignmentForm.estimate_note || undefined,
           note: assignmentForm.note || undefined,
           send_sms: assignmentForm.send_sms,
         };
@@ -659,6 +674,7 @@ export default function ApplicationDetailPage() {
             : undefined,
           scheduled_time: assignmentForm.scheduled_time || undefined,
           estimated_cost: assignmentForm.estimated_cost || undefined,
+          estimate_note: assignmentForm.estimate_note || undefined,
           note: assignmentForm.note || undefined,
           send_sms: assignmentForm.send_sms,
         };
@@ -1359,6 +1375,16 @@ export default function ApplicationDetailPage() {
                               )}
                             </div>
                             <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  setQuoteAssignmentId(assignment.id);
+                                  setIsQuoteModalOpen(true);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                title="견적 상세"
+                              >
+                                <FileText size={14} />
+                              </button>
                               <button
                                 onClick={() =>
                                   openEditAssignmentModal(assignment)
@@ -2234,28 +2260,80 @@ export default function ApplicationDetailPage() {
               </div>
 
               {/* 견적 비용 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    견적 비용
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatCurrency(assignmentForm.estimated_cost)}
+                      onChange={(e) =>
+                        setAssignmentForm((prev) => ({
+                          ...prev,
+                          estimated_cost: parseCurrency(e.target.value),
+                        }))
+                      }
+                      placeholder="0"
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                      원
+                    </span>
+                  </div>
+                </div>
+
+                {/* 최종 비용 (수정 시에만 표시) */}
+                {editingAssignment && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      최종 비용
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatCurrency(assignmentForm.final_cost)}
+                        onChange={(e) =>
+                          setAssignmentForm((prev) => ({
+                            ...prev,
+                            final_cost: parseCurrency(e.target.value),
+                          }))
+                        }
+                        placeholder="0"
+                        className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                        원
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 견적 메모 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  견적 비용
+                  견적 메모
                 </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={formatCurrency(assignmentForm.estimated_cost)}
-                    onChange={(e) =>
-                      setAssignmentForm((prev) => ({
-                        ...prev,
-                        estimated_cost: parseCurrency(e.target.value),
-                      }))
-                    }
-                    placeholder="0"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
-                    원
-                  </span>
-                </div>
+                <textarea
+                  value={assignmentForm.estimate_note}
+                  onChange={(e) =>
+                    setAssignmentForm((prev) => ({
+                      ...prev,
+                      estimate_note: e.target.value,
+                    }))
+                  }
+                  placeholder="견적에 대한 설명을 입력하세요 (예: 작업 범위, 추가 비용 안내 등)"
+                  rows={2}
+                  maxLength={1000}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
+                />
+                <p className="text-xs text-gray-400 mt-1 text-right">
+                  {assignmentForm.estimate_note.length}/1000
+                </p>
               </div>
 
               {/* 메모 */}
@@ -2335,6 +2413,57 @@ export default function ApplicationDetailPage() {
                 ) : (
                   "배정 추가"
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 견적 상세 모달 */}
+      {isQuoteModalOpen && quoteAssignmentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            {/* 헤더 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileText size={20} className="text-primary" />
+                견적 상세
+              </h3>
+              <button
+                onClick={() => {
+                  setIsQuoteModalOpen(false);
+                  setQuoteAssignmentId(null);
+                  // 신청 정보 새로고침 (견적 금액이 변경되었을 수 있음)
+                  loadData();
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 본문 */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <QuoteItemTable
+                assignmentId={quoteAssignmentId}
+                onTotalChange={(total) => {
+                  // 견적 금액이 변경되면 로컬 상태도 업데이트
+                  console.log("Quote total changed:", total);
+                }}
+              />
+            </div>
+
+            {/* 푸터 */}
+            <div className="flex justify-end p-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setIsQuoteModalOpen(false);
+                  setQuoteAssignmentId(null);
+                  loadData();
+                }}
+                className="px-6 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-600 transition-colors"
+              >
+                닫기
               </button>
             </div>
           </div>
