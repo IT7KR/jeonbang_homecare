@@ -8,6 +8,7 @@ Quote Items API (Admin)
 """
 
 from typing import Optional
+from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -44,6 +45,25 @@ def get_assignment_or_404(db: Session, assignment_id: int) -> ApplicationPartner
             detail="배정을 찾을 수 없습니다."
         )
     return assignment
+
+
+def update_assignment_estimated_cost(db: Session, assignment_id: int) -> int:
+    """배정의 estimated_cost를 견적 항목 합계로 업데이트"""
+    # 견적 항목 합계 계산
+    items = db.query(QuoteItem).filter(
+        QuoteItem.assignment_id == assignment_id
+    ).all()
+    total_amount = sum(item.amount for item in items)
+
+    # 배정 업데이트
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id
+    ).first()
+    if assignment:
+        assignment.estimated_cost = total_amount
+        db.commit()
+
+    return total_amount
 
 
 @router.get("", response_model=QuoteSummary)
@@ -88,7 +108,7 @@ async def create_quote_item(
     get_assignment_or_404(db, assignment_id)
 
     # 금액 계산
-    amount = int(float(data.quantity) * data.unit_price)
+    amount = data.quantity * data.unit_price
 
     # 항목 생성
     item = QuoteItem(
@@ -104,6 +124,9 @@ async def create_quote_item(
     db.add(item)
     db.commit()
     db.refresh(item)
+
+    # 배정의 estimated_cost 자동 업데이트
+    update_assignment_estimated_cost(db, assignment_id)
 
     return item
 
@@ -123,7 +146,7 @@ async def create_quote_items_bulk(
 
     created_items = []
     for idx, item_data in enumerate(data.items):
-        amount = int(float(item_data.quantity) * item_data.unit_price)
+        amount = item_data.quantity * item_data.unit_price
         item = QuoteItem(
             assignment_id=assignment_id,
             item_name=item_data.item_name,
@@ -141,8 +164,8 @@ async def create_quote_items_bulk(
     for item in created_items:
         db.refresh(item)
 
-    # 합계 계산
-    total_amount = sum(item.amount for item in created_items)
+    # 배정의 estimated_cost 자동 업데이트 및 합계 계산
+    total_amount = update_assignment_estimated_cost(db, assignment_id)
 
     return QuoteSummary(
         assignment_id=assignment_id,
@@ -184,10 +207,13 @@ async def update_quote_item(
         setattr(item, field, value)
 
     # 금액 재계산
-    item.amount = int(float(item.quantity) * item.unit_price)
+    item.amount = item.quantity * item.unit_price
 
     db.commit()
     db.refresh(item)
+
+    # 배정의 estimated_cost 자동 업데이트
+    update_assignment_estimated_cost(db, assignment_id)
 
     return item
 
@@ -220,6 +246,9 @@ async def delete_quote_item(
     db.delete(item)
     db.commit()
 
+    # 배정의 estimated_cost 자동 업데이트
+    update_assignment_estimated_cost(db, assignment_id)
+
 
 @router.delete("/items", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_quote_items(
@@ -237,6 +266,9 @@ async def delete_all_quote_items(
         QuoteItem.assignment_id == assignment_id
     ).delete()
     db.commit()
+
+    # 배정의 estimated_cost 자동 업데이트 (0으로)
+    update_assignment_estimated_cost(db, assignment_id)
 
 
 @router.post("/calculate", response_model=QuoteSummary)
@@ -353,12 +385,13 @@ async def download_quote_pdf(
         quote_number = f"{application.application_number}-Q{assignment_id}" if application else f"Q{assignment_id}"
         filename = get_quote_filename(quote_number)
 
-        # PDF 응답
+        # PDF 응답 (RFC 5987 인코딩으로 한글 파일명 지원)
+        encoded_filename = quote(filename)
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
                 "Content-Type": "application/pdf",
             }
         )
