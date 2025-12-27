@@ -45,6 +45,7 @@ from app.schemas.application_note import (
 )
 from app.services.sms import (
     send_partner_assignment_notification,
+    send_partner_notify_assignment,
     send_schedule_confirmation,
     send_partner_schedule_notification,
     send_application_cancelled_notification,
@@ -52,6 +53,7 @@ from app.services.sms import (
     send_schedule_changed_notification,
     send_assignment_changed_notification,
 )
+from app.api.v1.endpoints.partner_portal import get_partner_view_url
 from app.services.application_status import (
     check_status_transition,
     ASSIGNABLE_STATUSES,
@@ -282,6 +284,7 @@ async def bulk_assign_applications(
         # SMS 발송 (백그라운드)
         if data.send_sms and data.partner_id != prev_partner_id:
             decrypted = decrypt_application(application)
+            # 고객에게 배정 알림
             background_tasks.add_task(
                 send_partner_assignment_notification,
                 decrypted["customer_phone"],
@@ -292,6 +295,17 @@ async def bulk_assign_applications(
                 "",  # scheduled_date (일괄 배정에서는 미정)
                 "",  # scheduled_time
                 "",  # estimated_cost
+            )
+            # 협력사에게 배정 알림
+            background_tasks.add_task(
+                send_partner_notify_assignment,
+                partner_phone,
+                application.application_number,
+                decrypted["customer_name"],
+                decrypted["customer_phone"],
+                decrypted["customer_address"],
+                application.services or [],
+                "",  # scheduled_date (일괄 배정에서는 미정)
             )
 
         results.append(BulkAssignResult(
@@ -355,6 +369,8 @@ def get_assignments_for_application(db: Session, application_id: int) -> list[As
             scheduled_time=assignment.scheduled_time,
             estimated_cost=assignment.estimated_cost,
             final_cost=assignment.final_cost,
+            estimate_note=assignment.estimate_note,
+            note=assignment.note,
         ))
 
     return result
@@ -535,6 +551,7 @@ async def update_application(
                 scheduled_time_str = assignment.scheduled_time if assignment and assignment.scheduled_time else "미정"
                 estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment and assignment.estimated_cost else "협의"
 
+                # 고객에게 배정 알림
                 background_tasks.add_task(
                     send_partner_assignment_notification,
                     customer_phone,
@@ -545,6 +562,17 @@ async def update_application(
                     scheduled_date_str,
                     scheduled_time_str,
                     estimated_cost_str,
+                )
+                # 협력사에게 배정 알림
+                background_tasks.add_task(
+                    send_partner_notify_assignment,
+                    partner_phone,
+                    application.application_number,
+                    customer_name,
+                    customer_phone,
+                    customer_address,
+                    application.services or [],
+                    scheduled_date_str,
                 )
                 logger.info(f"SMS scheduled: partner assignment for {application.application_number}")
 
@@ -827,6 +855,7 @@ def get_application_assignments(
             scheduled_time=assignment.scheduled_time,
             estimated_cost=assignment.estimated_cost,
             final_cost=assignment.final_cost,
+            estimate_note=assignment.estimate_note,
             assigned_by=assignment.assigned_by,
             assigned_at=assignment.assigned_at,
             note=assignment.note,
@@ -895,6 +924,7 @@ async def create_application_assignment(
         scheduled_date=data.scheduled_date,
         scheduled_time=data.scheduled_time,
         estimated_cost=data.estimated_cost,
+        estimate_note=data.estimate_note,
         note=data.note,
         assigned_by=current_admin.id,
     )
@@ -940,6 +970,10 @@ async def create_application_assignment(
         scheduled_time_str = data.scheduled_time if data.scheduled_time else "미정"
         estimated_cost_str = f"{data.estimated_cost:,}원" if data.estimated_cost else "협의"
 
+        # 협력사용 열람 URL 생성
+        _, view_url = get_partner_view_url(assignment.id)
+
+        # 고객에게 배정 알림
         background_tasks.add_task(
             send_partner_assignment_notification,
             decrypted["customer_phone"],
@@ -950,6 +984,18 @@ async def create_application_assignment(
             scheduled_date_str,
             scheduled_time_str,
             estimated_cost_str,
+        )
+        # 협력사에게 배정 알림 (열람 URL 포함)
+        background_tasks.add_task(
+            send_partner_notify_assignment,
+            partner_phone,
+            application.application_number,
+            decrypted["customer_name"],
+            decrypted["customer_phone"],
+            decrypted["address"],
+            application.selected_services or [],
+            scheduled_date_str,
+            view_url,
         )
         logger.info(f"SMS scheduled: assignment created for {application.application_number}")
 
@@ -965,6 +1011,7 @@ async def create_application_assignment(
         scheduled_time=assignment.scheduled_time,
         estimated_cost=assignment.estimated_cost,
         final_cost=assignment.final_cost,
+        estimate_note=assignment.estimate_note,
         assigned_by=assignment.assigned_by,
         assigned_at=assignment.assigned_at,
         note=assignment.note,
@@ -1108,6 +1155,7 @@ async def update_application_assignment(
         scheduled_time=assignment.scheduled_time,
         estimated_cost=assignment.estimated_cost,
         final_cost=assignment.final_cost,
+        estimate_note=assignment.estimate_note,
         assigned_by=assignment.assigned_by,
         assigned_at=assignment.assigned_at,
         note=assignment.note,
