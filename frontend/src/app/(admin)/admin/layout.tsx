@@ -18,6 +18,7 @@ import {
   QrCode,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
+import { setTokenGetter, setAuthErrorHandler } from "@/lib/api/client";
 
 const navigation = [
   { name: "대시보드", href: "/admin", icon: LayoutDashboard },
@@ -36,7 +37,7 @@ export default function AdminLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { accessToken, admin, checkAuth, logout, _hasHydrated } =
+  const { accessToken, admin, checkAuth, logout, getValidToken, _hasHydrated } =
     useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -44,6 +45,15 @@ export default function AdminLayout({
 
   // 로그인 페이지는 인증 체크 제외
   const isLoginPage = pathname === "/admin/login";
+
+  // API 클라이언트에 토큰 getter 및 에러 핸들러 설정
+  useEffect(() => {
+    setTokenGetter(getValidToken);
+    setAuthErrorHandler(() => {
+      logout();
+      router.replace("/admin/login");
+    });
+  }, [getValidToken, logout, router]);
 
   useEffect(() => {
     // Hydration이 완료될 때까지 대기
