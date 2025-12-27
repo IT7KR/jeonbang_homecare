@@ -7,6 +7,7 @@ PK: BIGSERIAL as per CLAUDE.md
 """
 
 from sqlalchemy import Column, BigInteger, Integer, String, Text, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -50,6 +51,9 @@ class SMSLog(Base):
 
     # 템플릿 정보
     template_key = Column(String(50), nullable=True)  # 사용된 템플릿 키
+
+    # MMS 이미지 경로 (최대 3개)
+    mms_images = Column(JSONB, nullable=True, default=None)  # ["/uploads/mms/202512/abc.webp", ...]
 
     # 타임스탬프
     created_at = Column(DateTime(timezone=True), server_default=func.now())

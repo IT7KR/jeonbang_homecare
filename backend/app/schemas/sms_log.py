@@ -20,6 +20,7 @@ class SMSLogListItem(BaseModel):
     status: str
     result_code: Optional[str]
     result_message: Optional[str]
+    mms_images: Optional[list[str]] = None  # MMS 이미지 경로 목록
     created_at: datetime
     sent_at: Optional[datetime]
 
@@ -59,6 +60,45 @@ class SMSSendRequest(BaseModel):
             raise ValueError("메시지를 입력해주세요")
         if len(v) > 2000:
             raise ValueError("메시지는 2000자를 초과할 수 없습니다")
+        return v
+
+
+class MMSSendRequest(BaseModel):
+    """MMS 발송 요청 (이미지 첨부 가능)"""
+
+    receiver_phone: str
+    message: str
+    sms_type: str = "manual"
+    image1: Optional[str] = None  # Base64 인코딩된 이미지
+    image2: Optional[str] = None
+    image3: Optional[str] = None
+
+    @field_validator("receiver_phone")
+    @classmethod
+    def validate_phone(cls, v: str) -> str:
+        import re
+        pattern = re.compile(r"^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$")
+        if not pattern.match(v):
+            raise ValueError("올바른 전화번호 형식이 아닙니다")
+        return v
+
+    @field_validator("message")
+    @classmethod
+    def validate_message(cls, v: str) -> str:
+        if len(v) < 1:
+            raise ValueError("메시지를 입력해주세요")
+        if len(v) > 2000:
+            raise ValueError("메시지는 2000자를 초과할 수 없습니다")
+        return v
+
+    @field_validator("image1", "image2", "image3")
+    @classmethod
+    def validate_image(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        # Base64 데이터 URI 형식 검증 (data:image/jpeg;base64,... 형태)
+        if not v.startswith("data:image/"):
+            raise ValueError("올바른 이미지 형식이 아닙니다")
         return v
 
 
