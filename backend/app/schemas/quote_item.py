@@ -4,9 +4,8 @@ Quote Item schemas
 """
 
 from datetime import datetime
-from decimal import Decimal
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
 
 class QuoteItemBase(BaseModel):
@@ -14,7 +13,7 @@ class QuoteItemBase(BaseModel):
 
     item_name: str = Field(..., min_length=1, max_length=100, description="항목명")
     description: Optional[str] = Field(None, max_length=500, description="설명")
-    quantity: Decimal = Field(default=Decimal("1"), ge=0, description="수량")
+    quantity: int = Field(default=1, ge=1, description="수량 (양의 정수)")
     unit: Optional[str] = Field(None, max_length=20, description="단위 (개, m², 시간, 식)")
     unit_price: int = Field(default=0, ge=0, description="단가 (원)")
 
@@ -24,30 +23,16 @@ class QuoteItemCreate(QuoteItemBase):
 
     sort_order: Optional[int] = Field(default=0, description="정렬 순서")
 
-    @field_validator("quantity", mode="before")
-    @classmethod
-    def validate_quantity(cls, v):
-        if isinstance(v, (int, float)):
-            return Decimal(str(v))
-        return v
-
 
 class QuoteItemUpdate(BaseModel):
     """견적 항목 수정 요청"""
 
     item_name: Optional[str] = Field(None, min_length=1, max_length=100, description="항목명")
     description: Optional[str] = Field(None, max_length=500, description="설명")
-    quantity: Optional[Decimal] = Field(None, ge=0, description="수량")
+    quantity: Optional[int] = Field(None, ge=1, description="수량 (양의 정수)")
     unit: Optional[str] = Field(None, max_length=20, description="단위")
     unit_price: Optional[int] = Field(None, ge=0, description="단가 (원)")
     sort_order: Optional[int] = Field(None, description="정렬 순서")
-
-    @field_validator("quantity", mode="before")
-    @classmethod
-    def validate_quantity(cls, v):
-        if v is not None and isinstance(v, (int, float)):
-            return Decimal(str(v))
-        return v
 
 
 class QuoteItemResponse(BaseModel):
@@ -57,7 +42,7 @@ class QuoteItemResponse(BaseModel):
     assignment_id: int
     item_name: str
     description: Optional[str] = None
-    quantity: Decimal
+    quantity: int
     unit: Optional[str] = None
     unit_price: int
     amount: int

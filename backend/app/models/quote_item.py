@@ -11,7 +11,7 @@ No FK constraints - relationships managed at application level
 - 합계는 assignment.estimated_cost에 반영
 """
 
-from sqlalchemy import Column, BigInteger, String, Text, DateTime, Integer, Numeric
+from sqlalchemy import Column, BigInteger, String, Text, DateTime, Integer
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -32,7 +32,7 @@ class QuoteItem(Base):
     description = Column(Text, nullable=True)  # 설명 (예: "100평 기준")
 
     # 수량 및 단가
-    quantity = Column(Numeric(10, 2), nullable=False, default=1)  # 수량 (소수점 지원)
+    quantity = Column(Integer, nullable=False, default=1)  # 수량 (양의 정수)
     unit = Column(String(20), nullable=True)  # 단위 (예: "개", "m²", "시간", "식")
     unit_price = Column(Integer, nullable=False, default=0)  # 단가 (원)
     amount = Column(Integer, nullable=False, default=0)  # 금액 = 수량 × 단가 (원)
@@ -49,5 +49,5 @@ class QuoteItem(Base):
 
     def calculate_amount(self):
         """수량 × 단가로 금액 계산"""
-        self.amount = int(float(self.quantity) * self.unit_price)
+        self.amount = self.quantity * self.unit_price
         return self.amount
