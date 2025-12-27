@@ -500,6 +500,66 @@ async def send_partner_assignment_notification(
             db.close()
 
 
+async def send_partner_notify_assignment(
+    partner_phone: str,
+    application_number: str,
+    customer_name: str,
+    customer_phone: str,
+    address: str,
+    services: list[str],
+    scheduled_date: str = "",
+    view_url: str = "",
+    db: Optional[Session] = None,
+) -> dict:
+    """
+    협력사 배정 알림 SMS 발송 (협력사에게)
+
+    Args:
+        partner_phone: 협력사 연락처
+        application_number: 신청번호
+        customer_name: 고객명
+        customer_phone: 고객 연락처
+        address: 서비스 주소
+        services: 서비스 코드 리스트
+        scheduled_date: 예정일 (선택)
+        view_url: 신청 상세 열람 URL (협력사 포털)
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
+    """
+    template_key = "partner_notify_assignment"
+
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "application_number": application_number,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "address": address[:30] if address else "",
+            "services": format_services_list(services),
+            "scheduled_date": scheduled_date or "미정",
+            "view_url": view_url,
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(partner_phone, message, "[배정알림]")
+    finally:
+        if close_db:
+            db.close()
+
+
 async def send_schedule_confirmation(
     customer_phone: str,
     application_number: str,
