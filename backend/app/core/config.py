@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # - owner_only: 담당 관리자만 접근 가능 (추후 구현)
     FILE_ACCESS_MODE: str = "public"
 
+    # Frontend URL (for partner portal links)
+    FRONTEND_URL: str = "http://localhost:3500"
+    BASE_PATH: str = ""  # 운영 환경에서 /homecare
+
     # CORS
     CORS_ORIGINS: str = "http://localhost:3500"
 
