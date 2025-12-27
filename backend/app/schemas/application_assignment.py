@@ -16,6 +16,7 @@ class AssignmentCreate(BaseModel):
     scheduled_date: Optional[str] = Field(None, description="예정일 (YYYY-MM-DD)")
     scheduled_time: Optional[str] = Field(None, description="예정 시간 (오전/오후/HH:MM)")
     estimated_cost: Optional[int] = Field(None, ge=0, description="견적 금액")
+    estimate_note: Optional[str] = Field(None, max_length=1000, description="견적 메모")
     note: Optional[str] = Field(None, max_length=500, description="배정 메모")
     send_sms: bool = Field(False, description="SMS 알림 발송 여부")
 
@@ -36,6 +37,7 @@ class AssignmentUpdate(BaseModel):
     scheduled_time: Optional[str] = Field(None, description="예정 시간")
     estimated_cost: Optional[int] = Field(None, ge=0, description="견적 금액")
     final_cost: Optional[int] = Field(None, ge=0, description="최종 금액")
+    estimate_note: Optional[str] = Field(None, max_length=1000, description="견적 메모")
     note: Optional[str] = Field(None, max_length=500, description="배정 메모")
     send_sms: bool = Field(False, description="SMS 알림 발송 여부")
 
@@ -64,6 +66,7 @@ class AssignmentResponse(BaseModel):
     scheduled_time: Optional[str]
     estimated_cost: Optional[int]
     final_cost: Optional[int]
+    estimate_note: Optional[str] = None
     assigned_by: Optional[int]
     assigned_at: Optional[datetime]
     note: Optional[str]

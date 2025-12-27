@@ -49,6 +49,7 @@ class ApplicationPartnerAssignment(Base):
     # 비용 정보 (배정별로 별도 관리)
     estimated_cost = Column(Integer, nullable=True)  # 견적 금액
     final_cost = Column(Integer, nullable=True)  # 최종 금액
+    estimate_note = Column(Text, nullable=True)  # 견적 메모 (견적에 대한 설명)
 
     # 배정자 정보
     assigned_by = Column(BigInteger, nullable=True)  # Admin.id

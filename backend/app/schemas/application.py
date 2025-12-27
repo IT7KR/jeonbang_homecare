@@ -89,6 +89,8 @@ class AssignmentSummary(BaseModel):
     scheduled_time: Optional[str]
     estimated_cost: Optional[int]
     final_cost: Optional[int]
+    estimate_note: Optional[str]
+    note: Optional[str]
 
     model_config = {"from_attributes": True}
 
