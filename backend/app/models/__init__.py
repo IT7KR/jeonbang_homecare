@@ -13,7 +13,6 @@ from app.models.sms_template import SMSTemplate
 from app.models.audit_log import AuditLog
 from app.models.search_index import SearchIndex
 from app.models.quote_item import QuoteItem
-from app.models.revoked_token import RevokedToken
 
 __all__ = [
     "Province",
@@ -33,5 +32,4 @@ __all__ = [
     "AuditLog",
     "SearchIndex",
     "QuoteItem",
-    "RevokedToken",
 ]
