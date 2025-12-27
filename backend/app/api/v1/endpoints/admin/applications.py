@@ -1364,7 +1364,7 @@ def renew_assignment_url(
     """
     배정의 협력사 포털 URL 재발급
 
-    새 토큰 발급 (기존 토큰은 무상태이므로 자동 만료 시간까지 유효)
+    기존 토큰을 무효화하고 새 토큰 발급
     """
     assignment = db.query(ApplicationPartnerAssignment).filter(
         ApplicationPartnerAssignment.id == assignment_id,
@@ -1374,8 +1374,14 @@ def renew_assignment_url(
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
 
+    # 먼저 새 토큰 생성 (created_at 기록됨)
     token = generate_partner_view_token(assignment_id, expires_in_days=data.expires_in_days)
-    _, view_url = get_partner_view_url(assignment_id)
+
+    # 기존 토큰 무효화: 새 토큰 생성 시점 1초 전으로 설정
+    # 이렇게 하면 새 토큰은 유효하고 이전 토큰은 무효화됨
+    from datetime import timedelta
+    assignment.url_invalidated_before = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.commit()
     # 새로 발급된 URL로 교체 (get_partner_view_url은 기본 7일이므로)
     from app.core.config import settings
     base_url = getattr(settings, 'FRONTEND_URL', 'https://jeonbang-homecare.com')
@@ -1409,7 +1415,7 @@ def revoke_assignment_url(
     """
     배정의 협력사 포털 URL 만료(취소)
 
-    현재 활성 토큰을 블랙리스트에 추가
+    모든 기존 토큰을 무효화 (새 토큰을 발급하지 않음)
     """
     assignment = db.query(ApplicationPartnerAssignment).filter(
         ApplicationPartnerAssignment.id == assignment_id,
@@ -1419,26 +1425,11 @@ def revoke_assignment_url(
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
 
-    # 현재 토큰 생성 후 블랙리스트에 추가
-    token = generate_partner_view_token(assignment_id)
-    token_hash = hash_token(token)
+    # 모든 기존 토큰 무효화 (이 시점 이전에 발급된 토큰은 모두 무효)
+    assignment.url_invalidated_before = datetime.now(timezone.utc)
+    db.commit()
 
-    # 이미 블랙리스트에 있는지 확인
-    existing = db.query(RevokedToken).filter(
-        RevokedToken.token_hash == token_hash
-    ).first()
-
-    if not existing:
-        revoked = RevokedToken(
-            token_hash=token_hash,
-            assignment_id=assignment_id,
-            revoked_by=current_admin.id,
-            reason=data.reason or "관리자에 의한 URL 만료",
-        )
-        db.add(revoked)
-        db.commit()
-
-    logger.info(f"URL revoked: assignment={assignment_id} by admin={current_admin.id}")
+    logger.info(f"URL revoked: assignment={assignment_id} by admin={current_admin.id}, reason={data.reason}")
 
     return {"success": True, "message": "URL이 만료 처리되었습니다"}
 
