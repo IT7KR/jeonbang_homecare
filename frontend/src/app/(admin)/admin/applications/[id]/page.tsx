@@ -37,6 +37,9 @@ import {
   Check,
   Search,
   Star,
+  Link2,
+  Copy,
+  RefreshCw,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { useConfirm } from "@/hooks";
@@ -52,6 +55,10 @@ import {
   updateApplicationAssignment,
   deleteApplicationAssignment,
   getCustomerHistory,
+  getAssignmentURL,
+  renewAssignmentURL,
+  revokeAssignmentURL,
+  extendAssignmentURL,
   ApplicationDetail,
   PartnerListItem,
   AuditLog,
@@ -60,6 +67,7 @@ import {
   AssignmentCreate,
   AssignmentUpdate,
   CustomerHistoryResponse,
+  URLInfo,
 } from "@/lib/api/admin";
 import { startOfDay } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -69,6 +77,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { getServiceName } from "@/lib/utils/service";
+import { numberToKoreanCurrency } from "@/lib/utils/formatters";
 import {
   type SummaryCardItem,
   ActivityTimeline,
@@ -77,6 +86,7 @@ import {
 } from "@/components/admin";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 import { QuoteItemTable } from "@/components/features/admin/quotes";
+import { MMSSheet } from "@/components/features/admin/sms";
 
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
 const FILE_BASE_URL = (
@@ -206,6 +216,9 @@ export default function ApplicationDetailPage() {
   const [showStatusHeaderDropdown, setShowStatusHeaderDropdown] =
     useState(false);
 
+  // MMS 발송 시트
+  const [showMMSSheet, setShowMMSSheet] = useState(false);
+
   // 섹션 접기/펼치기
   const [expandedSections, setExpandedSections] = useState({
     service: true,
@@ -254,6 +267,12 @@ export default function ApplicationDetailPage() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [quoteAssignmentId, setQuoteAssignmentId] = useState<number | null>(null);
 
+  // URL 관리 모달 상태
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
+  const [urlAssignmentId, setUrlAssignmentId] = useState<number | null>(null);
+  const [urlInfo, setUrlInfo] = useState<URLInfo | null>(null);
+  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
+
   // Form state
   const [status, setStatus] = useState("");
   const [sendSms, setSendSms] = useState(true);
@@ -268,7 +287,7 @@ export default function ApplicationDetailPage() {
     isMatched: boolean;
   };
 
-  // 서비스 매칭률로 정렬된 협력사 목록
+  // 서비스 매칭률로 정렬된 협력사 목록 (미배정 서비스 기준으로 매칭)
   const sortedPartners = useMemo((): {
     matched: PartnerWithMatch[];
     unmatched: PartnerWithMatch[];
@@ -283,10 +302,21 @@ export default function ApplicationDetailPage() {
       return { matched: emptyPartners, unmatched: [] };
     }
 
-    const appServices = new Set(application.selected_services);
+    // 이미 배정된 서비스 계산
+    const assignedServices = new Set(
+      application.assignments?.flatMap((a) => a.assigned_services) || []
+    );
+
+    // 미배정 서비스만 필터링 (스마트 매칭 대상)
+    const unassignedServicesSet = new Set(
+      application.selected_services.filter((s) => !assignedServices.has(s))
+    );
 
     const partnersWithMatch: PartnerWithMatch[] = partners.map((p) => {
-      const matchedServices = p.service_areas.filter((s) => appServices.has(s));
+      // 미배정 서비스 기준으로 매칭 계산
+      const matchedServices = p.service_areas.filter((s) =>
+        unassignedServicesSet.has(s)
+      );
       return {
         ...p,
         matchCount: matchedServices.length,
@@ -302,7 +332,7 @@ export default function ApplicationDetailPage() {
     const unmatched = partnersWithMatch.filter((p) => !p.isMatched);
 
     return { matched, unmatched };
-  }, [partners, application?.selected_services]);
+  }, [partners, application?.selected_services, application?.assignments]);
 
   // 상태 변경 감지
   const hasStatusChanged = status !== originalStatus;
@@ -311,6 +341,92 @@ export default function ApplicationDetailPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // URL 관리 함수들
+  const loadAssignmentUrl = async (assignmentId: number) => {
+    try {
+      setIsLoadingUrl(true);
+      const token = await getValidToken();
+      if (!token) return;
+
+      const urlData = await getAssignmentURL(token, id, assignmentId);
+      setUrlInfo(urlData);
+    } catch (err) {
+      console.error("Failed to load URL:", err);
+      setUrlInfo(null);
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setSuccessMessage("URL이 클립보드에 복사되었습니다");
+      setTimeout(() => setSuccessMessage(null), 2000);
+    } catch (err) {
+      console.error("Failed to copy:", err);
+    }
+  };
+
+  const handleRenewUrl = async () => {
+    if (!urlAssignmentId) return;
+    try {
+      setIsLoadingUrl(true);
+      const token = await getValidToken();
+      if (!token) return;
+
+      const newUrlInfo = await renewAssignmentURL(token, id, urlAssignmentId, {
+        expires_in_days: 7,
+      });
+      setUrlInfo(newUrlInfo);
+      setSuccessMessage("URL이 재발급되었습니다");
+    } catch (err) {
+      console.error("Failed to renew URL:", err);
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
+  const handleExtendUrl = async () => {
+    if (!urlAssignmentId) return;
+    try {
+      setIsLoadingUrl(true);
+      const token = await getValidToken();
+      if (!token) return;
+
+      const newUrlInfo = await extendAssignmentURL(token, id, urlAssignmentId, {
+        expires_in_days: 7,
+      });
+      setUrlInfo(newUrlInfo);
+      setSuccessMessage("URL이 7일 연장되었습니다");
+    } catch (err) {
+      console.error("Failed to extend URL:", err);
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
+  const handleRevokeUrl = async () => {
+    if (!urlAssignmentId) return;
+    if (!confirm("이 URL을 만료 처리하시겠습니까?")) return;
+
+    try {
+      setIsLoadingUrl(true);
+      const token = await getValidToken();
+      if (!token) return;
+
+      await revokeAssignmentURL(token, id, urlAssignmentId);
+      setIsUrlModalOpen(false);
+      setUrlAssignmentId(null);
+      setUrlInfo(null);
+      setSuccessMessage("URL이 만료 처리되었습니다");
+    } catch (err) {
+      console.error("Failed to revoke URL:", err);
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -997,24 +1113,35 @@ export default function ApplicationDetailPage() {
             </div>
           </div>
 
-          {/* 상태 변경 드롭다운 */}
-          <div className="relative">
+          {/* 헤더 액션 버튼들 */}
+          <div className="flex items-center gap-2">
+            {/* 문자 발송 버튼 */}
             <button
-              onClick={() =>
-                setShowStatusHeaderDropdown(!showStatusHeaderDropdown)
-              }
-              disabled={isSaving}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border ${statusInfo.color} hover:opacity-80 transition-opacity`}
+              onClick={() => setShowMMSSheet(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              {isSaving ? (
-                <Loader2 className="animate-spin" size={14} />
-              ) : (
-                <>
-                  {statusInfo.label}
-                  <ChevronDown size={14} />
-                </>
-              )}
+              <MessageSquare size={14} />
+              문자 발송
             </button>
+
+            {/* 상태 변경 드롭다운 */}
+            <div className="relative">
+              <button
+                onClick={() =>
+                  setShowStatusHeaderDropdown(!showStatusHeaderDropdown)
+                }
+                disabled={isSaving}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border ${statusInfo.color} hover:opacity-80 transition-opacity`}
+              >
+                {isSaving ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <>
+                    {statusInfo.label}
+                    <ChevronDown size={14} />
+                  </>
+                )}
+              </button>
 
             {showStatusHeaderDropdown && (
               <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
@@ -1038,6 +1165,7 @@ export default function ApplicationDetailPage() {
                 )}
               </div>
             )}
+            </div>
           </div>
         </div>
 
@@ -1374,25 +1502,36 @@ export default function ApplicationDetailPage() {
                                 </a>
                               )}
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => {
                                   setQuoteAssignmentId(assignment.id);
                                   setIsQuoteModalOpen(true);
                                 }}
-                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                title="견적 상세"
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors border border-gray-200 hover:border-green-200"
                               >
-                                <FileText size={14} />
+                                <FileText size={12} />
+                                <span>견적</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setUrlAssignmentId(assignment.id);
+                                  loadAssignmentUrl(assignment.id);
+                                  setIsUrlModalOpen(true);
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 hover:border-blue-200"
+                              >
+                                <Link2 size={12} />
+                                <span>URL</span>
                               </button>
                               <button
                                 onClick={() =>
                                   openEditAssignmentModal(assignment)
                                 }
-                                className="p-1.5 text-gray-400 hover:text-primary hover:bg-primary-50 rounded-lg transition-colors"
-                                title="수정"
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-primary hover:bg-primary-50 rounded-lg transition-colors border border-gray-200 hover:border-primary-200"
                               >
-                                <Pencil size={14} />
+                                <Pencil size={12} />
+                                <span>수정</span>
                               </button>
                               <button
                                 onClick={() =>
@@ -1401,14 +1540,14 @@ export default function ApplicationDetailPage() {
                                 disabled={
                                   isDeletingAssignment === assignment.id
                                 }
-                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="삭제"
+                                className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200 hover:border-red-200 disabled:opacity-50"
                               >
                                 {isDeletingAssignment === assignment.id ? (
-                                  <Loader2 size={14} className="animate-spin" />
+                                  <Loader2 size={12} className="animate-spin" />
                                 ) : (
-                                  <Trash2 size={14} />
+                                  <Trash2 size={12} />
                                 )}
+                                <span>삭제</span>
                               </button>
                             </div>
                           </div>
@@ -2283,6 +2422,12 @@ export default function ApplicationDetailPage() {
                       원
                     </span>
                   </div>
+                  {assignmentForm.estimated_cost !== "" &&
+                    assignmentForm.estimated_cost > 0 && (
+                      <p className="text-xs text-blue-600 mt-1">
+                        {numberToKoreanCurrency(assignmentForm.estimated_cost)}
+                      </p>
+                    )}
                 </div>
 
                 {/* 최종 비용 (수정 시에만 표시) */}
@@ -2309,6 +2454,12 @@ export default function ApplicationDetailPage() {
                         원
                       </span>
                     </div>
+                    {assignmentForm.final_cost !== "" &&
+                      assignmentForm.final_cost > 0 && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          {numberToKoreanCurrency(assignmentForm.final_cost)}
+                        </p>
+                      )}
                   </div>
                 )}
               </div>
@@ -2433,8 +2584,6 @@ export default function ApplicationDetailPage() {
                 onClick={() => {
                   setIsQuoteModalOpen(false);
                   setQuoteAssignmentId(null);
-                  // 신청 정보 새로고침 (견적 금액이 변경되었을 수 있음)
-                  loadData();
                 }}
                 className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
@@ -2447,8 +2596,20 @@ export default function ApplicationDetailPage() {
               <QuoteItemTable
                 assignmentId={quoteAssignmentId}
                 onTotalChange={(total) => {
-                  // 견적 금액이 변경되면 로컬 상태도 업데이트
-                  console.log("Quote total changed:", total);
+                  // 견적 금액이 변경되면 로컬 상태만 업데이트 (전체 새로고침 불필요)
+                  if (quoteAssignmentId && application?.assignments) {
+                    setApplication((prev) => {
+                      if (!prev || !prev.assignments) return prev;
+                      return {
+                        ...prev,
+                        assignments: prev.assignments.map((a) =>
+                          a.id === quoteAssignmentId
+                            ? { ...a, estimated_cost: total }
+                            : a
+                        ),
+                      };
+                    });
+                  }
                 }}
               />
             </div>
@@ -2459,7 +2620,6 @@ export default function ApplicationDetailPage() {
                 onClick={() => {
                   setIsQuoteModalOpen(false);
                   setQuoteAssignmentId(null);
-                  loadData();
                 }}
                 className="px-6 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-600 transition-colors"
               >
@@ -2468,6 +2628,130 @@ export default function ApplicationDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* URL 관리 모달 */}
+      {isUrlModalOpen && urlAssignmentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-4 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <Link2 size={18} className="text-primary" />
+                협력사 포털 URL 관리
+              </h3>
+              <button
+                onClick={() => {
+                  setIsUrlModalOpen(false);
+                  setUrlAssignmentId(null);
+                  setUrlInfo(null);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {isLoadingUrl ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                </div>
+              ) : urlInfo ? (
+                <>
+                  {/* URL 표시 및 복사 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                      포털 URL
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={urlInfo.view_url}
+                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
+                      />
+                      <button
+                        onClick={() => copyToClipboard(urlInfo.view_url)}
+                        className="p-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
+                        title="URL 복사"
+                      >
+                        <Copy size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 만료 시간 표시 */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Clock size={14} />
+                    <span>
+                      만료: {new Date(urlInfo.expires_at).toLocaleString("ko-KR")}
+                    </span>
+                  </div>
+
+                  {/* 액션 버튼들 */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={handleRenewUrl}
+                      disabled={isLoadingUrl}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} />
+                      재발급
+                    </button>
+                    <button
+                      onClick={handleExtendUrl}
+                      disabled={isLoadingUrl}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      <Clock size={14} />
+                      7일 연장
+                    </button>
+                    <button
+                      onClick={handleRevokeUrl}
+                      disabled={isLoadingUrl}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium disabled:opacity-50"
+                    >
+                      <XCircle size={14} />
+                      만료
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  URL 정보를 불러올 수 없습니다
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end p-4 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setIsUrlModalOpen(false);
+                  setUrlAssignmentId(null);
+                  setUrlInfo(null);
+                }}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MMS 발송 시트 */}
+      {application && (
+        <MMSSheet
+          open={showMMSSheet}
+          onOpenChange={setShowMMSSheet}
+          recipientName={application.customer_name}
+          recipientPhone={application.customer_phone}
+          smsType="application"
+          onComplete={() => {
+            setSuccessMessage("문자가 성공적으로 발송되었습니다");
+            setTimeout(() => setSuccessMessage(null), 3000);
+          }}
+        />
       )}
     </div>
   );

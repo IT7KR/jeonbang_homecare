@@ -221,3 +221,100 @@ export async function getCustomerHistory(
     token
   );
 }
+
+// ==================== URL 관리 API ====================
+
+/**
+ * URL 정보 타입
+ */
+export interface URLInfo {
+  assignment_id: number;
+  token: string;
+  view_url: string;
+  expires_at: string;
+}
+
+/**
+ * URL 갱신 요청 타입
+ */
+export interface URLRenewRequest {
+  expires_in_days?: number;
+}
+
+/**
+ * URL 만료 요청 타입
+ */
+export interface URLRevokeRequest {
+  reason?: string;
+}
+
+/**
+ * 배정의 협력사 포털 URL 조회
+ */
+export async function getAssignmentURL(
+  token: string,
+  applicationId: number,
+  assignmentId: number
+): Promise<URLInfo> {
+  return fetchWithToken<URLInfo>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/url`,
+    token
+  );
+}
+
+/**
+ * 배정의 협력사 포털 URL 재발급
+ */
+export async function renewAssignmentURL(
+  token: string,
+  applicationId: number,
+  assignmentId: number,
+  data: URLRenewRequest = {}
+): Promise<URLInfo> {
+  return fetchWithToken<URLInfo>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/renew-url`,
+    token,
+    {
+      method: "POST",
+      body: data,
+    }
+  );
+}
+
+/**
+ * 배정의 협력사 포털 URL 만료(취소)
+ */
+export async function revokeAssignmentURL(
+  token: string,
+  applicationId: number,
+  assignmentId: number,
+  data: URLRevokeRequest = {}
+): Promise<{ success: boolean; message: string }> {
+  return fetchWithToken<{ success: boolean; message: string }>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/revoke-url`,
+    token,
+    {
+      method: "POST",
+      body: data,
+    }
+  );
+}
+
+/**
+ * 배정의 협력사 포털 URL 연장
+ */
+export async function extendAssignmentURL(
+  token: string,
+  applicationId: number,
+  assignmentId: number,
+  data: URLRenewRequest = {}
+): Promise<URLInfo> {
+  return fetchWithToken<URLInfo>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/extend-url`,
+    token,
+    {
+      method: "POST",
+      body: data,
+    }
+  );
+}
