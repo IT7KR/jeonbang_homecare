@@ -53,7 +53,12 @@ from app.services.sms import (
     send_schedule_changed_notification,
     send_assignment_changed_notification,
 )
-from app.api.v1.endpoints.partner_portal import get_partner_view_url
+from app.api.v1.endpoints.partner_portal import (
+    get_partner_view_url,
+    generate_partner_view_token,
+    hash_token,
+)
+from app.models.revoked_token import RevokedToken
 from app.services.application_status import (
     check_status_transition,
     ASSIGNABLE_STATUSES,
@@ -1288,3 +1293,213 @@ def get_customer_history(
         "total_applications": len(applications_list),
         "applications": applications_list,
     }
+
+
+# ===== URL 관리 API =====
+
+from pydantic import BaseModel, Field
+from app.core.file_token import decode_file_token_extended
+
+
+class URLInfoResponse(BaseModel):
+    """URL 정보 응답"""
+    assignment_id: int
+    token: str
+    view_url: str
+    expires_at: str
+
+
+class URLRenewRequest(BaseModel):
+    """URL 갱신 요청"""
+    expires_in_days: int = Field(default=7, ge=1, le=30)
+
+
+class URLRevokeRequest(BaseModel):
+    """URL 만료 요청"""
+    reason: Optional[str] = Field(None, max_length=255)
+
+
+@router.get("/{application_id}/assignments/{assignment_id}/url", response_model=URLInfoResponse)
+def get_assignment_url(
+    application_id: int,
+    assignment_id: int,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정의 협력사 포털 URL 조회
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    token, view_url = get_partner_view_url(assignment_id)
+
+    # 토큰에서 만료 시간 추출
+    token_info = decode_file_token_extended(token)
+    expires_at = ""
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc).isoformat()
+
+    return URLInfoResponse(
+        assignment_id=assignment_id,
+        token=token,
+        view_url=view_url,
+        expires_at=expires_at,
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/renew-url", response_model=URLInfoResponse)
+def renew_assignment_url(
+    application_id: int,
+    assignment_id: int,
+    data: URLRenewRequest,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정의 협력사 포털 URL 재발급
+
+    새 토큰 발급 (기존 토큰은 무상태이므로 자동 만료 시간까지 유효)
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    token = generate_partner_view_token(assignment_id, expires_in_days=data.expires_in_days)
+    _, view_url = get_partner_view_url(assignment_id)
+    # 새로 발급된 URL로 교체 (get_partner_view_url은 기본 7일이므로)
+    from app.core.config import settings
+    base_url = getattr(settings, 'FRONTEND_URL', 'https://jeonbang-homecare.com')
+    base_path = getattr(settings, 'BASE_PATH', '/homecare')
+    view_url = f"{base_url}{base_path}/view/{token}"
+
+    # 토큰에서 만료 시간 추출
+    token_info = decode_file_token_extended(token)
+    expires_at = ""
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc).isoformat()
+
+    logger.info(f"URL renewed: assignment={assignment_id} by admin={current_admin.id}")
+
+    return URLInfoResponse(
+        assignment_id=assignment_id,
+        token=token,
+        view_url=view_url,
+        expires_at=expires_at,
+    )
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/revoke-url")
+def revoke_assignment_url(
+    application_id: int,
+    assignment_id: int,
+    data: URLRevokeRequest,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정의 협력사 포털 URL 만료(취소)
+
+    현재 활성 토큰을 블랙리스트에 추가
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 현재 토큰 생성 후 블랙리스트에 추가
+    token = generate_partner_view_token(assignment_id)
+    token_hash = hash_token(token)
+
+    # 이미 블랙리스트에 있는지 확인
+    existing = db.query(RevokedToken).filter(
+        RevokedToken.token_hash == token_hash
+    ).first()
+
+    if not existing:
+        revoked = RevokedToken(
+            token_hash=token_hash,
+            assignment_id=assignment_id,
+            revoked_by=current_admin.id,
+            reason=data.reason or "관리자에 의한 URL 만료",
+        )
+        db.add(revoked)
+        db.commit()
+
+    logger.info(f"URL revoked: assignment={assignment_id} by admin={current_admin.id}")
+
+    return {"success": True, "message": "URL이 만료 처리되었습니다"}
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/extend-url", response_model=URLInfoResponse)
+def extend_assignment_url(
+    application_id: int,
+    assignment_id: int,
+    data: URLRenewRequest,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정의 협력사 포털 URL 연장
+
+    기존 토큰을 블랙리스트에 추가하고 새 토큰 발급
+    """
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 기존 토큰 블랙리스트에 추가
+    old_token = generate_partner_view_token(assignment_id, expires_in_days=7)
+    old_token_hash = hash_token(old_token)
+
+    existing = db.query(RevokedToken).filter(
+        RevokedToken.token_hash == old_token_hash
+    ).first()
+
+    if not existing:
+        revoked = RevokedToken(
+            token_hash=old_token_hash,
+            assignment_id=assignment_id,
+            revoked_by=current_admin.id,
+            reason="URL 연장으로 인한 기존 토큰 만료",
+        )
+        db.add(revoked)
+        db.commit()
+
+    # 새 토큰 발급
+    new_token = generate_partner_view_token(assignment_id, expires_in_days=data.expires_in_days)
+    from app.core.config import settings
+    base_url = getattr(settings, 'FRONTEND_URL', 'https://jeonbang-homecare.com')
+    base_path = getattr(settings, 'BASE_PATH', '/homecare')
+    view_url = f"{base_url}{base_path}/view/{new_token}"
+
+    # 토큰에서 만료 시간 추출
+    token_info = decode_file_token_extended(new_token)
+    expires_at = ""
+    if not isinstance(token_info, str):
+        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc).isoformat()
+
+    logger.info(f"URL extended: assignment={assignment_id} by admin={current_admin.id}")
+
+    return URLInfoResponse(
+        assignment_id=assignment_id,
+        token=new_token,
+        view_url=view_url,
+        expires_at=expires_at,
+    )
