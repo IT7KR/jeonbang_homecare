@@ -1,6 +1,6 @@
 # SMS 발송 정책 상세 분석
 
-> 최종 업데이트: 2024-12-24
+> 최종 업데이트: 2025-12-27
 
 ---
 
@@ -21,13 +21,17 @@
 │  ② 협력사 등록 완료    ALIGO_SENDER → 모든 활성 관리자   항상 (자동)        │
 │                                                                             │
 │  ③ 협력사 배정         ALIGO_SENDER → 해당 고객         send_sms=true 시   │
+│                        ALIGO_SENDER → 담당 협력사       send_sms=true 시   │
 │                                                                             │
 │  ④ 일정 확정           ALIGO_SENDER → 해당 고객         send_sms=true 시   │
 │                        ALIGO_SENDER → 담당 협력사       send_sms=true 시   │
 │                                                                             │
-│  ⑤ 수동 발송           ALIGO_SENDER → 지정 수신자       관리자 직접        │
+│  ⑤ 일정 변경           ALIGO_SENDER → 해당 고객         send_sms=true 시   │
+│                        ALIGO_SENDER → 담당 협력사       send_sms=true 시   │
 │                                                                             │
-│  ⑥ 복수 발송           ALIGO_SENDER → 선택한 대상들     관리자 직접        │
+│  ⑥ 수동 발송           ALIGO_SENDER → 지정 수신자       관리자 직접        │
+│                                                                             │
+│  ⑦ 복수 발송           ALIGO_SENDER → 선택한 대상들     관리자 직접        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -58,19 +62,18 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-**메시지 템플릿**:
+**메시지 템플릿** (`admin_new_application`):
 ```
 [전방홈케어] 신규 서비스 신청
 신청번호: {application_number}
 고객연락처: {customer_phone}
-서비스: {services_str}
-희망상담일: {preferred_consultation_date}  ← 선택사항
-희망작업일: {preferred_work_date}          ← 선택사항
+서비스: {services}
+희망일정: {schedule_info}
 관리자 페이지에서 확인해주세요.
 ```
 
 **코드 위치**:
-- API: `backend/app/api/v1/endpoints/applications.py:145-152`
+- API: `backend/app/api/v1/endpoints/applications.py`
 - SMS: `backend/app/services/sms.py:send_application_notification()`
 
 ---
@@ -88,17 +91,17 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-**메시지 템플릿**:
+**메시지 템플릿** (`admin_new_partner`):
 ```
 [전방홈케어] 신규 협력사 등록
 업체명: {company_name}
 연락처: {contact_phone}
-서비스: {services_str}
+서비스분야: {services}
 관리자 페이지에서 확인해주세요.
 ```
 
 **코드 위치**:
-- API: `backend/app/api/v1/endpoints/partners.py:71-76`
+- API: `backend/app/api/v1/endpoints/partners.py`
 - SMS: `backend/app/services/sms.py:send_partner_notification()`
 
 ---
@@ -112,24 +115,37 @@
 ├─────────────────────────────────────────────────────────┤
 │  조건: send_sms=true AND assigned_partner_id 변경       │
 │  발신: ALIGO_SENDER                                     │
-│  수신: 해당 신청의 고객 (customer_phone)                 │
+│  수신①: 해당 신청의 고객 (customer_phone)               │
+│  수신②: 담당 협력사 (contact_phone)                    │
 │  방식: BackgroundTask (비동기)                          │
 │  로그: ✅ SMSLog 기록                                    │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**메시지 템플릿**:
+**고객용 메시지 템플릿** (`partner_assigned`):
 ```
-[전방홈케어] 서비스 배정 안내
-신청번호: {application_number}
-담당 협력사: {partner_name}
+[전방홈케어] {customer_name}님, 담당 협력사({partner_name})가 배정되었습니다.
 연락처: {partner_phone}
-담당 협력사에서 곧 연락드릴 예정입니다.
+예정일: {scheduled_date} {scheduled_time}
+견적: {estimated_cost}
+곧 연락드릴 예정입니다.
+```
+
+**협력사용 메시지 템플릿** (`partner_notify_assignment`):
+```
+[전방홈케어] 새로운 서비스가 배정되었습니다.
+신청번호: {application_number}
+고객: {customer_name}
+연락처: {customer_phone}
+주소: {address}
+서비스: {services}
+예정일: {scheduled_date}
 ```
 
 **코드 위치**:
-- API: `backend/app/api/v1/endpoints/admin/applications.py:149-200`
-- SMS: `backend/app/services/sms.py:send_partner_assignment_notification()`
+- API: `backend/app/api/v1/endpoints/admin/applications.py`
+- SMS 고객: `backend/app/services/sms.py:send_partner_assignment_notification()`
+- SMS 협력사: `backend/app/services/sms.py:send_partner_notify_assignment()`
 
 ---
 
@@ -149,30 +165,56 @@
 └─────────────────────────────────────────────────────────┘
 ```
 
-**고객용 메시지 템플릿**:
+**고객용 메시지 템플릿** (`schedule_confirmed`):
 ```
-[전방홈케어] 일정 확정 안내
+[전방홈케어] {customer_name}님, 서비스 일정이 확정되었습니다.
 신청번호: {application_number}
-방문예정: {scheduled_date} {scheduled_time}
-담당 협력사: {partner_name}  ← 선택사항
-방문 전 연락드리겠습니다.
+일시: {scheduled_date} {scheduled_time}
+담당: {partner_name}
 ```
 
-**협력사용 메시지 템플릿**:
+**협력사용 메시지 템플릿** (`partner_schedule_notify`):
 ```
-[전방홈케어] 작업 일정 안내
-신청번호: {application_number}
+[전방홈케어] 일정이 확정되었습니다.
+일시: {scheduled_date} {scheduled_time}
 고객: {customer_name}
-연락처: {customer_phone}
 주소: {address}
-일정: {scheduled_date} {scheduled_time}
-서비스: {services_str}
 ```
 
 **코드 위치**:
-- API: `backend/app/api/v1/endpoints/admin/applications.py:200-258`
+- API: `backend/app/api/v1/endpoints/admin/applications.py`
 - SMS 고객: `backend/app/services/sms.py:send_schedule_confirmation()`
 - SMS 협력사: `backend/app/services/sms.py:send_partner_schedule_notification()`
+
+---
+
+### 2.5 일정 변경 시 (조건부)
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  트리거: 관리자가 확정된 일정 변경                        │
+│         (scheduled_date 변경)                           │
+├─────────────────────────────────────────────────────────┤
+│  조건: send_sms=true AND 기존 일정 존재                 │
+│  발신: ALIGO_SENDER                                     │
+│  수신①: 해당 신청의 고객 (customer_phone)               │
+│  수신②: 담당 협력사 (contact_phone) - 배정된 경우만    │
+│  방식: BackgroundTask (비동기)                          │
+│  로그: ✅ SMSLog 기록                                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**메시지 템플릿** (`schedule_changed`):
+```
+[전방홈케어] 일정이 변경되었습니다.
+신청번호: {application_number}
+변경 전: {old_date}
+변경 후: {new_date} {new_time}
+```
+
+**코드 위치**:
+- API: `backend/app/api/v1/endpoints/admin/applications.py`
+- SMS: `backend/app/services/sms.py:send_schedule_changed_notification()`
 
 ---
 
@@ -266,9 +308,12 @@ WHERE is_active = true
 |----------|------|--------|----------|------|
 | `application_new` | 신규 신청 알림 | 활성 관리자 전체 | 자동 | ❌ |
 | `partner_new` | 협력사 등록 알림 | 활성 관리자 전체 | 자동 | ❌ |
-| `partner_assigned` | 협력사 배정 알림 | 해당 고객 | 조건부 | ✅ |
+| `partner_assigned` | 협력사 배정 알림 (고객) | 해당 고객 | 조건부 | ✅ |
+| `partner_notify_assignment` | 협력사 배정 알림 (협력사) | 담당 협력사 | 조건부 | ✅ |
 | `schedule_confirmed` | 일정 확정 (고객) | 해당 고객 | 조건부 | ✅ |
 | `partner_schedule` | 일정 안내 (협력사) | 담당 협력사 | 조건부 | ✅ |
+| `schedule_changed` | 일정 변경 알림 | 고객 + 협력사 | 조건부 | ✅ |
+| `assignment_changed` | 배정 정보 변경 | 해당 고객 | 조건부 | ✅ |
 | `manual` | 수동 발송 | 지정 수신자 | 수동 | ✅ |
 | `manual_retry` | 재발송 | 원본 수신자 | 수동 | ✅ |
 | `bulk_announcement` | 공지 발송 | 조건 대상 | 수동 | ✅ |
@@ -388,11 +433,14 @@ WHERE is_active = true
 
 | 기능 | 상태 | 수신자 | 비고 |
 |------|------|--------|------|
-| 신청 시 알림 | ✅ | 활성 관리자 전체 | 로그 미기록 |
-| 협력사 등록 시 알림 | ✅ | 활성 관리자 전체 | 로그 미기록 |
-| 협력사 배정 알림 | ✅ | 해당 고객 | send_sms 체크 필요 |
-| 일정 확정 알림 (고객) | ✅ | 해당 고객 | send_sms 체크 필요 |
-| 일정 확정 알림 (협력사) | ✅ | 담당 협력사 | send_sms 체크 필요 |
+| 신청 시 관리자 알림 | ✅ | 활성 관리자 전체 | 로그 미기록, 템플릿: `admin_new_application` |
+| 협력사 등록 시 관리자 알림 | ✅ | 활성 관리자 전체 | 로그 미기록, 템플릿: `admin_new_partner` |
+| 협력사 배정 알림 (고객) | ✅ | 해당 고객 | send_sms 체크 필요, 템플릿: `partner_assigned` |
+| 협력사 배정 알림 (협력사) | ✅ | 담당 협력사 | send_sms 체크 필요, 템플릿: `partner_notify_assignment` |
+| 일정 확정 알림 (고객) | ✅ | 해당 고객 | send_sms 체크 필요, 템플릿: `schedule_confirmed` |
+| 일정 확정 알림 (협력사) | ✅ | 담당 협력사 | send_sms 체크 필요, 템플릿: `partner_schedule_notify` |
+| 일정 변경 알림 | ✅ | 고객 + 협력사 | send_sms 체크 필요, 템플릿: `schedule_changed` |
+| 배정 정보 변경 알림 | ✅ | 해당 고객 | send_sms 체크 필요, 템플릿: `assignment_changed` |
 | 수동 발송 | ✅ | 지정 수신자 | UI 비활성화 상태 |
 | 복수 발송 | ✅ | 선택/조건 대상 | UI 비활성화 상태 |
 
@@ -404,10 +452,16 @@ WHERE is_active = true
    - 현재: SMSLog 미기록
    - 개선: send_sms_direct() 사용으로 로그 기록
 
-2. **고객/협력사 자동 알림 추가 검토**
-   - 현재: 관리자에게만 알림
-   - 검토: 접수 완료 SMS를 고객에게도 발송 여부
-
-3. **관리자별 알림 설정**
+2. **관리자별 알림 설정**
    - 현재: 모든 활성 관리자에게 발송
    - 검토: 관리자별 알림 수신 여부 설정 추가
+
+---
+
+## 11. 변경 이력
+
+| 날짜 | 변경 내용 |
+|------|----------|
+| 2025-12-27 | 템플릿 키 불일치 수정 (`admin_new_application`, `admin_new_partner`, `schedule_changed` 추가) |
+| 2025-12-27 | 협력사 배정 시 협력사 알림 기능 추가 (`partner_notify_assignment`) |
+| 2025-12-27 | 템플릿 개선: 협력사 연락처, 신청번호, 문의 전화번호(031-797-4004) 추가 |
