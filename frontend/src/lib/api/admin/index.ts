@@ -132,15 +132,16 @@ export {
   deleteApplicationAssignment,
   // Customer History (중복 관리)
   getCustomerHistory,
-  // Assignment URL (협력사 전용 URL)
+  // URL 관리
   getAssignmentURL,
+  generateAssignmentURL,
   renewAssignmentURL,
   revokeAssignmentURL,
   extendAssignmentURL,
 } from "./applications";
 
-// Assignment URL type
-export type { URLInfo } from "./applications";
+// URL Types
+export type { URLInfo, URLRenewRequest, URLRevokeRequest } from "./applications";
 
 // Partners API
 export {
