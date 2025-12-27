@@ -1,347 +1,349 @@
 <!DOCTYPE html>
 <html lang="ko">
-  <head>
-    <meta charset="UTF-8" />
+<head>
+    <meta charset="UTF-8">
     <title>견적서</title>
     <style>
-      @page {
-        size: A4;
-        margin: 20mm;
-      }
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
 
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-      body {
-        font-family: "Noto Sans KR", "Malgun Gothic", sans-serif;
-        font-size: 11pt;
-        line-height: 1.6;
-        color: #333;
-      }
+        body {
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+        }
 
-      .container {
-        max-width: 100%;
-      }
+        .container {
+            max-width: 100%;
+        }
 
-      /* 헤더 */
-      .header {
-        text-align: center;
-        margin-bottom: 30px;
-        padding-bottom: 20px;
-        border-bottom: 3px solid #2ca449;
-      }
+        /* 헤더 */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #2ca449;
+        }
 
-      .header h1 {
-        font-size: 28pt;
-        font-weight: bold;
-        color: #238a3b;
-        margin-bottom: 10px;
-      }
+        .header h1 {
+            font-size: 28pt;
+            font-weight: bold;
+            color: #238a3b;
+            margin-bottom: 10px;
+        }
 
-      .quote-number {
-        font-size: 12pt;
-        color: #666;
-      }
+        .quote-number {
+            font-size: 12pt;
+            color: #666;
+        }
 
-      /* 정보 섹션 */
-      .info-section {
-        display: table;
-        width: 100%;
-        margin-bottom: 25px;
-      }
+        /* 정보 섹션 */
+        .info-section {
+            display: table;
+            width: 100%;
+            margin-bottom: 25px;
+        }
 
-      .info-box {
-        display: table-cell;
-        width: 48%;
-        vertical-align: top;
-        padding: 15px;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-      }
+        .info-box {
+            display: table-cell;
+            width: 48%;
+            vertical-align: top;
+            padding: 15px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
 
-      .info-box:first-child {
-        margin-right: 4%;
-      }
+        .info-box:first-child {
+            margin-right: 4%;
+        }
 
-      .info-box h3 {
-        font-size: 11pt;
-        font-weight: bold;
-        color: #238a3b;
-        margin-bottom: 10px;
-        padding-bottom: 5px;
-        border-bottom: 1px solid #cbd5e1;
-      }
+        .info-box h3 {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #238a3b;
+            margin-bottom: 10px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #cbd5e1;
+        }
 
-      .info-row {
-        display: table;
-        width: 100%;
-        margin-bottom: 5px;
-      }
+        .info-row {
+            display: table;
+            width: 100%;
+            margin-bottom: 5px;
+        }
 
-      .info-label {
-        display: table-cell;
-        width: 80px;
-        font-weight: 500;
-        color: #64748b;
-      }
+        .info-label {
+            display: table-cell;
+            width: 80px;
+            font-weight: 500;
+            color: #64748b;
+        }
 
-      .info-value {
-        display: table-cell;
-        color: #1e293b;
-      }
+        .info-value {
+            display: table-cell;
+            color: #1e293b;
+        }
 
-      /* 견적 테이블 */
-      .quote-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 20px;
-      }
+        /* 견적 테이블 */
+        .quote-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
 
-      .quote-table th {
-        background: #238a3b;
-        color: white;
-        padding: 12px 10px;
-        text-align: center;
-        font-weight: 600;
-        font-size: 10pt;
-      }
+        .quote-table th {
+            background: #238a3b;
+            color: white;
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 10pt;
+        }
 
-      .quote-table th:first-child {
-        border-radius: 8px 0 0 0;
-      }
+        .quote-table th:first-child {
+            border-radius: 8px 0 0 0;
+        }
 
-      .quote-table th:last-child {
-        border-radius: 0 8px 0 0;
-      }
+        .quote-table th:last-child {
+            border-radius: 0 8px 0 0;
+        }
 
-      .quote-table td {
-        padding: 10px;
-        border-bottom: 1px solid #e2e8f0;
-      }
+        .quote-table td {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
 
-      .quote-table tr:nth-child(even) {
-        background: #f8fafc;
-      }
+        .quote-table tr:nth-child(even) {
+            background: #f8fafc;
+        }
 
-      .quote-table .item-name {
-        text-align: left;
-        font-weight: 500;
-      }
+        .quote-table .item-name {
+            text-align: left;
+            font-weight: 500;
+        }
 
-      .quote-table .item-desc {
-        font-size: 9pt;
-        color: #64748b;
-        margin-top: 3px;
-      }
+        .quote-table .item-desc {
+            font-size: 9pt;
+            color: #64748b;
+            margin-top: 3px;
+        }
 
-      .quote-table .text-center {
-        text-align: center;
-      }
+        .quote-table .text-center {
+            text-align: center;
+        }
 
-      .quote-table .text-right {
-        text-align: right;
-      }
+        .quote-table .text-right {
+            text-align: right;
+        }
 
-      .quote-table .total-row {
-        background: #238a3b !important;
-        color: white;
-        font-weight: bold;
-      }
+        .quote-table .total-row {
+            background: #238a3b !important;
+            color: white;
+            font-weight: bold;
+        }
 
-      .quote-table .total-row td {
-        border-bottom: none;
-        padding: 15px 10px;
-      }
+        .quote-table .total-row td {
+            border-bottom: none;
+            padding: 15px 10px;
+        }
 
-      .quote-table .total-row td:first-child {
-        border-radius: 0 0 0 8px;
-      }
+        .quote-table .total-row td:first-child {
+            border-radius: 0 0 0 8px;
+        }
 
-      .quote-table .total-row td:last-child {
-        border-radius: 0 0 8px 0;
-      }
+        .quote-table .total-row td:last-child {
+            border-radius: 0 0 8px 0;
+        }
 
-      .total-amount {
-        font-size: 14pt;
-      }
+        .total-amount {
+            font-size: 14pt;
+        }
 
-      /* 메모 섹션 */
-      .notes-section {
-        margin-top: 30px;
-        padding: 15px;
-        background: #fffbeb;
-        border: 1px solid #fcd34d;
-        border-radius: 8px;
-      }
+        /* 메모 섹션 */
+        .notes-section {
+            margin-top: 30px;
+            padding: 15px;
+            background: #fffbeb;
+            border: 1px solid #fcd34d;
+            border-radius: 8px;
+        }
 
-      .notes-section h3 {
-        font-size: 11pt;
-        font-weight: bold;
-        color: #92400e;
-        margin-bottom: 10px;
-      }
+        .notes-section h3 {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #92400e;
+            margin-bottom: 10px;
+        }
 
-      .notes-section p {
-        font-size: 10pt;
-        color: #78350f;
-        white-space: pre-wrap;
-      }
+        .notes-section p {
+            font-size: 10pt;
+            color: #78350f;
+            white-space: pre-wrap;
+        }
 
-      /* 유효기간 */
-      .validity {
-        margin-top: 20px;
-        text-align: center;
-        font-size: 10pt;
-        color: #64748b;
-      }
+        /* 유효기간 */
+        .validity {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 10pt;
+            color: #64748b;
+        }
 
-      /* 푸터 */
-      .footer {
-        margin-top: 40px;
-        padding-top: 20px;
-        border-top: 1px solid #e2e8f0;
-      }
+        /* 푸터 */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+        }
 
-      .company-info {
-        text-align: center;
-      }
+        .company-info {
+            text-align: center;
+        }
 
-      .company-name {
-        font-size: 14pt;
-        font-weight: bold;
-        color: #238a3b;
-        margin-bottom: 8px;
-      }
+        .company-name {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #238a3b;
+            margin-bottom: 8px;
+        }
 
-      .company-details {
-        font-size: 9pt;
-        color: #64748b;
-        line-height: 1.8;
-      }
+        .company-details {
+            font-size: 9pt;
+            color: #64748b;
+            line-height: 1.8;
+        }
 
-      .stamp {
-        text-align: right;
-        margin-top: 20px;
-      }
+        .stamp {
+            text-align: right;
+            margin-top: 20px;
+        }
 
-      .stamp-box {
-        display: inline-block;
-        width: 100px;
-        height: 100px;
-        border: 2px solid #e2e8f0;
-        border-radius: 50%;
-        text-align: center;
-        line-height: 100px;
-        color: #cbd5e1;
-        font-size: 9pt;
-      }
+        .stamp-box {
+            display: inline-block;
+            width: 100px;
+            height: 100px;
+            border: 2px solid #e2e8f0;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 100px;
+            color: #cbd5e1;
+            font-size: 9pt;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <!-- 헤더 -->
-      <div class="header">
-        <h1>견 적 서</h1>
-        <p class="quote-number">견적번호: {{ quote_number }}</p>
-      </div>
-
-      <!-- 정보 섹션 -->
-      <div class="info-section">
-        <div class="info-box">
-          <h3>고객 정보</h3>
-          <div class="info-row">
-            <span class="info-label">고객명</span>
-            <span class="info-value">{{ customer_name }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">신청번호</span>
-            <span class="info-value">{{ application_number }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">주소</span>
-            <span class="info-value">{{ address }}</span>
-          </div>
+        <!-- 헤더 -->
+        <div class="header">
+            <h1>견 적 서</h1>
+            <p class="quote-number">견적번호: {{ quote_number }}</p>
         </div>
-        <div class="info-box" style="margin-left: 4%">
-          <h3>견적 정보</h3>
-          <div class="info-row">
-            <span class="info-label">견적일</span>
-            <span class="info-value">{{ quote_date }}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">담당업체</span>
-            <span class="info-value">{{ partner_name }}</span>
-          </div>
-          {% if scheduled_date %}
-          <div class="info-row">
-            <span class="info-label">예정일</span>
-            <span class="info-value">{{ scheduled_date }}</span>
-          </div>
-          {% endif %}
+
+        <!-- 정보 섹션 -->
+        <div class="info-section">
+            <div class="info-box">
+                <h3>고객 정보</h3>
+                <div class="info-row">
+                    <span class="info-label">고객명</span>
+                    <span class="info-value">{{ customer_name }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">신청번호</span>
+                    <span class="info-value">{{ application_number }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">주소</span>
+                    <span class="info-value">{{ address }}</span>
+                </div>
+            </div>
+            <div class="info-box" style="margin-left: 4%;">
+                <h3>견적 정보</h3>
+                <div class="info-row">
+                    <span class="info-label">견적일</span>
+                    <span class="info-value">{{ quote_date }}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">담당업체</span>
+                    <span class="info-value">{{ partner_name }}</span>
+                </div>
+                {% if scheduled_date %}
+                <div class="info-row">
+                    <span class="info-label">예정일</span>
+                    <span class="info-value">{{ scheduled_date }}</span>
+                </div>
+                {% endif %}
+            </div>
         </div>
-      </div>
 
-      <!-- 견적 항목 테이블 -->
-      <table class="quote-table">
-        <thead>
-          <tr>
-            <th style="width: 5%">NO</th>
-            <th style="width: 35%">항목</th>
-            <th style="width: 15%">수량</th>
-            <th style="width: 10%">단위</th>
-            <th style="width: 15%">단가</th>
-            <th style="width: 20%">금액</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in items %}
-          <tr>
-            <td class="text-center">{{ loop.index }}</td>
-            <td class="item-name">
-              {{ item.item_name }} {% if item.description %}
-              <div class="item-desc">{{ item.description }}</div>
-              {% endif %}
-            </td>
-            <td class="text-center">{{ item.quantity|int }}</td>
-            <td class="text-center">{{ item.unit or '-' }}</td>
-            <td class="text-right">{{ "{:,}".format(item.unit_price) }}원</td>
-            <td class="text-right">{{ "{:,}".format(item.amount) }}원</td>
-          </tr>
-          {% endfor %}
-          <tr class="total-row">
-            <td colspan="5" class="text-right">합계 금액</td>
-            <td class="text-right total-amount">
-              {{ "{:,}".format(total_amount) }}원
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        <!-- 견적 항목 테이블 -->
+        <table class="quote-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%;">NO</th>
+                    <th style="width: 35%;">항목</th>
+                    <th style="width: 15%;">수량</th>
+                    <th style="width: 10%;">단위</th>
+                    <th style="width: 15%;">단가</th>
+                    <th style="width: 20%;">금액</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                <tr>
+                    <td class="text-center">{{ loop.index }}</td>
+                    <td class="item-name">
+                        {{ item.item_name }}
+                        {% if item.description %}
+                        <div class="item-desc">{{ item.description }}</div>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">{{ item.quantity }}</td>
+                    <td class="text-center">{{ item.unit or '-' }}</td>
+                    <td class="text-right">{{ "{:,}".format(item.unit_price) }}원</td>
+                    <td class="text-right">{{ "{:,}".format(item.amount) }}원</td>
+                </tr>
+                {% endfor %}
+                <tr class="total-row">
+                    <td colspan="5" class="text-right">합계 금액</td>
+                    <td class="text-right total-amount">{{ "{:,}".format(total_amount) }}원</td>
+                </tr>
+            </tbody>
+        </table>
 
-      <!-- 메모 -->
-      {% if estimate_note %}
-      <div class="notes-section">
-        <h3>비고</h3>
-        <p>{{ estimate_note }}</p>
-      </div>
-      {% endif %}
-
-      <!-- 유효기간 -->
-      <p class="validity">* 본 견적서는 발행일로부터 30일간 유효합니다.</p>
-
-      <!-- 푸터 -->
-      <div class="footer">
-        <div class="company-info">
-          <p class="company-name">전방홈케어</p>
-          <p class="company-details">
-            경기도 하남시 검단산로 239, B1층 23호(창우동, 하남시 벤처집적시설) |
-            전화: 031-797-4004<br />
-          </p>
+        <!-- 메모 -->
+        {% if estimate_note %}
+        <div class="notes-section">
+            <h3>비고</h3>
+            <p>{{ estimate_note }}</p>
         </div>
-      </div>
+        {% endif %}
+
+        <!-- 유효기간 -->
+        <p class="validity">* 본 견적서는 발행일로부터 30일간 유효합니다.</p>
+
+        <!-- 푸터 -->
+        <div class="footer">
+            <div class="company-info">
+                <p class="company-name">전방홈케어</p>
+                <p class="company-details">
+                    경기도 양평군 | 전화: 031-797-4004<br>
+                    홈케어 서비스 전문 (제초, 정원관리, 청소, 수리)
+                </p>
+            </div>
+            <div class="stamp">
+                <div class="stamp-box">(인)</div>
+            </div>
+        </div>
     </div>
-  </body>
+</body>
 </html>
