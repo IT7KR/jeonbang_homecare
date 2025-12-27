@@ -519,9 +519,13 @@ async def change_partner_status(
         partner.approved_by = current_admin.id
         partner.approved_at = datetime.now(timezone.utc)
 
-    # 거절 시 거절 사유 기록
-    if new_status == "rejected" and data.reason:
-        partner.rejection_reason = data.reason
+    # 거절 시 거절 사유 기록, 그 외 상태에서는 초기화
+    if new_status == "rejected":
+        if data.reason:
+            partner.rejection_reason = data.reason
+    else:
+        # rejected가 아닌 상태로 변경 시 거절 사유 초기화
+        partner.rejection_reason = None
 
     db.commit()
     db.refresh(partner)
