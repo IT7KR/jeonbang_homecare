@@ -3,7 +3,8 @@
  * 견적 항목 관리 API
  */
 
-import { fetchApi } from "../client";
+import { fetchWithAuth } from "../client";
+import { getToken } from "@/lib/stores/auth";
 import type {
   QuoteItem,
   QuoteItemCreate,
@@ -17,7 +18,7 @@ import type {
  * 견적 항목 목록 조회
  */
 export async function getQuoteItems(assignmentId: number): Promise<QuoteSummary> {
-  return fetchApi<QuoteSummary>(`/admin/assignments/${assignmentId}/quote`);
+  return fetchWithAuth<QuoteSummary>(`/admin/assignments/${assignmentId}/quote`);
 }
 
 /**
@@ -27,9 +28,9 @@ export async function createQuoteItem(
   assignmentId: number,
   data: QuoteItemCreate
 ): Promise<QuoteItem> {
-  return fetchApi<QuoteItem>(`/admin/assignments/${assignmentId}/quote/items`, {
+  return fetchWithAuth<QuoteItem>(`/admin/assignments/${assignmentId}/quote/items`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data,
   });
 }
 
@@ -40,9 +41,9 @@ export async function createQuoteItemsBulk(
   assignmentId: number,
   data: QuoteItemBulkCreate
 ): Promise<QuoteSummary> {
-  return fetchApi<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/items/bulk`, {
+  return fetchWithAuth<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/items/bulk`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data,
   });
 }
 
@@ -54,9 +55,9 @@ export async function updateQuoteItem(
   itemId: number,
   data: QuoteItemUpdate
 ): Promise<QuoteItem> {
-  return fetchApi<QuoteItem>(`/admin/assignments/${assignmentId}/quote/items/${itemId}`, {
+  return fetchWithAuth<QuoteItem>(`/admin/assignments/${assignmentId}/quote/items/${itemId}`, {
     method: "PUT",
-    body: JSON.stringify(data),
+    body: data,
   });
 }
 
@@ -67,7 +68,7 @@ export async function deleteQuoteItem(
   assignmentId: number,
   itemId: number
 ): Promise<void> {
-  await fetchApi<void>(`/admin/assignments/${assignmentId}/quote/items/${itemId}`, {
+  await fetchWithAuth<void>(`/admin/assignments/${assignmentId}/quote/items/${itemId}`, {
     method: "DELETE",
   });
 }
@@ -76,7 +77,7 @@ export async function deleteQuoteItem(
  * 모든 견적 항목 삭제
  */
 export async function deleteAllQuoteItems(assignmentId: number): Promise<void> {
-  await fetchApi<void>(`/admin/assignments/${assignmentId}/quote/items`, {
+  await fetchWithAuth<void>(`/admin/assignments/${assignmentId}/quote/items`, {
     method: "DELETE",
   });
 }
@@ -88,9 +89,9 @@ export async function calculateQuote(
   assignmentId: number,
   data: QuoteCalculateRequest = { update_assignment: true }
 ): Promise<QuoteSummary> {
-  return fetchApi<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/calculate`, {
+  return fetchWithAuth<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/calculate`, {
     method: "POST",
-    body: JSON.stringify(data),
+    body: data,
   });
 }
 
@@ -101,9 +102,9 @@ export async function reorderQuoteItems(
   assignmentId: number,
   itemIds: number[]
 ): Promise<QuoteSummary> {
-  return fetchApi<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/items/reorder`, {
+  return fetchWithAuth<QuoteSummary>(`/admin/assignments/${assignmentId}/quote/items/reorder`, {
     method: "POST",
-    body: JSON.stringify(itemIds),
+    body: itemIds,
   });
 }
 
@@ -112,17 +113,17 @@ export async function reorderQuoteItems(
  */
 export function getQuotePdfUrl(assignmentId: number): string {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-  return `${baseUrl}/api/v1/admin/assignments/${assignmentId}/quote/pdf`;
+  return `${baseUrl}/admin/assignments/${assignmentId}/quote/pdf`;
 }
 
 /**
  * 견적서 PDF 다운로드 (Blob)
  */
 export async function downloadQuotePdf(assignmentId: number): Promise<Blob> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
+  const token = getToken();
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
-  const response = await fetch(`${baseUrl}/api/v1/admin/assignments/${assignmentId}/quote/pdf`, {
+  const response = await fetch(`${baseUrl}/admin/assignments/${assignmentId}/quote/pdf`, {
     method: "GET",
     headers: {
       "Authorization": `Bearer ${token}`,
