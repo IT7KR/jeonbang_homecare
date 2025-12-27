@@ -96,6 +96,13 @@ export type {
   // Similar Partners (중복 관리)
   SimilarPartnerItem,
   SimilarPartnersResponse,
+  // Quote Items (견적 항목)
+  QuoteItem,
+  QuoteItemCreate,
+  QuoteItemUpdate,
+  QuoteSummary,
+  QuoteItemBulkCreate,
+  QuoteCalculateRequest,
 } from "./types";
 
 // Auth API
@@ -185,3 +192,17 @@ export {
 
 // Audit Logs API
 export { getAuditLogs, getEntityAuditLogs } from "./audit-logs";
+
+// Quotes API
+export {
+  getQuoteItems,
+  createQuoteItem,
+  createQuoteItemsBulk,
+  updateQuoteItem,
+  deleteQuoteItem,
+  deleteAllQuoteItems,
+  calculateQuote,
+  reorderQuoteItems,
+  downloadQuotePdf,
+  getQuotePdfUrl,
+} from "./quotes";

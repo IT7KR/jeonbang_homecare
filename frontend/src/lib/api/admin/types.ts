@@ -116,6 +116,8 @@ export interface AssignmentSummary {
   scheduled_time: string | null;
   estimated_cost: number | null;
   final_cost: number | null;
+  estimate_note: string | null;
+  note: string | null;
 }
 
 export interface Assignment {
@@ -128,6 +130,7 @@ export interface Assignment {
   scheduled_time: string | null;
   estimated_cost: number | null;
   final_cost: number | null;
+  estimate_note: string | null;
   assigned_by: number | null;
   assigned_at: string | null;
   note: string | null;
@@ -151,6 +154,7 @@ export interface AssignmentCreate {
   scheduled_date?: string;
   scheduled_time?: string;
   estimated_cost?: number;
+  estimate_note?: string;
   note?: string;
   send_sms?: boolean;
 }
@@ -162,6 +166,7 @@ export interface AssignmentUpdate {
   scheduled_time?: string;
   estimated_cost?: number;
   final_cost?: number;
+  estimate_note?: string;
   note?: string;
   send_sms?: boolean;
 }
@@ -708,4 +713,54 @@ export interface SimilarPartnersResponse {
   company_name: string;
   similar_partners: SimilarPartnerItem[];
   total: number;
+}
+
+
+// ===== Quote Item Types (견적 항목) =====
+
+export interface QuoteItem {
+  id: number;
+  assignment_id: number;
+  item_name: string;
+  description: string | null;
+  quantity: number;
+  unit: string | null;
+  unit_price: number;
+  amount: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuoteItemCreate {
+  item_name: string;
+  description?: string;
+  quantity?: number;
+  unit?: string;
+  unit_price: number;
+  sort_order?: number;
+}
+
+export interface QuoteItemUpdate {
+  item_name?: string;
+  description?: string;
+  quantity?: number;
+  unit?: string;
+  unit_price?: number;
+  sort_order?: number;
+}
+
+export interface QuoteSummary {
+  assignment_id: number;
+  items: QuoteItem[];
+  total_amount: number;
+  item_count: number;
+}
+
+export interface QuoteItemBulkCreate {
+  items: QuoteItemCreate[];
+}
+
+export interface QuoteCalculateRequest {
+  update_assignment?: boolean;
 }
