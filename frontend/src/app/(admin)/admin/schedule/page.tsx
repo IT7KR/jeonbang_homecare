@@ -417,6 +417,8 @@ export default function SchedulePage() {
                         </span>
                         <Link
                           href={`/admin/applications/${schedule.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
                           className="text-primary hover:text-primary-700 p-1 hover:bg-primary-50 rounded-lg transition-colors"
                         >
                           <Eye size={16} />
