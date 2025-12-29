@@ -51,6 +51,17 @@ class ApplicationPartnerAssignment(Base):
     final_cost = Column(Integer, nullable=True)  # 최종 금액
     estimate_note = Column(Text, nullable=True)  # 견적 메모 (견적에 대한 설명)
 
+    # 견적 상태 관리
+    # none: 견적 미작성
+    # draft: 작성 중
+    # sent: 고객에게 발송됨
+    # viewed: 고객이 확인함
+    # confirmed: 고객 동의
+    # rejected: 고객 거절
+    quote_status = Column(String(20), nullable=False, default="none")
+    quote_sent_at = Column(DateTime(timezone=True), nullable=True)  # 견적 발송 시간
+    quote_viewed_at = Column(DateTime(timezone=True), nullable=True)  # 고객 확인 시간
+
     # 배정자 정보
     assigned_by = Column(BigInteger, nullable=True)  # Admin.id
     assigned_at = Column(DateTime(timezone=True), server_default=func.now())

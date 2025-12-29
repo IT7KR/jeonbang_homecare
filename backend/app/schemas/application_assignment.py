@@ -38,6 +38,7 @@ class AssignmentUpdate(BaseModel):
     estimated_cost: Optional[int] = Field(None, ge=0, description="견적 금액")
     final_cost: Optional[int] = Field(None, ge=0, description="최종 금액")
     estimate_note: Optional[str] = Field(None, max_length=1000, description="견적 메모")
+    quote_status: Optional[str] = Field(None, description="견적 상태")
     note: Optional[str] = Field(None, max_length=500, description="배정 메모")
     send_sms: bool = Field(False, description="SMS 알림 발송 여부")
 
@@ -51,6 +52,15 @@ class AssignmentUpdate(BaseModel):
             ]
             if v not in valid_statuses:
                 raise ValueError(f"유효하지 않은 상태: {v}")
+        return v
+
+    @field_validator("quote_status")
+    @classmethod
+    def validate_quote_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            valid_statuses = ["none", "draft", "sent", "viewed", "confirmed", "rejected"]
+            if v not in valid_statuses:
+                raise ValueError(f"유효하지 않은 견적 상태: {v}")
         return v
 
 
@@ -67,6 +77,12 @@ class AssignmentResponse(BaseModel):
     estimated_cost: Optional[int]
     final_cost: Optional[int]
     estimate_note: Optional[str] = None
+
+    # 견적 상태
+    quote_status: str = "none"  # none, draft, sent, viewed, confirmed, rejected
+    quote_sent_at: Optional[datetime] = None
+    quote_viewed_at: Optional[datetime] = None
+
     assigned_by: Optional[int]
     assigned_at: Optional[datetime]
     note: Optional[str]
@@ -150,6 +166,21 @@ class AssignmentListResponse(BaseModel):
 
     items: list[AssignmentResponse]
     total: int
+
+
+class QuoteStatusUpdate(BaseModel):
+    """견적 상태 변경 요청"""
+
+    quote_status: str = Field(..., description="변경할 견적 상태")
+    send_sms: bool = Field(False, description="SMS 발송 여부 (sent 상태로 변경 시)")
+
+    @field_validator("quote_status")
+    @classmethod
+    def validate_quote_status(cls, v: str) -> str:
+        valid_statuses = ["none", "draft", "sent", "viewed", "confirmed", "rejected"]
+        if v not in valid_statuses:
+            raise ValueError(f"유효하지 않은 견적 상태: {v}")
+        return v
 
 
 # AssignmentSummary는 application.py에 정의되어 있음
