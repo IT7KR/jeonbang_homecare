@@ -54,6 +54,25 @@ const TYPE_LABELS: Record<string, string> = {
   bulk_announcement: "복수발송(공지)",
   bulk_status_notify: "복수발송(상태별)",
   bulk_manual_select: "복수발송(선택)",
+  mms_manual: "MMS 수동발송",
+  quote_notification: "견적 알림 발송",
+};
+
+// 발송 출처 (trigger_source) 옵션
+const TRIGGER_SOURCE_OPTIONS: FilterOption[] = [
+  { value: "", label: "전체출처" },
+  { value: "system", label: "시스템" },
+  { value: "manual", label: "직접발송" },
+  { value: "bulk", label: "대량발송" },
+];
+
+const TRIGGER_SOURCE_LABELS: Record<
+  string,
+  { label: string; className: string }
+> = {
+  system: { label: "시스템", className: "bg-blue-100 text-blue-700" },
+  manual: { label: "직접", className: "bg-green-100 text-green-700" },
+  bulk: { label: "대량", className: "bg-purple-100 text-purple-700" },
 };
 
 // Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
@@ -77,6 +96,7 @@ export default function SMSPage() {
   // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [triggerSourceFilter, setTriggerSourceFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
 
@@ -128,6 +148,8 @@ export default function SMSPage() {
         page_size: pageSize,
         status: statusFilter || undefined,
         sms_type: typeFilter || undefined,
+        trigger_source:
+          (triggerSourceFilter as "system" | "manual" | "bulk") || undefined,
         search: searchQuery || undefined,
       });
 
@@ -149,7 +171,7 @@ export default function SMSPage() {
 
   useEffect(() => {
     loadLogs();
-  }, [page, statusFilter, typeFilter, searchQuery]);
+  }, [page, statusFilter, typeFilter, triggerSourceFilter, searchQuery]);
 
   const handleSearch = () => {
     setSearchQuery(searchInput);
@@ -176,7 +198,9 @@ export default function SMSPage() {
         toast.error(result.message || "SMS 재발송에 실패했습니다");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "SMS 재발송에 실패했습니다");
+      toast.error(
+        err instanceof Error ? err.message : "SMS 재발송에 실패했습니다"
+      );
     } finally {
       setRetryingId(null);
     }
@@ -212,19 +236,32 @@ export default function SMSPage() {
     },
     {
       key: "sms_type",
-      header: "유형",
+      header: "유형/출처",
       headerClassName: "hidden sm:table-cell",
-      render: (log) => (
-        <div className="flex items-center gap-1.5">
-          {log.mms_images && log.mms_images.length > 0 && (
-            <ImageIcon size={14} className="text-purple-500" />
-          )}
-          <span className="text-sm text-gray-600">
-            {TYPE_LABELS[log.sms_type] || log.sms_type}
-          </span>
-        </div>
-      ),
-      className: "px-5 py-4 whitespace-nowrap hidden sm:table-cell",
+      render: (log) => {
+        const sourceInfo = TRIGGER_SOURCE_LABELS[log.trigger_source] || {
+          label: log.trigger_source,
+          className: "bg-gray-100 text-gray-700",
+        };
+        return (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              {log.mms_images && log.mms_images.length > 0 && (
+                <ImageIcon size={14} className="text-purple-500" />
+              )}
+              <span className="text-sm text-gray-600">
+                {TYPE_LABELS[log.sms_type] || log.sms_type}
+              </span>
+            </div>
+            <span
+              className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded w-fit ${sourceInfo.className}`}
+            >
+              {sourceInfo.label}
+            </span>
+          </div>
+        );
+      },
+      className: "px-5 py-4 hidden sm:table-cell",
     },
     {
       key: "status",
@@ -337,8 +374,8 @@ export default function SMSPage() {
     </div>
   );
 
-  // 유형 필터
-  const TypeFilter = (
+  // 유형 및 출처 필터
+  const AdditionalFilters = (
     <div className="flex items-center gap-2">
       <select
         value={typeFilter}
@@ -349,6 +386,20 @@ export default function SMSPage() {
         className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
       >
         {TYPE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <select
+        value={triggerSourceFilter}
+        onChange={(e) => {
+          setTriggerSourceFilter(e.target.value);
+          setPage(1);
+        }}
+        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
+      >
+        {TRIGGER_SOURCE_OPTIONS.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
@@ -396,7 +447,7 @@ export default function SMSPage() {
       statusOptions={SMS_STATUS_OPTIONS}
       statusFilter={statusFilter}
       onStatusFilterChange={setStatusFilter}
-      additionalFilters={TypeFilter}
+      additionalFilters={AdditionalFilters}
       searchPlaceholder="수신번호 검색..."
       searchValue={searchInput}
       onSearchChange={setSearchInput}
@@ -473,11 +524,13 @@ export default function SMSPage() {
                     <div>
                       <span className="text-gray-500">발송일시:</span>{" "}
                       <span>
-                        {formatDate(selectedLog.sent_at || selectedLog.created_at)}
+                        {formatDate(
+                          selectedLog.sent_at || selectedLog.created_at
+                        )}
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-sm flex-wrap">
                     <span className="text-gray-500">상태:</span>
                     <span
                       className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(
@@ -488,7 +541,18 @@ export default function SMSPage() {
                     </span>
                     <span className="text-gray-500">유형:</span>
                     <span className="text-gray-700">
-                      {TYPE_LABELS[selectedLog.sms_type] || selectedLog.sms_type}
+                      {TYPE_LABELS[selectedLog.sms_type] ||
+                        selectedLog.sms_type}
+                    </span>
+                    <span className="text-gray-500">출처:</span>
+                    <span
+                      className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                        TRIGGER_SOURCE_LABELS[selectedLog.trigger_source]
+                          ?.className || "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {TRIGGER_SOURCE_LABELS[selectedLog.trigger_source]
+                        ?.label || selectedLog.trigger_source}
                     </span>
                   </div>
                   <div>
@@ -498,33 +562,37 @@ export default function SMSPage() {
                     </div>
                   </div>
                   {/* MMS 이미지 (이미지가 있는 경우만 표시) */}
-                  {selectedLog.mms_images && selectedLog.mms_images.length > 0 && (
-                    <div>
-                      <p className="text-sm text-gray-500 mb-2">첨부 이미지</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {selectedLog.mms_images.map((imgPath, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setFullscreenImage(imgPath)}
-                            className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-primary transition-colors"
-                          >
-                            <Image
-                              src={getImageUrl(imgPath)}
-                              alt={`첨부 이미지 ${idx + 1}`}
-                              fill
-                              className="object-cover"
-                            />
-                          </button>
-                        ))}
+                  {selectedLog.mms_images &&
+                    selectedLog.mms_images.length > 0 && (
+                      <div>
+                        <p className="text-sm text-gray-500 mb-2">
+                          첨부 이미지
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {selectedLog.mms_images.map((imgPath, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setFullscreenImage(imgPath)}
+                              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-primary transition-colors"
+                            >
+                              <Image
+                                src={getImageUrl(imgPath)}
+                                alt={`첨부 이미지 ${idx + 1}`}
+                                fill
+                                className="object-cover"
+                              />
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {selectedLog.result_message && selectedLog.status === "failed" && (
-                    <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
-                      <span className="font-medium">실패 사유:</span>{" "}
-                      {selectedLog.result_message}
-                    </div>
-                  )}
+                    )}
+                  {selectedLog.result_message &&
+                    selectedLog.status === "failed" && (
+                      <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
+                        <span className="font-medium">실패 사유:</span>{" "}
+                        {selectedLog.result_message}
+                      </div>
+                    )}
                 </div>
                 <div className="px-6 py-4 border-t border-gray-100">
                   <button

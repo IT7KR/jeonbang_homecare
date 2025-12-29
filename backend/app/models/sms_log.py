@@ -27,6 +27,12 @@ class SMSLog(Base):
     # 발송 유형
     sms_type = Column(String(50), nullable=False)  # application_new, partner_new, etc.
 
+    # 발송 출처 구분
+    # system: 시스템 자동 발송 (이벤트 트리거)
+    # manual: 관리자 직접 발송
+    # bulk: 대량 발송
+    trigger_source = Column(String(20), nullable=False, default="system", index=True)
+
     # 관련 데이터 참조 (FK 없음)
     reference_type = Column(String(50), nullable=True)  # application, partner
     reference_id = Column(BigInteger, nullable=True)  # 관련 ID

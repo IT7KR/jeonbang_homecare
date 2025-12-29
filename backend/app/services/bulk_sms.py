@@ -147,6 +147,7 @@ class BulkSMSService:
                     receiver=recipient["phone"],
                     message=job.message,
                     sms_type=f"bulk_{job.job_type}",
+                    trigger_source="bulk",
                     reference_type="bulk_job",
                     reference_id=job.id,
                     db=self.db,
