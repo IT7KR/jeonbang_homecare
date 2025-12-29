@@ -331,11 +331,13 @@ export interface SMSLogItem {
   receiver_phone: string;
   message: string;
   sms_type: string;
+  trigger_source: "system" | "manual" | "bulk"; // 발송 출처
   reference_type: string | null;
   reference_id: number | null;
   status: string;
   result_code: string | null;
   result_message: string | null;
+  mms_images: string[] | null;
   created_at: string;
   sent_at: string | null;
 }
@@ -363,6 +365,31 @@ export interface SMSSendRequest {
   sms_type?: string;
 }
 
+export interface MMSSendRequest {
+  receiver_phone: string;
+  message: string;
+  sms_type?: string;
+  image1?: string;
+  image2?: string;
+  image3?: string;
+}
+
+export interface WorkPhotoMMSRequest {
+  receiver_phone: string;
+  message: string;
+  assignment_id: number;
+  selected_photos: string[];
+  sms_type?: string;
+}
+
+export interface ImageFile {
+  id: string;
+  file: File;
+  preview: string;
+  size: number;
+  type: string;
+}
+
 export interface SMSSendResponse {
   success: boolean;
   message: string;
@@ -374,6 +401,7 @@ export interface SMSLogListParams {
   page_size?: number;
   status?: string;
   sms_type?: string;
+  trigger_source?: "system" | "manual" | "bulk";
   search?: string;
 }
 

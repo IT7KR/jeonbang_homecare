@@ -14,23 +14,30 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
+  ImageIcon,
+  Upload,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import { sendMMS } from "@/lib/api/admin/sms";
+import { sendMMS, sendWorkPhotosMMS } from "@/lib/api/admin/sms";
 import { cn } from "@/lib/utils";
 import { ImageUpload, imageFileToBase64 } from "./ImageUpload";
-import type { ImageFile, SMSSendResponse } from "@/lib/api/admin/types";
+import { WorkPhotoSelector } from "./WorkPhotoSelector";
+import { MMSTemplateSelector, type MMSTemplate } from "./MMSTemplateSelector";
+import type { ImageFile, SMSSendResponse, WorkPhotosResponse } from "@/lib/api/admin/types";
 
 interface MMSSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   recipientName: string;
   recipientPhone: string;
-  smsType?: string; // "application" | "partner" | "manual"
+  smsType?: string;
+  assignmentId?: number;
+  workPhotos?: WorkPhotosResponse | null;
   onComplete?: () => void;
 }
 
 type Status = "compose" | "sending" | "success" | "error";
+type ImageSource = "work_photos" | "upload";
 
 // 메시지 프리픽스
 const MESSAGE_PREFIX = "[전방홈케어] ";
@@ -41,15 +48,38 @@ export function MMSSheet({
   recipientName,
   recipientPhone,
   smsType = "manual",
+  assignmentId,
+  workPhotos,
   onComplete,
 }: MMSSheetProps) {
   const { getValidToken } = useAuthStore();
 
   const [status, setStatus] = useState<Status>("compose");
   const [message, setMessage] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<MMSTemplate | null>(null);
   const [images, setImages] = useState<ImageFile[]>([]);
+  const [selectedWorkPhotos, setSelectedWorkPhotos] = useState<string[]>([]);
+  const [imageSource, setImageSource] = useState<ImageSource>(
+    workPhotos && (workPhotos.before_photo_urls.length > 0 || workPhotos.after_photo_urls.length > 0)
+      ? "work_photos"
+      : "upload"
+  );
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SMSSendResponse | null>(null);
+
+  // Determine if work photos are available
+  const hasWorkPhotos = workPhotos && (
+    workPhotos.before_photo_urls.length > 0 || workPhotos.after_photo_urls.length > 0
+  );
+
+  // Reset image source when work photos availability changes
+  useEffect(() => {
+    if (hasWorkPhotos) {
+      setImageSource("work_photos");
+    } else {
+      setImageSource("upload");
+    }
+  }, [hasWorkPhotos]);
 
   // Cleanup image previews on unmount
   useEffect(() => {
@@ -59,11 +89,32 @@ export function MMSSheet({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Clear other image source when switching
+  const handleImageSourceChange = (source: ImageSource) => {
+    setImageSource(source);
+    if (source === "work_photos") {
+      images.forEach((img) => URL.revokeObjectURL(img.preview));
+      setImages([]);
+    } else {
+      setSelectedWorkPhotos([]);
+    }
+  };
+
+  // 템플릿 선택 핸들러
+  const handleTemplateSelect = (template: MMSTemplate | null, templateMessage: string) => {
+    setSelectedTemplate(template);
+    setMessage(templateMessage);
+  };
+
   const handleSend = async () => {
     if (!message.trim()) {
       setError("메시지를 입력해주세요");
       return;
     }
+
+    const hasSelectedImages = imageSource === "work_photos"
+      ? selectedWorkPhotos.length > 0
+      : images.length > 0;
 
     try {
       setStatus("sending");
@@ -72,21 +123,34 @@ export function MMSSheet({
       const token = await getValidToken();
       if (!token) return;
 
-      // Convert images to Base64
-      const imagePromises = images.map(imageFileToBase64);
-      const base64Images = await Promise.all(imagePromises);
-
       // 메시지 앞에 프리픽스 추가
       const formattedMessage = `${MESSAGE_PREFIX}${message}`;
 
-      const response = await sendMMS(token, {
-        receiver_phone: recipientPhone,
-        message: formattedMessage,
-        sms_type: smsType,
-        image1: base64Images[0],
-        image2: base64Images[1],
-        image3: base64Images[2],
-      });
+      let response: SMSSendResponse;
+
+      if (imageSource === "work_photos" && selectedWorkPhotos.length > 0 && assignmentId) {
+        // 시공 사진 MMS 발송
+        response = await sendWorkPhotosMMS(token, {
+          receiver_phone: recipientPhone,
+          message: formattedMessage,
+          assignment_id: assignmentId,
+          selected_photos: selectedWorkPhotos,
+          sms_type: "work_photo_mms",
+        });
+      } else {
+        // 일반 MMS 발송 (직접 업로드)
+        const imagePromises = images.map(imageFileToBase64);
+        const base64Images = await Promise.all(imagePromises);
+
+        response = await sendMMS(token, {
+          receiver_phone: recipientPhone,
+          message: formattedMessage,
+          sms_type: smsType,
+          image1: base64Images[0],
+          image2: base64Images[1],
+          image3: base64Images[2],
+        });
+      }
 
       setResult(response);
       setStatus(response.success ? "success" : "error");
@@ -108,7 +172,9 @@ export function MMSSheet({
     // Reset state
     setStatus("compose");
     setMessage("");
+    setSelectedTemplate(null);
     setImages([]);
+    setSelectedWorkPhotos([]);
     setError(null);
     setResult(null);
     onOpenChange(false);
@@ -116,7 +182,10 @@ export function MMSSheet({
 
   // Determine message type indicator (프리픽스 포함)
   const getMessageType = () => {
-    if (images.length > 0) return "MMS";
+    const hasImages = imageSource === "work_photos"
+      ? selectedWorkPhotos.length > 0
+      : images.length > 0;
+    if (hasImages) return "MMS";
     const totalLength = MESSAGE_PREFIX.length + message.length;
     if (totalLength > 45) return "LMS";
     return "SMS";
@@ -129,6 +198,14 @@ export function MMSSheet({
     /(\d{3})(\d{3,4})(\d{4})/,
     "$1-****-$3"
   );
+
+  // Get image count for display
+  const getImageCount = () => {
+    if (imageSource === "work_photos") {
+      return selectedWorkPhotos.length;
+    }
+    return images.length;
+  };
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -155,6 +232,13 @@ export function MMSSheet({
                 </p>
               </div>
 
+              {/* Template selector */}
+              <MMSTemplateSelector
+                selectedTemplateId={selectedTemplate?.id || null}
+                onSelect={handleTemplateSelect}
+                customerName={recipientName}
+              />
+
               {/* Message input */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -179,7 +263,7 @@ export function MMSSheet({
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="발송할 메시지를 입력하세요"
-                  rows={6}
+                  rows={5}
                   maxLength={2000 - MESSAGE_PREFIX.length}
                   autoFocus
                   className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm resize-none"
@@ -194,8 +278,57 @@ export function MMSSheet({
                 </div>
               </div>
 
-              {/* Image upload */}
-              <ImageUpload images={images} onChange={setImages} />
+              {/* Image source selector (if work photos available) */}
+              {hasWorkPhotos && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    이미지 첨부
+                  </label>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleImageSourceChange("work_photos")}
+                      className={cn(
+                        "flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                        imageSource === "work_photos"
+                          ? "bg-primary text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <ImageIcon className="w-4 h-4" />
+                      시공 사진에서 선택
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleImageSourceChange("upload")}
+                      className={cn(
+                        "flex-1 py-2.5 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2",
+                        imageSource === "upload"
+                          ? "bg-primary text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      )}
+                    >
+                      <Upload className="w-4 h-4" />
+                      직접 업로드
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Work photo selector */}
+              {imageSource === "work_photos" && hasWorkPhotos ? (
+                <div className="border rounded-xl p-4">
+                  <WorkPhotoSelector
+                    workPhotos={workPhotos}
+                    selectedPhotos={selectedWorkPhotos}
+                    onSelectionChange={setSelectedWorkPhotos}
+                    maxSelection={3}
+                  />
+                </div>
+              ) : (
+                /* Image upload */
+                <ImageUpload images={images} onChange={setImages} />
+              )}
 
               {error && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-sm">
@@ -229,7 +362,8 @@ export function MMSSheet({
               <p className="text-sm text-gray-500 text-center">
                 {recipientName}님에게
                 <br />
-                {messageType}가 성공적으로 발송되었습니다
+                {messageType}
+                {getImageCount() > 0 && ` (사진 ${getImageCount()}장)`}가 성공적으로 발송되었습니다
               </p>
             </div>
           )}

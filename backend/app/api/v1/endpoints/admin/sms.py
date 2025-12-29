@@ -30,7 +30,9 @@ from app.schemas.sms_log import (
     SMSSendResponse,
     SMSStatsResponse,
     MMSSendRequest,
+    WorkPhotoMMSRequest,
 )
+from app.models.application_assignment import ApplicationPartnerAssignment
 from app.schemas.bulk_sms import (
     BulkSMSSendRequest,
     BulkSMSJobResponse,
@@ -175,6 +177,7 @@ def decrypt_sms_log(log: SMSLog) -> dict:
         "receiver_phone": decrypt_value(log.receiver_phone),
         "message": log.message,
         "sms_type": log.sms_type,
+        "trigger_source": log.trigger_source,
         "reference_type": log.reference_type,
         "reference_id": log.reference_id,
         "status": log.status,
@@ -242,12 +245,18 @@ def get_sms_logs(
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
     sms_type: Optional[str] = Query(None, description="유형 필터"),
+    trigger_source: Optional[str] = Query(None, description="발송 출처 필터 (system, manual, bulk)"),
     search: Optional[str] = Query(None, description="검색어 (수신번호)"),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 발송 로그 목록 조회
+
+    - trigger_source: 발송 출처 필터
+      - system: 시스템 자동 발송 (이벤트 트리거)
+      - manual: 관리자 직접 발송
+      - bulk: 대량 발송
     """
     query = db.query(SMSLog)
 
@@ -258,6 +267,10 @@ def get_sms_logs(
     # 유형 필터
     if sms_type:
         query = query.filter(SMSLog.sms_type == sms_type)
+
+    # 발송 출처 필터
+    if trigger_source:
+        query = query.filter(SMSLog.trigger_source == trigger_source)
 
     # 전체 개수
     total = query.count()
@@ -303,6 +316,7 @@ async def send_manual_sms(
             receiver=data.receiver_phone,
             message=data.message,
             sms_type=data.sms_type,
+            trigger_source="manual",
             db=db,
         )
 
@@ -365,6 +379,7 @@ async def send_manual_mms(
             receiver_phone=encrypt_value(data.receiver_phone),
             message=data.message,
             sms_type=data.sms_type if not has_images else "mms_manual",
+            trigger_source="manual",
             status="sent" if success else "failed",
             result_code=result.get("result_code"),
             result_message=result.get("message"),
@@ -389,6 +404,141 @@ async def send_manual_mms(
                 sms_log_id=log.id,
             )
     except Exception as e:
+        return SMSSendResponse(
+            success=False,
+            message=f"발송 중 오류가 발생했습니다: {str(e)}",
+        )
+
+
+def convert_file_to_base64(file_path: str, upload_dir: str) -> Optional[str]:
+    """
+    저장된 파일을 Base64로 변환
+
+    Args:
+        file_path: 파일 상대 경로 (예: /uploads/work_photos/...)
+        upload_dir: 업로드 디렉토리 기본 경로
+
+    Returns:
+        Base64 인코딩된 이미지 (data:image/...;base64,...) 또는 None
+    """
+    import os
+    import mimetypes
+
+    try:
+        # 상대 경로에서 전체 경로 생성
+        if file_path.startswith("/uploads/"):
+            # /uploads/ 제거하고 upload_dir와 결합
+            relative_path = file_path[len("/uploads/"):]
+            full_path = os.path.join(upload_dir, relative_path)
+        else:
+            full_path = os.path.join(upload_dir, file_path)
+
+        if not os.path.exists(full_path):
+            logger.warning(f"File not found: {full_path}")
+            return None
+
+        # MIME 타입 결정
+        mime_type, _ = mimetypes.guess_type(full_path)
+        if not mime_type or not mime_type.startswith("image/"):
+            mime_type = "image/jpeg"
+
+        # 파일 읽기 및 Base64 변환
+        with open(full_path, "rb") as f:
+            image_data = f.read()
+
+        base64_data = base64.b64encode(image_data).decode("utf-8")
+        return f"data:{mime_type};base64,{base64_data}"
+
+    except Exception as e:
+        logger.error(f"Failed to convert file to base64: {file_path}, error: {e}")
+        return None
+
+
+@router.post("/send-work-photos-mms", response_model=SMSSendResponse)
+async def send_work_photos_mms(
+    data: WorkPhotoMMSRequest,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    시공 사진 MMS 발송 (저장된 시공 사진을 선택하여 발송)
+
+    - receiver_phone: 수신자 전화번호
+    - message: 메시지 내용 (2000자 이내)
+    - assignment_id: 배정 ID
+    - selected_photos: 선택한 사진 경로 목록 (최대 3개)
+    """
+    try:
+        # 배정 조회
+        assignment = db.query(ApplicationPartnerAssignment).filter(
+            ApplicationPartnerAssignment.id == data.assignment_id
+        ).first()
+
+        if not assignment:
+            return SMSSendResponse(
+                success=False,
+                message="배정 정보를 찾을 수 없습니다",
+            )
+
+        # 선택된 사진들을 Base64로 변환
+        base64_images = []
+        for photo_path in data.selected_photos[:3]:  # 최대 3장
+            base64_img = convert_file_to_base64(photo_path, settings.UPLOAD_DIR)
+            if base64_img:
+                base64_images.append(base64_img)
+
+        if len(base64_images) == 0:
+            return SMSSendResponse(
+                success=False,
+                message="선택한 사진을 찾을 수 없습니다",
+            )
+
+        # MMS 발송
+        result = await send_mms(
+            receiver=data.receiver_phone,
+            message=data.message,
+            title="[전방홈케어]",
+            image1=base64_images[0] if len(base64_images) > 0 else None,
+            image2=base64_images[1] if len(base64_images) > 1 else None,
+            image3=base64_images[2] if len(base64_images) > 2 else None,
+        )
+
+        success = result.get("result_code") == "1"
+
+        # SMS 로그 기록
+        log = SMSLog(
+            receiver_phone=encrypt_value(data.receiver_phone),
+            message=data.message,
+            sms_type=data.sms_type,
+            trigger_source="manual",
+            reference_type="assignment",
+            reference_id=data.assignment_id,
+            status="sent" if success else "failed",
+            result_code=result.get("result_code"),
+            result_message=result.get("message"),
+            msg_id=result.get("msg_id"),
+            mms_images=data.selected_photos,  # 원본 경로 저장
+            sent_at=datetime.now(timezone.utc) if success else None,
+        )
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+
+        if success:
+            return SMSSendResponse(
+                success=True,
+                message=f"MMS가 발송되었습니다 ({len(base64_images)}장 첨부)",
+                sms_log_id=log.id,
+            )
+        else:
+            return SMSSendResponse(
+                success=False,
+                message=result.get("message", "MMS 발송에 실패했습니다"),
+                sms_log_id=log.id,
+            )
+
+    except Exception as e:
+        logger.error(f"Work photos MMS send error: {e}")
         return SMSSendResponse(
             success=False,
             message=f"발송 중 오류가 발생했습니다: {str(e)}",
@@ -421,6 +571,7 @@ async def retry_sms(
             receiver=receiver_phone,
             message=log.message,
             sms_type=f"{log.sms_type}_retry",
+            trigger_source="manual",  # 수동 재발송
             reference_type=log.reference_type,
             reference_id=log.reference_id,
             db=db,

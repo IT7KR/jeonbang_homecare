@@ -11,6 +11,7 @@ import type {
   SMSSendResponse,
   SMSLogListParams,
   MMSSendRequest,
+  WorkPhotoMMSRequest,
   // Bulk SMS Types
   SMSRecipientsResponse,
   SMSRecipientsParams,
@@ -41,6 +42,7 @@ export async function getSMSLogs(
       page_size: params.page_size,
       status: params.status,
       sms_type: params.sms_type,
+      trigger_source: params.trigger_source,
       search: params.search,
     },
   });
@@ -79,6 +81,19 @@ export async function sendMMS(
   data: MMSSendRequest
 ): Promise<SMSSendResponse> {
   return fetchWithToken<SMSSendResponse>("/admin/sms/send-mms", token, {
+    method: "POST",
+    body: data,
+  });
+}
+
+/**
+ * 시공 사진 MMS 발송 (저장된 사진 선택)
+ */
+export async function sendWorkPhotosMMS(
+  token: string,
+  data: WorkPhotoMMSRequest
+): Promise<SMSSendResponse> {
+  return fetchWithToken<SMSSendResponse>("/admin/sms/send-work-photos-mms", token, {
     method: "POST",
     body: data,
   });
