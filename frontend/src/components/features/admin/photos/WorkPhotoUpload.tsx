@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ImagePlus, X, AlertCircle, Loader2, Camera, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -51,6 +51,7 @@ export function WorkPhotoUpload({
   const [afterPhotos, setAfterPhotos] = useState<string[]>(
     initialData?.after_photo_urls || []
   );
+  const [isLoading, setIsLoading] = useState(!initialData);
   const [isUploading, setIsUploading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     type: "before" | "after";
@@ -59,6 +60,31 @@ export function WorkPhotoUpload({
   const [isDeleting, setIsDeleting] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const onPhotosChangeRef = useRef(onPhotosChange);
+  onPhotosChangeRef.current = onPhotosChange;
+
+  // 마운트 시 기존 사진 로드
+  useEffect(() => {
+    if (initialData) {
+      setIsLoading(false);
+      return;
+    }
+
+    const loadPhotos = async () => {
+      try {
+        const data = await getWorkPhotos(applicationId, assignmentId);
+        setBeforePhotos(data.before_photo_urls || []);
+        setAfterPhotos(data.after_photo_urls || []);
+        onPhotosChangeRef.current?.(data);
+      } catch (error) {
+        console.error("Failed to load work photos:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPhotos();
+  }, [applicationId, assignmentId, initialData]);
 
   const currentPhotos = activeTab === "before" ? beforePhotos : afterPhotos;
   const setCurrentPhotos = activeTab === "before" ? setBeforePhotos : setAfterPhotos;
@@ -238,6 +264,14 @@ export function WorkPhotoUpload({
       </div>
     );
   };
+
+  if (isLoading) {
+    return (
+      <div className={cn("flex items-center justify-center py-12", className)}>
+        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className={cn("space-y-4", className)}>

@@ -15,6 +15,8 @@ import {
   Plus,
   Ban,
   CalendarPlus,
+  MessageSquare,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks";
@@ -46,19 +48,26 @@ import {
   renewCustomerUrl,
   revokeCustomerUrl,
 } from "@/lib/api/admin/work-photos";
+import { sendSMS } from "@/lib/api/admin/sms";
+import { useAuthStore } from "@/lib/stores/auth";
 import type { CustomerUrlResponse } from "@/lib/api/admin/types";
 
 interface CustomerUrlManagerProps {
   applicationId: number;
   assignmentId: number;
+  customerName?: string;
+  customerPhone?: string;
   className?: string;
 }
 
 export function CustomerUrlManager({
   applicationId,
   assignmentId,
+  customerName,
+  customerPhone,
   className,
 }: CustomerUrlManagerProps) {
+  const { getValidToken } = useAuthStore();
   const [urlData, setUrlData] = useState<CustomerUrlResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -68,10 +77,11 @@ export function CustomerUrlManager({
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSendingSMS, setIsSendingSMS] = useState(false);
 
   // Form states
-  const [createDays, setCreateDays] = useState(30);
-  const [extendDays, setExtendDays] = useState(30);
+  const [createDays, setCreateDays] = useState(7);
+  const [extendDays, setExtendDays] = useState(7);
 
   useEffect(() => {
     fetchUrlData();
@@ -162,6 +172,40 @@ export function CustomerUrlManager({
     }
   };
 
+  const handleSendSMS = async () => {
+    if (!urlData?.url || !customerPhone) {
+      toast.error("고객 연락처 또는 URL 정보가 없습니다");
+      return;
+    }
+
+    setIsSendingSMS(true);
+    try {
+      const token = await getValidToken();
+      if (!token) {
+        toast.error("인증 정보가 없습니다");
+        return;
+      }
+
+      const message = `[전방홈케어] ${customerName || "고객"}님, 시공 결과를 확인하실 수 있습니다.\n\n확인 URL: ${urlData.url}\n\n문의: 031-797-4004`;
+
+      const result = await sendSMS(token, {
+        receiver_phone: customerPhone,
+        message,
+        sms_type: "customer_result_url",
+      });
+
+      if (result.success) {
+        toast.success("시공 결과 URL이 SMS로 발송되었습니다");
+      } else {
+        toast.error(result.message || "SMS 발송에 실패했습니다");
+      }
+    } catch (error) {
+      toast.error("SMS 발송에 실패했습니다");
+    } finally {
+      setIsSendingSMS(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className={cn("flex items-center justify-center py-8", className)}>
@@ -235,6 +279,22 @@ export function CustomerUrlManager({
 
           {/* Actions */}
           <div className="flex flex-wrap gap-2">
+            {customerPhone && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleSendSMS}
+                disabled={isSendingSMS}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isSendingSMS ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-1" />
+                )}
+                SMS 전송
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -247,7 +307,7 @@ export function CustomerUrlManager({
               variant="outline"
               size="sm"
               onClick={() => {
-                setCreateDays(30);
+                setCreateDays(7);
                 setShowCreateDialog(true);
               }}
             >
@@ -282,7 +342,7 @@ export function CustomerUrlManager({
             variant="outline"
             size="sm"
             onClick={() => {
-              setCreateDays(30);
+              setCreateDays(7);
               setShowCreateDialog(true);
             }}
           >

@@ -119,7 +119,19 @@ class WorkPhotosResponse(BaseModel):
 class CustomerUrlCreate(BaseModel):
     """고객 열람 URL 생성 요청"""
 
-    expires_in_days: int = Field(30, ge=1, le=365, description="유효 기간 (일)")
+    expires_in_days: int = Field(7, ge=1, le=365, description="유효 기간 (일, 기본값 7일)")
+
+
+class CustomerUrlExtend(BaseModel):
+    """고객 열람 URL 기간 연장 요청"""
+
+    additional_days: int = Field(..., ge=1, le=365, description="추가 연장 일수")
+
+
+class PartnerUrlExtend(BaseModel):
+    """협력사 열람 URL 기간 연장 요청"""
+
+    additional_days: int = Field(..., ge=1, le=365, description="추가 연장 일수")
 
 
 class CustomerUrlResponse(BaseModel):
