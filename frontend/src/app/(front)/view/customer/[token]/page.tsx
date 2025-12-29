@@ -36,7 +36,9 @@ import {
 import { getServiceName } from "@/lib/utils/service";
 
 // API Base URL for file serving (without /api/v1 suffix since file URLs already include it)
-const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "");
+const API_BASE_URL = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
+).replace(/\/api\/v1$/, "");
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("ko-KR").format(amount) + "원";
@@ -145,12 +147,15 @@ export default function CustomerViewPage() {
       } catch (err: unknown) {
         console.error("Failed to fetch customer view data:", err);
         if (err && typeof err === "object" && "response" in err) {
-          const axiosError = err as { response?: { status?: number; data?: { detail?: string } } };
+          const axiosError = err as {
+            response?: { status?: number; data?: { detail?: string } };
+          };
           if (axiosError.response?.status === 404) {
             setError("유효하지 않거나 만료된 링크입니다.");
           } else {
             setError(
-              axiosError.response?.data?.detail || "정보를 불러오는 중 오류가 발생했습니다."
+              axiosError.response?.data?.detail ||
+                "정보를 불러오는 중 오류가 발생했습니다."
             );
           }
         } else {
@@ -167,7 +172,7 @@ export default function CustomerViewPage() {
   }, [token]);
 
   const openLightbox = (photos: { url: string }[], index: number) => {
-    setLightboxPhotos(photos.map(p => ({ src: `${API_BASE_URL}${p.url}` })));
+    setLightboxPhotos(photos.map((p) => ({ src: `${API_BASE_URL}${p.url}` })));
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
@@ -223,8 +228,10 @@ export default function CustomerViewPage() {
     return null;
   }
 
-  const currentPhotos = photoTab === "before" ? data.work_photos_before : data.work_photos_after;
-  const hasPhotos = data.work_photos_before.length > 0 || data.work_photos_after.length > 0;
+  const currentPhotos =
+    photoTab === "before" ? data.work_photos_before : data.work_photos_after;
+  const hasPhotos =
+    data.work_photos_before.length > 0 || data.work_photos_after.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary-50/50 to-white">
@@ -234,7 +241,9 @@ export default function CustomerViewPage() {
           <div className="text-center space-y-1">
             <p className="text-primary-100 text-sm font-medium">전방홈케어</p>
             <h1 className="text-2xl font-bold">시공 정보</h1>
-            <p className="text-primary-200 text-sm">#{data.application_number}</p>
+            <p className="text-primary-200 text-sm">
+              #{data.application_number}
+            </p>
           </div>
         </div>
       </div>
@@ -244,10 +253,10 @@ export default function CustomerViewPage() {
         <Card className="border-0 shadow-lg">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-sm font-medium">현재 상태</span>
-              <Badge
-                className="bg-primary-50 text-primary-700 border-0 px-3 py-1 text-sm font-medium"
-              >
+              <span className="text-gray-500 text-sm font-medium">
+                현재 상태
+              </span>
+              <Badge className="bg-primary-50 text-primary-700 border-0 px-3 py-1 text-sm font-medium">
                 {data.status_label}
               </Badge>
             </div>
@@ -318,7 +327,9 @@ export default function CustomerViewPage() {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-green-600 font-medium">확정된 일정</p>
+                  <p className="text-xs text-green-600 font-medium">
+                    확정된 일정
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -373,7 +384,9 @@ export default function CustomerViewPage() {
                 {data.partner_phone_masked && (
                   <div className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg">
                     <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-700">{data.partner_phone_masked}</span>
+                    <span className="text-gray-700">
+                      {data.partner_phone_masked}
+                    </span>
                   </div>
                 )}
               </div>
@@ -394,7 +407,7 @@ export default function CustomerViewPage() {
                   className="bg-white/20 hover:bg-white/30 text-white border-0"
                 >
                   <Download className="h-4 w-4 mr-1" />
-                  PDF
+                  견적서 다운로드
                 </Button>
               </div>
             </div>
@@ -406,14 +419,22 @@ export default function CustomerViewPage() {
               {/* 견적 항목 */}
               <div className="space-y-2">
                 {data.quote.items.map((item, index) => (
-                  <div key={index} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-0">
+                  <div
+                    key={index}
+                    className="flex justify-between items-start py-2 border-b border-gray-100 last:border-0"
+                  >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-800">{item.item_name}</p>
+                      <p className="font-medium text-gray-800">
+                        {item.item_name}
+                      </p>
                       {item.description && (
-                        <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.description}
+                        </p>
                       )}
                       <p className="text-xs text-gray-400 mt-1">
-                        {formatCurrency(item.unit_price)} × {item.quantity}{item.unit}
+                        {formatCurrency(item.unit_price)} × {item.quantity}
+                        {item.unit}
                       </p>
                     </div>
                     <span className="font-medium text-gray-800 whitespace-nowrap ml-4">
@@ -456,7 +477,12 @@ export default function CustomerViewPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <Tabs value={photoTab} onValueChange={(v: string) => setPhotoTab(v as "before" | "after")}>
+              <Tabs
+                value={photoTab}
+                onValueChange={(v: string) =>
+                  setPhotoTab(v as "before" | "after")
+                }
+              >
                 <TabsList className="grid w-full grid-cols-2 mb-4">
                   <TabsTrigger value="before" className="gap-1">
                     시공 전 ({data.work_photos_before.length})
@@ -470,7 +496,9 @@ export default function CustomerViewPage() {
                   {data.work_photos_before.length > 0 ? (
                     <PhotoGrid
                       photos={data.work_photos_before}
-                      onPhotoClick={(index) => openLightbox(data.work_photos_before, index)}
+                      onPhotoClick={(index) =>
+                        openLightbox(data.work_photos_before, index)
+                      }
                     />
                   ) : (
                     <div className="text-center py-8 text-gray-400">
@@ -484,7 +512,9 @@ export default function CustomerViewPage() {
                   {data.work_photos_after.length > 0 ? (
                     <PhotoGrid
                       photos={data.work_photos_after}
-                      onPhotoClick={(index) => openLightbox(data.work_photos_after, index)}
+                      onPhotoClick={(index) =>
+                        openLightbox(data.work_photos_after, index)
+                      }
                     />
                   ) : (
                     <div className="text-center py-8 text-gray-400">
@@ -513,9 +543,7 @@ export default function CustomerViewPage() {
             </span>
             까지 유효합니다
           </p>
-          <div className="text-sm text-gray-500">
-            {data.contact_info}
-          </div>
+          <div className="text-sm text-gray-500">{data.contact_info}</div>
           <p className="text-xs text-gray-300">
             신청일: {formatDate(data.created_at)}
           </p>
