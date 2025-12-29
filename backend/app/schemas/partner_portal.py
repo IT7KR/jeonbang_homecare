@@ -57,3 +57,21 @@ class PartnerViewTokenRequest(BaseModel):
     """토큰 생성 요청 (관리자용)"""
     assignment_id: int = Field(..., description="배정 ID")
     expires_in_days: int = Field(default=7, ge=1, le=30, description="토큰 유효 기간 (일)")
+
+
+class PartnerPhotoUploadResponse(BaseModel):
+    """협력사 시공 사진 업로드 응답"""
+    assignment_id: int
+    photo_type: str  # "before" | "after"
+    photos: list[str]  # 업로드된 사진 경로 목록
+    total_count: int
+    message: str
+
+
+class PartnerWorkPhotosResponse(BaseModel):
+    """협력사 포털 시공 사진 조회 응답"""
+    assignment_id: int
+    before_photos: list[PartnerViewPhoto] = []
+    after_photos: list[PartnerViewPhoto] = []
+    can_upload: bool = False  # 업로드 가능 여부 (상태 기반)
+    max_photos_per_type: int = 10
