@@ -49,11 +49,12 @@ COPY . .
 RUN adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
 
-# Create isolated uploads directory (outside web root)
-# /data/uploads is mounted as a separate volume
-RUN mkdir -p /data/uploads && \
+# Create isolated directories (outside web root)
+# /data/uploads - 파일 저장소 (볼륨 마운트)
+# /data/logs - 로그 파일 저장소 (볼륨 마운트)
+RUN mkdir -p /data/uploads /data/logs && \
     chown -R appuser:appuser /data && \
-    chmod 750 /data/uploads
+    chmod 750 /data/uploads /data/logs
 
 USER appuser
 

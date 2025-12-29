@@ -9,13 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
+from app.core.logging_config import setup_logging
 from app.api.v1.router import api_router
+from app.middleware import LoggingMiddleware
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup/shutdown events"""
     # Startup
+    # 로깅 초기화
+    setup_logging()
+
     # 개발 환경에서만 테이블 자동 생성 (운영에서는 Alembic 사용)
     if settings.APP_ENV == "development":
         Base.metadata.create_all(bind=engine)
@@ -52,6 +57,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 로깅 미들웨어
+app.add_middleware(LoggingMiddleware)
 
 
 # Health check

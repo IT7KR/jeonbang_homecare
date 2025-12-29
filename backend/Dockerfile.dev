@@ -45,10 +45,11 @@ COPY requirements-dev.txt* ./
 RUN pip install --no-cache-dir -r requirements.txt && \
     if [ -f requirements-dev.txt ]; then pip install --no-cache-dir -r requirements-dev.txt; fi
 
-# Create isolated uploads directory (outside web root)
-# /data/uploads is mounted as a separate volume
-RUN mkdir -p /data/uploads && \
-    chmod 777 /data/uploads  # Dev에서는 권한 제약 없음
+# Create isolated directories (outside web root)
+# /data/uploads - 파일 저장소 (볼륨 마운트)
+# /data/logs - 로그 파일 저장소 (볼륨 마운트)
+RUN mkdir -p /data/uploads /data/logs && \
+    chmod 777 /data/uploads /data/logs  # Dev에서는 권한 제약 없음
 
 # Expose port
 EXPOSE 8000

@@ -46,10 +46,15 @@ services:
       - ALIGO_SENDER=${ALIGO_SENDER:-}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3500}
       - UPLOAD_DIR=/data/uploads
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_RETENTION_DAYS=${LOG_RETENTION_DAYS:-90}
+      - LOG_DIR=/data/logs
       - TZ=Asia/Seoul
     volumes:
       # 파일 저장소는 웹 루트 외부에 격리 (/data/uploads)
       - uploads_data:/data/uploads
+      # 로그 파일 저장소 (/data/logs)
+      - logs_data:/data/logs
     depends_on:
       db:
         condition: service_healthy
@@ -87,3 +92,5 @@ volumes:
     name: jeonbang-postgres-data
   uploads_data:
     name: jeonbang-uploads
+  logs_data:
+    name: jeonbang-logs

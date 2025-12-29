@@ -15,8 +15,12 @@ services:
       - /app/__pycache__                  # Exclude pycache
       - /app/.pytest_cache               # Exclude pytest cache
       - uploads_data:/data/uploads        # 격리된 파일 저장소
+      - ./logs:/data/logs                 # 로그 파일 (호스트에서 직접 확인)
     environment:
       - UPLOAD_DIR=/data/uploads
+      - LOG_LEVEL=DEBUG
+      - LOG_RETENTION_DAYS=30
+      - LOG_DIR=/data/logs
       - APP_ENV=development
       - DEBUG=true
       - CORS_ORIGINS=http://localhost:3500,http://127.0.0.1:3500
