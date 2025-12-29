@@ -8,7 +8,7 @@ import {
   type FilterChip,
   type SearchType,
 } from "@/components/admin/filters";
-import type { ServiceCategory } from "@/lib/api/services";
+import type { ServiceCategoryWithTypes } from "@/lib/api/services";
 
 interface FilterSectionProps {
   // 검색
@@ -20,7 +20,7 @@ interface FilterSectionProps {
   dateTo: Date | undefined;
   onDateFromChange: (date: Date | undefined) => void;
   onDateToChange: (date: Date | undefined) => void;
-  serviceCategories: ServiceCategory[];
+  serviceCategories: ServiceCategoryWithTypes[];
   selectedServices: string[];
   onServicesChange: (services: string[]) => void;
 
