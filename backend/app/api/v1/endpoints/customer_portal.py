@@ -10,6 +10,7 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -486,12 +487,13 @@ async def download_quote_pdf(
         quote_number = f"{application.application_number}-Q{assignment.id}"
         filename = get_quote_filename(quote_number)
 
-        # 스트리밍 응답
+        # 스트리밍 응답 (RFC 5987 인코딩으로 한글 파일명 지원)
+        encoded_filename = quote(filename)
         return StreamingResponse(
             BytesIO(pdf_bytes),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
                 "Content-Length": str(len(pdf_bytes)),
             }
         )
