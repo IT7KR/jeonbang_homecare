@@ -3,6 +3,7 @@ export * from "./regions";
 export * from "./routes";
 export * from "./design-tokens";
 export * from "./status";
+export * from "./application";
 
 // 회사 정보
 export const COMPANY_INFO = {
