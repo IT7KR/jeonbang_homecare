@@ -289,6 +289,14 @@ def create_application_simple(
     db.commit()
 
     # 관리자에게만 SMS 알림 (백그라운드)
+    # 중복 정보를 dict로 변환하여 전달
+    duplicate_dict = None
+    if duplicate_result.is_duplicate:
+        duplicate_dict = {
+            "existing_application_number": duplicate_result.existing_application_number,
+            "existing_status": duplicate_result.existing_status,
+        }
+
     background_tasks.add_task(
         send_admin_notification_background,
         application_number,
@@ -296,6 +304,7 @@ def create_application_simple(
         data.selected_services,
         data.preferred_consultation_date,
         data.preferred_work_date,
+        duplicate_dict,
     )
 
     # 응답 메시지 (중복 여부에 따라 다름)
