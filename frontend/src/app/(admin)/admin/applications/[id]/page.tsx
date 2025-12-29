@@ -1340,12 +1340,15 @@ export default function ApplicationDetailPage() {
               <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                 <Users size={18} className="text-primary" />
                 협력사 배정
-                {application.assignments &&
-                  application.assignments.length > 0 && (
-                    <span className="text-xs font-normal text-gray-500 ml-1">
-                      ({application.assignments.length}개)
-                    </span>
-                  )}
+                {application.selected_services && (
+                  <span className={`text-xs font-normal ml-1 ${
+                    unassignedServices.length === 0
+                      ? "text-green-600"
+                      : "text-amber-600"
+                  }`}>
+                    ({application.selected_services.length - unassignedServices.length}/{application.selected_services.length} 서비스)
+                  </span>
+                )}
               </h2>
               {expandedSections.assignments ? (
                 <ChevronUp size={18} />
