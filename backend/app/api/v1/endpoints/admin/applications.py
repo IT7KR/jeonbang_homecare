@@ -990,16 +990,28 @@ async def create_application_assignment(
 
     db.add(assignment)
 
-    # 신청 상태 업데이트 (배정이 있으면 assigned 이상)
-    if application.status in ["new", "consulting"]:
-        application.status = "assigned"
-        application.assigned_admin_id = current_admin.id
-
-    # 레거시 필드 업데이트 (첫 번째 배정인 경우)
+    # 기존 배정 조회 (레거시 필드 업데이트와 전체 배정 확인에 사용)
     existing_assignments = db.query(ApplicationPartnerAssignment).filter(
         ApplicationPartnerAssignment.application_id == application_id
-    ).count()
-    if existing_assignments == 0:
+    ).all()
+
+    # 전체 서비스가 배정되었는지 확인 후 상태 업데이트
+    if application.status in ["new", "consulting"]:
+        all_services = set(application.selected_services or [])
+        # 기존 배정 서비스 + 현재 배정 서비스
+        assigned_services = set()
+        for a in existing_assignments:
+            assigned_services.update(a.assigned_services or [])
+        assigned_services.update(data.assigned_services or [])
+
+        # 전체 서비스가 배정된 경우에만 상태 변경
+        if assigned_services >= all_services:
+            application.status = "assigned"
+            application.assigned_admin_id = current_admin.id
+
+    # 레거시 필드 업데이트 (첫 번째 배정인 경우)
+    existing_count = len(existing_assignments)
+    if existing_count == 0:
         application.assigned_partner_id = data.partner_id
         if data.scheduled_date:
             application.scheduled_date = data.scheduled_date
