@@ -7,15 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from passlib.context import CryptContext
 
 from app.core.database import get_db
-from app.core.security import get_current_admin
+from app.core.security import get_current_admin, verify_password, hash_password
 from app.core.encryption import encrypt_value, decrypt_value
 from app.models.admin import Admin
 
 router = APIRouter(prefix="/settings", tags=["Admin - Settings"])
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class ProfileUpdate(BaseModel):
@@ -125,7 +123,10 @@ def change_password(
     비밀번호 변경
     """
     # 현재 비밀번호 확인
-    if not pwd_context.verify(data.current_password, current_admin.password_hash):
+    if not current_admin.password_hash:
+        raise HTTPException(status_code=400, detail="비밀번호가 설정되지 않았습니다")
+
+    if not verify_password(data.current_password, current_admin.password_hash):
         raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다")
 
     # 새 비밀번호 길이 검증
@@ -133,7 +134,7 @@ def change_password(
         raise HTTPException(status_code=400, detail="비밀번호는 8자 이상이어야 합니다")
 
     # 새 비밀번호 해싱 및 저장
-    current_admin.password_hash = pwd_context.hash(data.new_password)
+    current_admin.password_hash = hash_password(data.new_password)
     db.commit()
 
     return {"message": "비밀번호가 변경되었습니다"}
@@ -188,7 +189,7 @@ def create_admin(
     # 관리자 생성
     admin = Admin(
         email=data.email,
-        password_hash=pwd_context.hash(data.password),
+        password_hash=hash_password(data.password),
         name=data.name,
         phone=encrypt_value(data.phone) if data.phone else None,
         role="super_admin",
