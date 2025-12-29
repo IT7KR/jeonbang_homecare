@@ -15,13 +15,14 @@ from app.core.security import get_current_admin
 from app.core.encryption import decrypt_value
 from app.models.admin import Admin
 from app.models.application import Application
+from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
 
 router = APIRouter(prefix="/schedule", tags=["Admin - Schedule"])
 
 
 class ScheduleItem(BaseModel):
-    """일정 아이템"""
+    """일정 아이템 (Application 기준 - 레거시)"""
     id: int
     application_number: str
     customer_name: str
@@ -37,9 +38,30 @@ class ScheduleItem(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ScheduleAssignmentItem(BaseModel):
+    """일정 아이템 (Assignment 기준 - 권장)"""
+    id: int  # assignment_id
+    type: str = "assignment"
+    application_id: int
+    application_number: str
+    customer_name: str
+    customer_phone: str
+    address: str
+    partner_id: int
+    partner_name: Optional[str]
+    assigned_services: list[str]
+    scheduled_date: str
+    scheduled_time: Optional[str]
+    status: str  # assignment status
+    estimated_cost: Optional[int]
+    quote_status: str
+
+    model_config = {"from_attributes": True}
+
+
 class ScheduleListResponse(BaseModel):
     """일정 목록 응답"""
-    items: list[ScheduleItem]
+    items: list  # ScheduleItem 또는 ScheduleAssignmentItem
     total: int
 
 
@@ -76,18 +98,114 @@ def decrypt_application_for_schedule(app: Application, partner: Optional[Partner
     }
 
 
+def get_schedule_by_assignment(
+    start_date: str,
+    end_date: str,
+    status: Optional[str],
+    partner_id: Optional[int],
+    db: Session,
+) -> ScheduleListResponse:
+    """Assignment 기준 일정 조회 (내부 함수)"""
+    query = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.scheduled_date.isnot(None),
+        ApplicationPartnerAssignment.scheduled_date >= start_date,
+        ApplicationPartnerAssignment.scheduled_date <= end_date,
+    )
+
+    # 상태 필터
+    if status:
+        query = query.filter(ApplicationPartnerAssignment.status == status)
+    else:
+        query = query.filter(ApplicationPartnerAssignment.status != "cancelled")
+
+    # 협력사 필터
+    if partner_id:
+        query = query.filter(ApplicationPartnerAssignment.partner_id == partner_id)
+
+    # 정렬
+    assignments = query.order_by(
+        ApplicationPartnerAssignment.scheduled_date,
+        ApplicationPartnerAssignment.scheduled_time,
+    ).all()
+
+    # Application 및 Partner 정보 조회
+    app_ids = set(a.application_id for a in assignments)
+    partner_ids_set = set(a.partner_id for a in assignments)
+
+    applications = {}
+    if app_ids:
+        app_list = db.query(Application).filter(Application.id.in_(app_ids)).all()
+        applications = {a.id: a for a in app_list}
+
+    partners = {}
+    if partner_ids_set:
+        partner_list = db.query(Partner).filter(Partner.id.in_(partner_ids_set)).all()
+        partners = {p.id: p for p in partner_list}
+
+    # 응답 생성
+    items = []
+    for assignment in assignments:
+        app = applications.get(assignment.application_id)
+        partner = partners.get(assignment.partner_id)
+
+        if not app:
+            continue
+
+        scheduled_date_str = None
+        if assignment.scheduled_date:
+            if isinstance(assignment.scheduled_date, date):
+                scheduled_date_str = assignment.scheduled_date.isoformat()
+            else:
+                scheduled_date_str = str(assignment.scheduled_date)
+
+        items.append(ScheduleAssignmentItem(
+            id=assignment.id,
+            type="assignment",
+            application_id=assignment.application_id,
+            application_number=app.application_number,
+            customer_name=decrypt_value(app.customer_name),
+            customer_phone=decrypt_value(app.customer_phone),
+            address=decrypt_value(app.address),
+            partner_id=assignment.partner_id,
+            partner_name=partner.company_name if partner else None,
+            assigned_services=assignment.assigned_services or [],
+            scheduled_date=scheduled_date_str,
+            scheduled_time=assignment.scheduled_time,
+            status=assignment.status,
+            estimated_cost=assignment.estimated_cost,
+            quote_status=assignment.quote_status,
+        ))
+
+    return ScheduleListResponse(items=items, total=len(items))
+
+
 @router.get("", response_model=ScheduleListResponse)
 def get_schedule(
     start_date: str = Query(..., description="시작일 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="종료일 (YYYY-MM-DD)"),
     status: Optional[str] = Query(None, description="상태 필터"),
     partner_id: Optional[int] = Query(None, description="협력사 필터"),
+    view_mode: str = Query("application", description="조회 모드: application(레거시) 또는 assignment(배정기준)"),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     일정 목록 조회 (날짜 범위)
+
+    - view_mode=application: Application.scheduled_date 기준 조회 (레거시, 기본값)
+    - view_mode=assignment: Assignment.scheduled_date 기준 조회 (권장)
     """
+    if view_mode == "assignment":
+        # Assignment 기준 조회 (신규 - 권장)
+        return get_schedule_by_assignment(
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            partner_id=partner_id,
+            db=db,
+        )
+
+    # Application 기준 조회 (레거시 - 기존 동작 유지)
     query = db.query(Application).filter(
         Application.scheduled_date.isnot(None),
         Application.scheduled_date >= start_date,
