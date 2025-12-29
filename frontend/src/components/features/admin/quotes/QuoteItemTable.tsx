@@ -20,7 +20,16 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calculator, Loader2, FileDown, Send, Link } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Calculator,
+  Loader2,
+  FileDown,
+  Send,
+  Link,
+} from "lucide-react";
 import { toast } from "@/hooks";
 import {
   getQuoteItems,
@@ -139,7 +148,7 @@ export function QuoteItemTable({
   // 저장
   const handleSave = async () => {
     if (!formData.item_name.trim()) {
-      alert("항목명을 입력해주세요.");
+      toast.error("항목명을 입력해주세요.");
       return;
     }
 
@@ -165,7 +174,7 @@ export function QuoteItemTable({
       await loadQuoteItems();
     } catch (err) {
       console.error("Failed to save quote item:", err);
-      alert("저장에 실패했습니다.");
+      toast.error("저장에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -182,7 +191,7 @@ export function QuoteItemTable({
       await loadQuoteItems();
     } catch (err) {
       console.error("Failed to delete quote item:", err);
-      alert("삭제에 실패했습니다.");
+      toast.error("삭제에 실패했습니다.");
     }
   };
 
@@ -190,13 +199,15 @@ export function QuoteItemTable({
   const handleCalculate = async () => {
     try {
       setSaving(true);
-      const data = await calculateQuote(assignmentId, { update_assignment: true });
+      const data = await calculateQuote(assignmentId, {
+        update_assignment: true,
+      });
       setSummary(data);
       onTotalChangeRef.current?.(data.total_amount);
-      alert("견적 금액이 저장되었습니다.");
+      toast.success("견적 금액이 저장되었습니다.");
     } catch (err) {
       console.error("Failed to calculate quote:", err);
-      alert("계산에 실패했습니다.");
+      toast.error("계산에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -219,7 +230,7 @@ export function QuoteItemTable({
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to download PDF:", err);
-      alert(err instanceof Error ? err.message : "PDF 다운로드에 실패했습니다.");
+      toast.error("PDF 다운로드에 실패했습니다.");
     } finally {
       setDownloading(false);
     }
@@ -253,17 +264,25 @@ export function QuoteItemTable({
           customerViewUrl = urlData.url;
         } else {
           // URL이 없거나 만료된 경우 자동 발급
-          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
-            expires_in_days: 7,
-          });
+          const newUrlData = await createCustomerUrl(
+            applicationId,
+            assignmentId,
+            {
+              expires_in_days: 7,
+            }
+          );
           customerViewUrl = newUrlData.url;
         }
       } catch {
         // URL 발급 실패 시 자동 발급 시도
         try {
-          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
-            expires_in_days: 7,
-          });
+          const newUrlData = await createCustomerUrl(
+            applicationId,
+            assignmentId,
+            {
+              expires_in_days: 7,
+            }
+          );
           customerViewUrl = newUrlData.url;
         } catch {
           toast.error("고객 열람 URL 발급에 실패했습니다");
@@ -278,8 +297,12 @@ export function QuoteItemTable({
         return;
       }
 
-      const totalFormatted = new Intl.NumberFormat("ko-KR").format(summary.total_amount);
-      const message = `[전방홈케어] ${customerName || "고객"}님, 견적서를 안내드립니다.\n\n견적 금액: ${totalFormatted}원\n\n상세 내역 확인: ${customerViewUrl}\n\n문의: 031-797-4004`;
+      const totalFormatted = new Intl.NumberFormat("ko-KR").format(
+        summary.total_amount
+      );
+      const message = `[전방홈케어] ${
+        customerName || "고객"
+      }님, 견적서를 안내드립니다.\n\n견적 금액: ${totalFormatted}원\n\n상세 내역 확인: ${customerViewUrl}\n\n문의: 031-797-4004`;
 
       const result = await sendSMS(token, {
         receiver_phone: customerPhone,
@@ -317,17 +340,25 @@ export function QuoteItemTable({
           customerViewUrl = urlData.url;
         } else {
           // URL이 없거나 만료된 경우 자동 발급
-          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
-            expires_in_days: 7,
-          });
+          const newUrlData = await createCustomerUrl(
+            applicationId,
+            assignmentId,
+            {
+              expires_in_days: 7,
+            }
+          );
           customerViewUrl = newUrlData.url;
         }
       } catch {
         // URL 발급 실패 시 자동 발급 시도
         try {
-          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
-            expires_in_days: 7,
-          });
+          const newUrlData = await createCustomerUrl(
+            applicationId,
+            assignmentId,
+            {
+              expires_in_days: 7,
+            }
+          );
           customerViewUrl = newUrlData.url;
         } catch {
           toast.error("고객 열람 URL 발급에 실패했습니다");
@@ -410,7 +441,9 @@ export function QuoteItemTable({
             <TableBody>
               {summary.items.map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.item_name}</TableCell>
+                  <TableCell className="font-medium">
+                    {item.item_name}
+                  </TableCell>
                   <TableCell className="text-gray-500 text-sm">
                     {item.description || "-"}
                   </TableCell>
@@ -621,7 +654,8 @@ export function QuoteItemTable({
                 </span>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                = {formData.quantity} × {formatCurrency(formData.unit_price || 0)}
+                = {formData.quantity} ×{" "}
+                {formatCurrency(formData.unit_price || 0)}
               </p>
             </div>
           </div>
