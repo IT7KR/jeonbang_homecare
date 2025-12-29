@@ -29,61 +29,13 @@ import { MMSSheet } from "@/components/features/admin/sms";
 export default function ApplicationDetailPage() {
   const params = useParams();
   const id = Number(params.id);
-  const { user } = useAuthStore();
-  const { ConfirmDialog, confirm } = useConfirm();
+  const { admin } = useAuthStore();
+  const { confirm } = useConfirm();
 
-  const {
-    // 기본 데이터
-    application,
-    setApplication,
-    partners,
-    auditLogs,
-    notes,
-    customerHistory,
-    // 상태
-    isLoading,
-    isSaving,
-    // 모달 상태
-    showCancelModal,
-    setShowCancelModal,
-    showAssignmentModal,
-    setShowAssignmentModal,
-    showQuoteModal,
-    setShowQuoteModal,
-    showPartnerUrlModal,
-    setShowPartnerUrlModal,
-    showCustomerUrlModal,
-    setShowCustomerUrlModal,
-    showWorkPhotosModal,
-    setShowWorkPhotosModal,
-    showMMSSheet,
-    setShowMMSSheet,
-    // 배정 관련
-    editingAssignment,
-    setEditingAssignment,
-    selectedAssignmentId,
-    setSelectedAssignmentId,
-    // 이미지 관련
-    lightboxOpen,
-    setLightboxOpen,
-    lightboxIndex,
-    setLightboxIndex,
-    // 계산된 값
-    unassignedServices,
-    summaryCards,
-    assignmentDetails,
-    // 핸들러
-    handleStatusChange,
-    handleCancelApplication,
-    handleAddNote,
-    handleDeleteNote,
-    handleAddAssignment,
-    handleUpdateAssignment,
-    handleDeleteAssignment,
-  } = useApplicationDetail(id);
+  const hook = useApplicationDetail(id);
 
   // 로딩 상태
-  if (isLoading) {
+  if (hook.isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -92,7 +44,7 @@ export default function ApplicationDetailPage() {
   }
 
   // 데이터 없음
-  if (!application) {
+  if (!hook.application) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <p className="text-gray-500">신청 정보를 찾을 수 없습니다.</p>
@@ -107,11 +59,25 @@ export default function ApplicationDetailPage() {
     );
   }
 
-  // 이미지 데이터 준비
-  const photos = application.photo_urls || [];
-  const slides = photos.map((url) => ({
+  const { application, partners, notes, auditLogs, customerHistory } = hook;
+
+  // 이미지 슬라이드 데이터
+  const photos = application.photos || [];
+  const slides = photos.map((url: string) => ({
     src: url.startsWith("http") ? url : `${FILE_BASE_URL}${url}`,
   }));
+
+  // 배정 상세 정보 계산
+  const assignmentDetails = application.assignments?.map((assignment) => {
+    const partner = partners.find((p) => p.id === assignment.partner_id);
+    return { ...assignment, partner };
+  }) || [];
+
+  // 상태 변경 핸들러
+  const handleStatusChange = async (newStatus: string) => {
+    hook.setStatus(newStatus);
+    setTimeout(() => hook.handleSave(), 100);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -119,11 +85,11 @@ export default function ApplicationDetailPage() {
         {/* 헤더 */}
         <ApplicationDetailHeader
           application={application}
-          summaryCards={summaryCards}
-          isSaving={isSaving}
+          summaryCards={hook.summaryCards}
+          isSaving={hook.isSaving}
           onStatusChange={handleStatusChange}
-          onCancelClick={() => setShowCancelModal(true)}
-          onSendSMS={() => setShowMMSSheet(true)}
+          onCancelClick={() => hook.setShowCancelModal(true)}
+          onSendSMS={() => hook.setShowMMSSheet(true)}
         />
 
         {/* 메인 콘텐츠 */}
@@ -133,54 +99,55 @@ export default function ApplicationDetailPage() {
             {/* 서비스 상세 */}
             <ServiceDetailSection
               application={application}
-              photos={photos}
-              fileBaseUrl={FILE_BASE_URL}
-              onPhotoClick={(index) => {
-                setLightboxIndex(index);
-                setLightboxOpen(true);
+              expanded={hook.expandedSections?.service ?? true}
+              onToggle={() => hook.toggleSection?.("service")}
+              onPhotoClick={(index: number) => {
+                hook.setLightboxIndex(index);
+                hook.setLightboxOpen(true);
               }}
+              onDownloadPhoto={hook.handleDownloadPhoto}
+              onDownloadAllPhotos={hook.handleDownloadAllPhotos}
+              isDownloadingAll={hook.isDownloadingAll}
+              downloadingPhoto={hook.downloadingPhoto}
             />
 
             {/* 협력사 배정 현황 */}
             <AssignmentsSection
               application={application}
-              assignmentDetails={assignmentDetails}
-              unassignedServices={unassignedServices}
-              onAddAssignment={() => {
-                setEditingAssignment(null);
-                setShowAssignmentModal(true);
-              }}
-              onEditAssignment={(assignment) => {
-                setEditingAssignment(assignment);
-                setShowAssignmentModal(true);
-              }}
-              onDeleteAssignment={async (assignmentId) => {
+              partners={partners}
+              unassignedServices={hook.unassignedServices}
+              expanded={hook.expandedSections?.assignments ?? true}
+              onToggle={() => hook.toggleSection?.("assignments")}
+              isDeletingAssignment={hook.isDeletingAssignment}
+              onOpenNewAssignment={hook.openNewAssignmentModal}
+              onEditAssignment={hook.openEditAssignmentModal}
+              onDeleteAssignment={async (assignmentId: number) => {
                 const confirmed = await confirm({
                   title: "배정 삭제",
-                  message: "이 배정을 삭제하시겠습니까?",
+                  description: "이 배정을 삭제하시겠습니까?",
                   confirmText: "삭제",
                   cancelText: "취소",
-                  variant: "danger",
+                  confirmVariant: "destructive",
                 });
                 if (confirmed) {
-                  handleDeleteAssignment(assignmentId);
+                  hook.handleDeleteAssignment(assignmentId);
                 }
               }}
-              onShowQuote={(assignmentId) => {
-                setSelectedAssignmentId(assignmentId);
-                setShowQuoteModal(true);
+              onOpenQuote={(assignmentId: number) => {
+                hook.setQuoteAssignmentId(assignmentId);
+                hook.setIsQuoteModalOpen(true);
               }}
-              onShowWorkPhotos={(assignmentId) => {
-                setSelectedAssignmentId(assignmentId);
-                setShowWorkPhotosModal(true);
+              onOpenPhotos={(assignmentId: number) => {
+                hook.setPhotosAssignmentId(assignmentId);
+                hook.setIsPhotosModalOpen(true);
               }}
-              onShowPartnerUrl={(assignmentId) => {
-                setSelectedAssignmentId(assignmentId);
-                setShowPartnerUrlModal(true);
+              onOpenPartnerUrl={(assignmentId: number) => {
+                hook.setUrlAssignmentId(assignmentId);
+                hook.setIsUrlModalOpen(true);
               }}
-              onShowCustomerUrl={(assignmentId) => {
-                setSelectedAssignmentId(assignmentId);
-                setShowCustomerUrlModal(true);
+              onOpenCustomerUrl={(assignmentId: number) => {
+                hook.setCustomerUrlAssignmentId(assignmentId);
+                hook.setIsCustomerUrlModalOpen(true);
               }}
             />
           </div>
@@ -189,12 +156,21 @@ export default function ApplicationDetailPage() {
           <div className="space-y-6">
             <ManagementPanel
               application={application}
-              customerHistory={customerHistory}
               notes={notes}
-              auditLogs={auditLogs}
-              userName={user?.name}
-              onAddNote={handleAddNote}
-              onDeleteNote={handleDeleteNote}
+              customerHistory={customerHistory}
+              unassignedServices={hook.unassignedServices}
+              status={hook.status}
+              setStatus={hook.setStatus}
+              originalStatus={hook.originalStatus}
+              hasStatusChanged={hook.hasStatusChanged}
+              sendSms={hook.sendSms}
+              setSendSms={hook.setSendSms}
+              isSaving={hook.isSaving}
+              expanded={hook.expandedSections?.management ?? true}
+              onToggle={() => hook.toggleSection?.("management")}
+              onSave={hook.handleSave}
+              setShowCancelModal={hook.setShowCancelModal}
+              applicationId={id}
             />
           </div>
         </div>
@@ -202,94 +178,101 @@ export default function ApplicationDetailPage() {
 
       {/* 이미지 라이트박스 */}
       <Lightbox
-        open={lightboxOpen}
-        close={() => setLightboxOpen(false)}
-        index={lightboxIndex}
+        open={hook.lightboxOpen}
+        close={() => hook.setLightboxOpen(false)}
+        index={hook.lightboxIndex}
         slides={slides}
       />
 
       {/* 모달들 */}
-      {showCancelModal && (
+      {hook.showCancelModal && (
         <CancelApplicationModal
-          isSaving={isSaving}
-          onConfirm={handleCancelApplication}
-          onClose={() => setShowCancelModal(false)}
+          applicationNumber={application.application_number}
+          cancelReasonSelect={hook.cancelReasonSelect}
+          setCancelReasonSelect={hook.setCancelReasonSelect}
+          cancelReasonCustom={hook.cancelReasonCustom}
+          setCancelReasonCustom={hook.setCancelReasonCustom}
+          sendCancelSms={hook.sendCancelSms}
+          setSendCancelSms={hook.setSendCancelSms}
+          isCancelling={hook.isCancelling}
+          onConfirm={hook.handleCancelApplication}
+          onClose={() => hook.setShowCancelModal(false)}
         />
       )}
 
-      {showAssignmentModal && (
+      {hook.isAssignmentModalOpen && (
         <AssignmentFormModal
-          applicationId={id}
           application={application}
-          partners={partners}
-          editingAssignment={editingAssignment}
-          onSave={editingAssignment ? handleUpdateAssignment : handleAddAssignment}
-          onClose={() => {
-            setShowAssignmentModal(false);
-            setEditingAssignment(null);
-          }}
+          editingAssignment={hook.editingAssignment}
+          assignmentForm={hook.assignmentForm}
+          setAssignmentForm={hook.setAssignmentForm}
+          isPartnerDropdownOpen={hook.isPartnerDropdownOpen}
+          setIsPartnerDropdownOpen={hook.setIsPartnerDropdownOpen}
+          partnerSearchQuery={hook.partnerSearchQuery}
+          setPartnerSearchQuery={hook.setPartnerSearchQuery}
+          filteredPartners={hook.filteredPartners}
+          selectedPartner={hook.selectedPartner ?? null}
+          isAssignmentSaving={hook.isAssignmentSaving}
+          onSave={hook.handleSaveAssignment}
+          onClose={() => hook.setIsAssignmentModalOpen(false)}
         />
       )}
 
-      {showQuoteModal && selectedAssignmentId && (
+      {hook.isQuoteModalOpen && hook.quoteAssignmentId && (
         <QuoteDetailModal
           applicationId={id}
-          assignmentId={selectedAssignmentId}
+          assignmentId={hook.quoteAssignmentId}
           application={application}
-          setApplication={setApplication}
+          setApplication={hook.setApplication}
           onClose={() => {
-            setShowQuoteModal(false);
-            setSelectedAssignmentId(null);
+            hook.setIsQuoteModalOpen(false);
+            hook.setQuoteAssignmentId(null);
           }}
         />
       )}
 
-      {showPartnerUrlModal && selectedAssignmentId && (
+      {hook.isUrlModalOpen && hook.urlAssignmentId && (
         <PartnerUrlModal
           applicationId={id}
-          assignmentId={selectedAssignmentId}
+          assignmentId={hook.urlAssignmentId}
           application={application}
           partners={partners}
           onClose={() => {
-            setShowPartnerUrlModal(false);
-            setSelectedAssignmentId(null);
+            hook.setIsUrlModalOpen(false);
+            hook.setUrlAssignmentId(null);
           }}
         />
       )}
 
-      {showCustomerUrlModal && selectedAssignmentId && (
+      {hook.isCustomerUrlModalOpen && hook.customerUrlAssignmentId && (
         <CustomerUrlModal
           applicationId={id}
-          assignmentId={selectedAssignmentId}
+          assignmentId={hook.customerUrlAssignmentId}
           application={application}
           onClose={() => {
-            setShowCustomerUrlModal(false);
-            setSelectedAssignmentId(null);
+            hook.setIsCustomerUrlModalOpen(false);
+            hook.setCustomerUrlAssignmentId(null);
           }}
         />
       )}
 
-      {showWorkPhotosModal && selectedAssignmentId && (
+      {hook.isPhotosModalOpen && hook.photosAssignmentId && (
         <WorkPhotosModal
           applicationId={id}
-          assignmentId={selectedAssignmentId}
+          assignmentId={hook.photosAssignmentId}
           onClose={() => {
-            setShowWorkPhotosModal(false);
-            setSelectedAssignmentId(null);
+            hook.setIsPhotosModalOpen(false);
+            hook.setPhotosAssignmentId(null);
           }}
         />
       )}
 
-      {showMMSSheet && (
-        <MMSSheet
-          applicationId={id}
-          customerName={application.customer_name}
-          customerPhone={application.customer_phone}
-          onClose={() => setShowMMSSheet(false)}
-        />
-      )}
-
-      <ConfirmDialog />
+      <MMSSheet
+        open={hook.showMMSSheet}
+        onOpenChange={hook.setShowMMSSheet}
+        recipientName={application.customer_name}
+        recipientPhone={application.customer_phone}
+      />
     </div>
   );
 }
