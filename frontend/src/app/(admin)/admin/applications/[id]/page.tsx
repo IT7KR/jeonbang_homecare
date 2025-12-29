@@ -1386,11 +1386,40 @@ export default function ApplicationDetailPage() {
                   </div>
                 )}
 
+                {/* 견적 합계 및 상태 요약 */}
+                {application.assignments && application.assignments.length > 0 && (
+                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-gray-600">
+                          총 {application.assignments.length}개 배정
+                        </span>
+                        <span className="text-gray-400">|</span>
+                        <span className="font-medium text-gray-900">
+                          견적 합계: {application.assignments.reduce(
+                            (sum, a) => sum + (a.estimated_cost || 0), 0
+                          ).toLocaleString()}원
+                        </span>
+                        {application.assignments.some(a => a.final_cost) && (
+                          <>
+                            <span className="text-gray-400">|</span>
+                            <span className="font-medium text-green-700">
+                              최종 합계: {application.assignments.reduce(
+                                (sum, a) => sum + (a.final_cost || 0), 0
+                              ).toLocaleString()}원
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* 배정 목록 */}
                 {application.assignments &&
                 application.assignments.length > 0 ? (
                   <div className="space-y-3">
-                    {application.assignments.map((assignment) => {
+                    {application.assignments.map((assignment, assignmentIndex) => {
                       const statusInfo = getAssignmentStatusInfo(
                         assignment.status
                       );
