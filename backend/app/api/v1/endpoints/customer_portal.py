@@ -19,7 +19,7 @@ from io import BytesIO
 
 from app.core.database import get_db
 from app.core.encryption import decrypt_value
-from app.core.file_token import encode_file_token, decode_file_token_extended, FileTokenInfo
+from app.core.file_token import encode_file_token, decode_file_token_extended, decode_file_token_extended_no_expiry, FileTokenInfo
 from app.core.config import settings
 from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
@@ -120,7 +120,7 @@ def extract_partial_address(address: str) -> str:
 
 def validate_customer_token(token: str, db: Session) -> Optional[ApplicationPartnerAssignment]:
     """
-    고객 열람 토큰 검증
+    고객 열람 토큰 검증 (서명만 확인, 만료는 DB에서 확인)
 
     Args:
         token: 토큰 문자열
@@ -129,7 +129,8 @@ def validate_customer_token(token: str, db: Session) -> Optional[ApplicationPart
     Returns:
         유효한 경우 assignment 객체, 그렇지 않으면 None
     """
-    result = decode_file_token_extended(token)
+    # 만료 확인 없이 서명만 검증 (DB에서 만료 시간 별도 관리)
+    result = decode_file_token_extended_no_expiry(token)
 
     if isinstance(result, str):
         # 에러 메시지 반환됨
@@ -157,7 +158,7 @@ def validate_customer_token(token: str, db: Session) -> Optional[ApplicationPart
         logger.warning(f"Token mismatch for assignment {assignment_id}")
         return None
 
-    # 만료 시간 확인
+    # DB 만료 시간 확인
     if assignment.customer_token_expires_at:
         if assignment.customer_token_expires_at < datetime.now(timezone.utc):
             logger.warning(f"Customer token expired for assignment {assignment_id}")
@@ -178,11 +179,6 @@ def get_progress_steps(assignment: ApplicationPartnerAssignment, application: Ap
         진행 스텝 목록
     """
     status = assignment.status
-    steps = []
-
-    # 상태별 진행 순서
-    status_order = ["pending", "notified", "accepted", "scheduled", "in_progress", "completed"]
-    completed_statuses = set()
 
     if status == "cancelled":
         # 취소된 경우
@@ -191,40 +187,72 @@ def get_progress_steps(assignment: ApplicationPartnerAssignment, application: Ap
             {"step": "취소됨", "status": "cancelled", "date": assignment.cancelled_at.strftime("%Y-%m-%d") if assignment.cancelled_at else None},
         ]
 
-    # 현재 상태까지 완료 처리
-    current_index = status_order.index(status) if status in status_order else -1
-    for i, s in enumerate(status_order):
-        if i <= current_index:
-            completed_statuses.add(s)
+    # 스텝 정의 - UI에 표시되는 진행 단계
+    # assignment.status와 UI 스텝 매핑:
+    #   pending/notified/accepted → "협력사 배정" 스텝 (current)
+    #   scheduled → "일정 확정" 스텝 (current)
+    #   in_progress → "시공 진행" 스텝 (current)
+    #   completed → "시공 완료" 스텝 (current)
 
-    # 스텝 생성
-    step_definitions = [
-        ("pending", "접수", application.created_at),
-        ("notified", "협력사 배정", assignment.assigned_at),
-        ("scheduled", "일정 확정", None),
-        ("in_progress", "시공 진행", None),
-        ("completed", "시공 완료", assignment.completed_at),
-    ]
+    # "접수"는 항상 완료 (고객 URL이 존재한다면 신청은 이미 접수됨)
+    steps = []
 
-    for status_key, label, date_field in step_definitions:
-        if status_key in completed_statuses:
-            step_status = "completed"
-        elif status_key == status:
-            step_status = "current"
-        else:
-            step_status = "pending"
+    # 1. 접수 - 항상 완료
+    steps.append({
+        "step": "접수",
+        "status": "completed",
+        "date": application.created_at.strftime("%Y-%m-%d") if application.created_at else None,
+    })
 
-        date_str = None
-        if date_field:
-            date_str = date_field.strftime("%Y-%m-%d") if date_field else None
-        elif status_key == "scheduled" and assignment.scheduled_date:
-            date_str = assignment.scheduled_date.strftime("%Y-%m-%d")
+    # 2. 협력사 배정 - pending/notified/accepted 상태
+    if status in ["pending", "notified", "accepted"]:
+        step_status = "current"
+    elif status in ["scheduled", "in_progress", "completed"]:
+        step_status = "completed"
+    else:
+        step_status = "pending"
+    steps.append({
+        "step": "협력사 배정",
+        "status": step_status,
+        "date": assignment.assigned_at.strftime("%Y-%m-%d") if assignment.assigned_at else None,
+    })
 
-        steps.append({
-            "step": label,
-            "status": step_status,
-            "date": date_str,
-        })
+    # 3. 일정 확정
+    if status == "scheduled":
+        step_status = "current"
+    elif status in ["in_progress", "completed"]:
+        step_status = "completed"
+    else:
+        step_status = "pending"
+    steps.append({
+        "step": "일정 확정",
+        "status": step_status,
+        "date": assignment.scheduled_date.strftime("%Y-%m-%d") if assignment.scheduled_date else None,
+    })
+
+    # 4. 시공 진행
+    if status == "in_progress":
+        step_status = "current"
+    elif status == "completed":
+        step_status = "completed"
+    else:
+        step_status = "pending"
+    steps.append({
+        "step": "시공 진행",
+        "status": step_status,
+        "date": None,
+    })
+
+    # 5. 시공 완료
+    if status == "completed":
+        step_status = "current"
+    else:
+        step_status = "pending"
+    steps.append({
+        "step": "시공 완료",
+        "status": step_status,
+        "date": assignment.completed_at.strftime("%Y-%m-%d") if assignment.completed_at else None,
+    })
 
     return steps
 
@@ -285,7 +313,7 @@ async def view_assignment(
     partner_phone_masked = None
     if partner:
         partner_company = partner.company_name
-        partner_phone = decrypt_value(partner.phone) if partner.phone else ""
+        partner_phone = decrypt_value(partner.contact_phone) if partner.contact_phone else ""
         partner_phone_masked = mask_phone(partner_phone)
 
     # 견적 정보 조회

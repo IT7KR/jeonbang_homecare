@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Lightbox from "yet-another-react-lightbox";
@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { fetchApi } from "@/lib/api/client";
 import { getServiceName } from "@/lib/utils/service";
+import { PartnerPhotoUpload } from "@/components/features/partner-portal";
 
 // 배정 상태 설정
 const ASSIGNMENT_STATUS_CONFIG: Record<
@@ -97,38 +98,38 @@ export default function PartnerViewPage() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const result = await fetchApi<PartnerViewData>(
-          `/partner-portal/view/${token}`
-        );
-        setData(result);
-        setError(null);
-      } catch (err: unknown) {
-        console.error("Failed to fetch partner view data:", err);
-        if (err && typeof err === "object" && "status" in err) {
-          const apiError = err as { status?: number; message?: string };
-          if (apiError.status === 404) {
-            setError("유효하지 않거나 만료된 링크입니다.");
-          } else {
-            setError(
-              apiError.message || "정보를 불러오는 중 오류가 발생했습니다."
-            );
-          }
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await fetchApi<PartnerViewData>(
+        `/partner-portal/view/${token}`
+      );
+      setData(result);
+      setError(null);
+    } catch (err: unknown) {
+      console.error("Failed to fetch partner view data:", err);
+      if (err && typeof err === "object" && "status" in err) {
+        const apiError = err as { status?: number; message?: string };
+        if (apiError.status === 404) {
+          setError("유효하지 않거나 만료된 링크입니다.");
         } else {
-          setError("정보를 불러오는 중 오류가 발생했습니다.");
+          setError(
+            apiError.message || "정보를 불러오는 중 오류가 발생했습니다."
+          );
         }
-      } finally {
-        setLoading(false);
+      } else {
+        setError("정보를 불러오는 중 오류가 발생했습니다.");
       }
+    } finally {
+      setLoading(false);
     }
+  }, [token]);
 
+  useEffect(() => {
     if (token) {
       loadData();
     }
-  }, [token]);
+  }, [token, loadData]);
 
   if (loading) {
     return (
@@ -377,6 +378,11 @@ export default function PartnerViewPage() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {/* 시공 사진 업로드 - 업로드 가능한 상태에서만 표시 */}
+        {["accepted", "scheduled", "in_progress"].includes(data.assignment_status) && (
+          <PartnerPhotoUpload token={token} onUploadComplete={() => loadData()} />
         )}
 
         {/* 배정 메모 */}
