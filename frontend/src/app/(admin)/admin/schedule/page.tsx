@@ -52,6 +52,7 @@ export default function SchedulePage() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
@@ -88,17 +89,30 @@ export default function SchedulePage() {
     return days;
   }, [year, month]);
 
+  // 상태 필터링된 일정
+  const filteredSchedules = useMemo(() => {
+    if (statusFilter.length === 0) return schedules;
+    return schedules.filter((schedule) => statusFilter.includes(schedule.status));
+  }, [schedules, statusFilter]);
+
   // 날짜별 일정 그룹화
   const schedulesByDate = useMemo(() => {
     const grouped: Record<string, ScheduleItem[]> = {};
-    schedules.forEach((schedule) => {
+    filteredSchedules.forEach((schedule) => {
       if (!grouped[schedule.scheduled_date]) {
         grouped[schedule.scheduled_date] = [];
       }
       grouped[schedule.scheduled_date].push(schedule);
     });
     return grouped;
-  }, [schedules]);
+  }, [filteredSchedules]);
+
+  // 상태 필터 토글 함수
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
+  };
 
   // 선택된 날짜의 일정
   const selectedSchedules = useMemo(() => {
@@ -266,6 +280,38 @@ export default function SchedulePage() {
               오늘
             </button>
           </div>
+        </div>
+
+        {/* Status Filter */}
+        <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-gray-100">
+          <span className="text-sm text-gray-500 mr-1">상태:</span>
+          {Object.entries(STATUS_LABELS).map(([status, label]) => {
+            const isActive = statusFilter.includes(status);
+            const colorClass = STATUS_COLORS[status] || "bg-gray-100 text-gray-700 border-gray-200";
+            return (
+              <button
+                key={status}
+                onClick={() => toggleStatusFilter(status)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
+                  isActive
+                    ? colorClass + " ring-2 ring-offset-1 ring-gray-300"
+                    : statusFilter.length === 0
+                    ? colorClass
+                    : "bg-gray-50 text-gray-400 border-gray-200"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+          {statusFilter.length > 0 && (
+            <button
+              onClick={() => setStatusFilter([])}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              초기화
+            </button>
+          )}
         </div>
       </div>
 
