@@ -11,7 +11,7 @@ import {
   Clock,
   MapPin,
   User,
-  Eye,
+  ExternalLink,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
@@ -23,15 +23,21 @@ import {
 import { getServiceName } from "@/lib/utils/service";
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
+  new: "bg-yellow-50 text-yellow-700 border-yellow-200",
+  consulting: "bg-orange-50 text-orange-700 border-orange-200",
   assigned: "bg-purple-50 text-purple-700 border-purple-200",
+  scheduled: "bg-blue-50 text-blue-700 border-blue-200",
   completed: "bg-primary-50 text-primary-700 border-primary-200",
+  cancelled: "bg-gray-50 text-gray-500 border-gray-200",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  scheduled: "일정확정",
+  new: "신규",
+  consulting: "상담중",
   assigned: "배정완료",
+  scheduled: "일정확정",
   completed: "완료",
+  cancelled: "취소",
 };
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -421,7 +427,7 @@ export default function SchedulePage() {
                           rel="noopener noreferrer"
                           className="text-primary hover:text-primary-700 p-1 hover:bg-primary-50 rounded-lg transition-colors"
                         >
-                          <Eye size={16} />
+                          <ExternalLink size={16} />
                         </Link>
                       </div>
                       <p className="font-semibold text-gray-900 mb-2">
