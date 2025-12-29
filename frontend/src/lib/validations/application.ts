@@ -36,7 +36,7 @@ export const applicationSchema = z.object({
   // 상세 내용
   description: z
     .string()
-    .min(20, "전달 사항은 20자 이상 입력해주세요")
+    .min(10, "전달 사항은 10자 이상 입력해주세요")
     .max(1000, "전달 사항은 1000자 이하로 입력해주세요"),
 
   // 희망 상담일 (선택, 오늘 이후)
