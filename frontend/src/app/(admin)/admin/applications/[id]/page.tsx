@@ -18,6 +18,7 @@ import {
   Building2,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   Wrench,
   History,
   Trash2,
@@ -56,11 +57,6 @@ import {
   updateApplicationAssignment,
   deleteApplicationAssignment,
   getCustomerHistory,
-  getAssignmentURL,
-  generateAssignmentURL,
-  renewAssignmentURL,
-  revokeAssignmentURL,
-  extendAssignmentURL,
   ApplicationDetail,
   PartnerListItem,
   AuditLog,
@@ -69,7 +65,6 @@ import {
   AssignmentCreate,
   AssignmentUpdate,
   CustomerHistoryResponse,
-  URLInfo,
 } from "@/lib/api/admin";
 import { startOfDay } from "date-fns";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -89,7 +84,7 @@ import {
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 import { QuoteItemTable } from "@/components/features/admin/quotes";
 import { MMSSheet } from "@/components/features/admin/sms";
-import { WorkPhotoUpload, CustomerUrlManager } from "@/components/features/admin/photos";
+import { WorkPhotoUpload, CustomerUrlManager, PartnerUrlManager } from "@/components/features/admin/photos";
 
 // 파일 URL 기본 경로 (API가 /api/v1/files/{token} 형태로 반환)
 const FILE_BASE_URL = (
@@ -151,6 +146,11 @@ const willSendSmsForStatusChange = (
   prevStatus: string,
   newStatus: string
 ): boolean => {
+  // consulting 상태로 변경 (접수 확인 알림)
+  if (newStatus === "consulting" && prevStatus === "new") {
+    return true;
+  }
+
   // scheduled 상태로 변경 (일정 확정 알림)
   if (newStatus === "scheduled" && prevStatus !== "scheduled") {
     return true;
@@ -162,7 +162,7 @@ const willSendSmsForStatusChange = (
   }
 
   // cancelled 상태는 별도 취소 모달에서 처리
-  // consulting, assigned 상태 변경은 SMS 발송 로직 없음
+  // assigned 상태 변경은 SMS 발송 로직 없음
   return false;
 };
 
@@ -273,8 +273,6 @@ export default function ApplicationDetailPage() {
   // URL 관리 모달 상태 (협력사 포털)
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [urlAssignmentId, setUrlAssignmentId] = useState<number | null>(null);
-  const [urlInfo, setUrlInfo] = useState<URLInfo | null>(null);
-  const [isLoadingUrl, setIsLoadingUrl] = useState(false);
 
   // 시공 사진 모달 상태
   const [isPhotosModalOpen, setIsPhotosModalOpen] = useState(false);
@@ -352,118 +350,6 @@ export default function ApplicationDetailPage() {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  // URL 관리 함수들
-  const loadAssignmentUrl = async (assignmentId: number) => {
-    try {
-      setIsLoadingUrl(true);
-      const token = await getValidToken();
-      if (!token) return;
-
-      const urlData = await getAssignmentURL(token, id, assignmentId);
-      setUrlInfo(urlData);
-    } catch (err) {
-      console.error("Failed to load URL:", err);
-      setUrlInfo(null);
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
-
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setSuccessMessage("URL이 클립보드에 복사되었습니다");
-      setTimeout(() => setSuccessMessage(null), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
-    }
-  };
-
-  const handleRenewUrl = async () => {
-    if (!urlAssignmentId) return;
-    try {
-      setIsLoadingUrl(true);
-      const token = await getValidToken();
-      if (!token) return;
-
-      const newUrlInfo = await renewAssignmentURL(token, id, urlAssignmentId, {
-        expires_in_days: 7,
-      });
-      setUrlInfo(newUrlInfo);
-      setSuccessMessage("URL이 재발급되었습니다");
-    } catch (err) {
-      console.error("Failed to renew URL:", err);
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
-
-  const handleExtendUrl = async (days: number) => {
-    if (!urlAssignmentId) return;
-    try {
-      setIsLoadingUrl(true);
-      const token = await getValidToken();
-      if (!token) return;
-
-      const newUrlInfo = await extendAssignmentURL(token, id, urlAssignmentId, {
-        expires_in_days: days,
-      });
-      setUrlInfo(newUrlInfo);
-      setSuccessMessage(`URL이 ${days}일 연장되었습니다`);
-    } catch (err) {
-      console.error("Failed to extend URL:", err);
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
-
-  const handleRevokeUrl = async () => {
-    if (!urlAssignmentId) return;
-    const confirmed = await confirm({
-      title: "URL 만료 처리",
-      description: "이 URL을 만료 처리하시겠습니까?",
-      type: "warning",
-      confirmText: "만료 처리",
-      confirmVariant: "destructive",
-    });
-    if (!confirmed) return;
-
-    try {
-      setIsLoadingUrl(true);
-      const token = await getValidToken();
-      if (!token) return;
-
-      await revokeAssignmentURL(token, id, urlAssignmentId);
-      setIsUrlModalOpen(false);
-      setUrlAssignmentId(null);
-      setUrlInfo(null);
-      setSuccessMessage("URL이 만료 처리되었습니다");
-    } catch (err) {
-      console.error("Failed to revoke URL:", err);
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
-
-  const handleGenerateUrl = async (days: number = 7) => {
-    if (!urlAssignmentId) return;
-    try {
-      setIsLoadingUrl(true);
-      const token = await getValidToken();
-      if (!token) return;
-
-      const newUrlInfo = await generateAssignmentURL(token, id, urlAssignmentId, {
-        expires_in_days: days,
-      });
-      setUrlInfo(newUrlInfo);
-      setSuccessMessage("URL이 발급되었습니다");
-    } catch (err) {
-      console.error("Failed to generate URL:", err);
-    } finally {
-      setIsLoadingUrl(false);
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -1563,7 +1449,6 @@ export default function ApplicationDetailPage() {
                               <button
                                 onClick={() => {
                                   setUrlAssignmentId(assignment.id);
-                                  loadAssignmentUrl(assignment.id);
                                   setIsUrlModalOpen(true);
                                 }}
                                 className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 hover:border-blue-200"
@@ -2204,76 +2089,35 @@ export default function ApplicationDetailPage() {
                           </div>
                         )}
 
-                        {/* 기타 협력사 */}
-                        {filteredPartners.unmatched.length > 0 && (
-                          <div>
-                            <div className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 sticky top-0">
-                              기타 협력사
-                            </div>
-                            {filteredPartners.unmatched.map((partner) => (
-                              <button
-                                key={partner.id}
-                                type="button"
-                                onClick={() => {
-                                  setAssignmentForm((prev) => ({
-                                    ...prev,
-                                    partner_id: partner.id,
-                                  }));
-                                  setIsPartnerDropdownOpen(false);
-                                  setPartnerSearchQuery("");
-                                }}
-                                className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 ${
-                                  assignmentForm.partner_id === partner.id
-                                    ? "bg-primary-50"
-                                    : ""
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 min-w-0">
-                                    <span className="font-medium text-gray-900 text-sm">
-                                      {partner.company_name}
-                                    </span>
-                                    {partner.representative_name && (
-                                      <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
-                                        <User size={10} />
-                                        {partner.representative_name}
-                                        {partner.contact_phone && (
-                                          <>
-                                            <span className="mx-1">·</span>
-                                            <Phone size={10} />
-                                            {formatPhone(partner.contact_phone)}
-                                          </>
-                                        )}
-                                      </p>
-                                    )}
-                                  </div>
-                                  {assignmentForm.partner_id === partner.id && (
-                                    <Check
-                                      size={16}
-                                      className="text-primary flex-shrink-0 mt-0.5"
-                                    />
-                                  )}
-                                </div>
-                              </button>
-                            ))}
+                        {/* 매칭되는 협력사 없음 안내 */}
+                        {filteredPartners.matched.length === 0 && (
+                          <div className="px-3 py-6 text-center text-gray-500">
+                            {partnerSearchQuery ? (
+                              <>
+                                <Building2
+                                  size={24}
+                                  className="mx-auto mb-2 text-gray-300"
+                                />
+                                <p className="text-sm">검색 결과가 없습니다</p>
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle
+                                  size={24}
+                                  className="mx-auto mb-2 text-amber-400"
+                                />
+                                <p className="text-sm font-medium text-gray-700">
+                                  매칭되는 협력사가 없습니다
+                                </p>
+                                <p className="text-xs mt-1">
+                                  미배정 서비스를 제공하는 협력사가 없습니다.
+                                  <br />
+                                  협력사의 서비스 영역을 확인해주세요.
+                                </p>
+                              </>
+                            )}
                           </div>
                         )}
-
-                        {/* 검색 결과 없음 */}
-                        {filteredPartners.matched.length === 0 &&
-                          filteredPartners.unmatched.length === 0 && (
-                            <div className="px-3 py-6 text-center text-gray-500">
-                              <Building2
-                                size={24}
-                                className="mx-auto mb-2 text-gray-300"
-                              />
-                              <p className="text-sm">
-                                {partnerSearchQuery
-                                  ? "검색 결과가 없습니다"
-                                  : "등록된 협력사가 없습니다"}
-                              </p>
-                            </div>
-                          )}
                       </div>
                     </PopoverContent>
                   </Popover>
@@ -2653,7 +2497,10 @@ export default function ApplicationDetailPage() {
             {/* 본문 */}
             <div className="flex-1 overflow-y-auto p-4">
               <QuoteItemTable
+                applicationId={id}
                 assignmentId={quoteAssignmentId}
+                customerName={application.customer_name}
+                customerPhone={application.customer_phone}
                 onTotalChange={(total) => {
                   // 견적 금액이 변경되면 로컬 상태만 업데이트 (전체 새로고침 불필요)
                   if (quoteAssignmentId && application?.assignments) {
@@ -2690,177 +2537,58 @@ export default function ApplicationDetailPage() {
       )}
 
       {/* URL 관리 모달 */}
-      {isUrlModalOpen && urlAssignmentId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-4 border-b border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                <Link2 size={18} className="text-primary" />
-                협력사 포털 URL 관리
-              </h3>
-              <button
-                onClick={() => {
-                  setIsUrlModalOpen(false);
-                  setUrlAssignmentId(null);
-                  setUrlInfo(null);
-                }}
-                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {isUrlModalOpen && urlAssignmentId && (() => {
+        // 현재 assignment와 partner 정보 가져오기
+        const currentAssignment = application?.assignments?.find(
+          (a) => a.id === urlAssignmentId
+        );
+        const currentPartner = partners.find(
+          (p) => p.id === currentAssignment?.partner_id
+        );
 
-            <div className="p-4 space-y-4">
-              {isLoadingUrl ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                </div>
-              ) : urlInfo && !urlInfo.is_issued ? (
-                /* URL 미발급 상태 - 발급 버튼 표시 */
-                <div className="text-center py-6 space-y-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-2">
-                    <Link2 size={28} className="text-gray-400" />
-                  </div>
-                  <div>
-                    <p className="text-gray-700 font-medium mb-1">URL이 발급되지 않았습니다</p>
-                    <p className="text-sm text-gray-500">협력사에게 공유할 URL을 발급하세요</p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-500">유효 기간 선택</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 3, 7, 14, 30].map((days) => (
-                        <button
-                          key={days}
-                          onClick={() => handleGenerateUrl(days)}
-                          disabled={isLoadingUrl}
-                          className="flex items-center justify-center px-2 py-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors text-sm font-medium disabled:opacity-50"
-                        >
-                          {days}일
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : urlInfo && urlInfo.is_issued && urlInfo.is_expired ? (
-                /* URL 만료 상태 - 재발급 안내 */
-                <div className="text-center py-6 space-y-4">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-2">
-                    <XCircle size={28} className="text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-gray-700 font-medium mb-1">URL이 만료되었습니다</p>
-                    <p className="text-sm text-gray-500">
-                      만료일: {urlInfo.expires_at ? new Date(urlInfo.expires_at).toLocaleString("ko-KR") : "-"}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-500">새 URL 발급 (유효 기간 선택)</p>
-                    <div className="grid grid-cols-5 gap-2">
-                      {[1, 3, 7, 14, 30].map((days) => (
-                        <button
-                          key={days}
-                          onClick={() => handleRenewUrl()}
-                          disabled={isLoadingUrl}
-                          className="flex items-center justify-center px-2 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium disabled:opacity-50"
-                        >
-                          {days}일
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : urlInfo && urlInfo.is_issued && urlInfo.view_url ? (
-                /* URL 활성 상태 - URL 관리 UI */
-                <>
-                  {/* URL 표시 및 복사 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      포털 URL
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        readOnly
-                        value={urlInfo.view_url}
-                        className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-600"
-                      />
-                      <button
-                        onClick={() => copyToClipboard(urlInfo.view_url!)}
-                        className="p-2 bg-primary text-white rounded-lg hover:bg-primary-600 transition-colors"
-                        title="URL 복사"
-                      >
-                        <Copy size={16} />
-                      </button>
-                    </div>
-                  </div>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="flex items-center justify-between p-4 border-b border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Link2 size={18} className="text-primary" />
+                  협력사 포털 URL 관리
+                </h3>
+                <button
+                  onClick={() => {
+                    setIsUrlModalOpen(false);
+                    setUrlAssignmentId(null);
+                  }}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-                  {/* 만료 시간 표시 */}
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Clock size={14} />
-                    <span>
-                      만료: {urlInfo.expires_at ? new Date(urlInfo.expires_at).toLocaleString("ko-KR") : "-"}
-                    </span>
-                  </div>
+              <div className="p-4">
+                <PartnerUrlManager
+                  applicationId={id}
+                  assignmentId={urlAssignmentId}
+                  partnerName={currentAssignment?.partner_name || currentPartner?.representative_name}
+                  partnerPhone={currentPartner?.contact_phone}
+                />
+              </div>
 
-                  {/* 액션 버튼들 */}
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={handleRenewUrl}
-                        disabled={isLoadingUrl}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium disabled:opacity-50"
-                      >
-                        <RefreshCw size={14} />
-                        재발급
-                      </button>
-                      <button
-                        onClick={handleRevokeUrl}
-                        disabled={isLoadingUrl}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium disabled:opacity-50"
-                      >
-                        <XCircle size={14} />
-                        만료
-                      </button>
-                    </div>
-                    <div className="border-t pt-3">
-                      <p className="text-xs text-gray-500 mb-2">기간 연장</p>
-                      <div className="grid grid-cols-5 gap-1.5">
-                        {[1, 3, 7, 14, 30].map((days) => (
-                          <button
-                            key={days}
-                            onClick={() => handleExtendUrl(days)}
-                            disabled={isLoadingUrl}
-                            className="flex items-center justify-center px-2 py-1.5 bg-green-50 text-green-700 rounded hover:bg-green-100 transition-colors text-xs font-medium disabled:opacity-50"
-                          >
-                            {days}일
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  URL 정보를 불러올 수 없습니다
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end p-4 border-t border-gray-100">
-              <button
-                onClick={() => {
-                  setIsUrlModalOpen(false);
-                  setUrlAssignmentId(null);
-                  setUrlInfo(null);
-                }}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                닫기
-              </button>
+              <div className="flex justify-end p-4 border-t border-gray-100">
+                <button
+                  onClick={() => {
+                    setIsUrlModalOpen(false);
+                    setUrlAssignmentId(null);
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* 시공 사진 모달 */}
       {isPhotosModalOpen && photosAssignmentId && (
@@ -2925,6 +2653,8 @@ export default function ApplicationDetailPage() {
               <CustomerUrlManager
                 applicationId={id}
                 assignmentId={customerUrlAssignmentId}
+                customerName={application.customer_name}
+                customerPhone={application.customer_phone}
               />
             </div>
             <div className="flex justify-end p-4 border-t border-gray-100">

@@ -141,7 +141,7 @@ export {
 } from "./applications";
 
 // URL Types
-export type { URLInfo, URLRenewRequest, URLRevokeRequest } from "./applications";
+export type { URLInfo, URLRenewRequest, PartnerUrlExtend, URLRevokeRequest } from "./applications";
 
 // Partners API
 export {

@@ -244,6 +244,13 @@ export interface URLRenewRequest {
 }
 
 /**
+ * 협력사 URL 기간 연장 요청 타입
+ */
+export interface PartnerUrlExtend {
+  additional_days: number;
+}
+
+/**
  * URL 만료 요청 타입
  */
 export interface URLRevokeRequest {
@@ -322,13 +329,13 @@ export async function revokeAssignmentURL(
 }
 
 /**
- * 배정의 협력사 포털 URL 연장
+ * 배정의 협력사 포털 URL 기간 연장 (기존 URL 유지)
  */
 export async function extendAssignmentURL(
   token: string,
   applicationId: number,
   assignmentId: number,
-  data: URLRenewRequest = {}
+  data: PartnerUrlExtend
 ): Promise<URLInfo> {
   return fetchWithToken<URLInfo>(
     `/admin/applications/${applicationId}/assignments/${assignmentId}/extend-url`,
