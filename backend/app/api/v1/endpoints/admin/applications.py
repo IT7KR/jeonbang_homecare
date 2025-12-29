@@ -74,6 +74,7 @@ from app.services.audit import (
 )
 from app.services.search_index import unified_search, detect_search_type
 from app.services.duplicate_check import get_customer_applications
+from app.services.status_sync import sync_application_from_assignments
 
 logger = logging.getLogger(__name__)
 
@@ -377,6 +378,9 @@ def get_assignments_for_application(db: Session, application_id: int) -> list[As
             final_cost=assignment.final_cost,
             estimate_note=assignment.estimate_note,
             note=assignment.note,
+            quote_status=assignment.quote_status,
+            quote_sent_at=assignment.quote_sent_at,
+            quote_viewed_at=assignment.quote_viewed_at,
         ))
 
     return result
@@ -1072,6 +1076,17 @@ async def create_application_assignment(
 
     logger.info(f"Assignment created: app={application.application_number}, partner={partner.company_name}")
 
+    # 배정 생성 시 신청 상태 자동 동기화
+    old_app_status, new_app_status = sync_application_from_assignments(
+        db, application_id, trigger_source="assignment_create"
+    )
+    if old_app_status != new_app_status:
+        db.commit()
+        logger.info(
+            f"Application status synced: {application_id} "
+            f"({old_app_status} → {new_app_status}) due to new assignment"
+        )
+
     return AssignmentResponse(
         id=assignment.id,
         application_id=assignment.application_id,
@@ -1083,6 +1098,9 @@ async def create_application_assignment(
         estimated_cost=assignment.estimated_cost,
         final_cost=assignment.final_cost,
         estimate_note=assignment.estimate_note,
+        quote_status=assignment.quote_status,
+        quote_sent_at=assignment.quote_sent_at,
+        quote_viewed_at=assignment.quote_viewed_at,
         assigned_by=assignment.assigned_by,
         assigned_at=assignment.assigned_at,
         note=assignment.note,
@@ -1140,6 +1158,18 @@ async def update_application_assignment(
 
     db.commit()
     db.refresh(assignment)
+
+    # 배정 상태 변경 시 신청 상태 자동 동기화
+    if data.status and data.status != prev_status:
+        old_app_status, new_app_status = sync_application_from_assignments(
+            db, application_id, trigger_source="assignment_update"
+        )
+        if old_app_status != new_app_status:
+            db.commit()
+            logger.info(
+                f"Application status synced: {application_id} "
+                f"({old_app_status} → {new_app_status}) due to assignment {assignment_id}"
+            )
 
     # Audit Log
     if data.status and data.status != prev_status:
@@ -1227,6 +1257,9 @@ async def update_application_assignment(
         estimated_cost=assignment.estimated_cost,
         final_cost=assignment.final_cost,
         estimate_note=assignment.estimate_note,
+        quote_status=assignment.quote_status,
+        quote_sent_at=assignment.quote_sent_at,
+        quote_viewed_at=assignment.quote_viewed_at,
         assigned_by=assignment.assigned_by,
         assigned_at=assignment.assigned_at,
         note=assignment.note,
@@ -1294,6 +1327,17 @@ def delete_application_assignment(
             # 상태는 그대로 유지 (사용자가 수동으로 변경)
 
     db.commit()
+
+    # 배정 삭제 후 신청 상태 자동 동기화
+    old_app_status, new_app_status = sync_application_from_assignments(
+        db, application_id, trigger_source="assignment_delete"
+    )
+    if old_app_status != new_app_status:
+        db.commit()
+        logger.info(
+            f"Application status synced: {application_id} "
+            f"({old_app_status} → {new_app_status}) due to assignment deletion"
+        )
 
     logger.info(f"Assignment deleted: id={assignment_id}, partner={partner_name}")
 
