@@ -2,7 +2,7 @@
  * 시공 사진 및 고객 URL 관리 API
  */
 
-import { fetchWithToken, uploadWithAuth } from "../client";
+import { fetchWithAuth, uploadWithAuth } from "../client";
 import type {
   WorkPhotosResponse,
   WorkPhotoUploadResponse,
@@ -20,12 +20,10 @@ const BASE_URL = "/admin/applications";
  */
 export async function getWorkPhotos(
   applicationId: number,
-  assignmentId: number,
-  token?: string
+  assignmentId: number
 ): Promise<WorkPhotosResponse> {
-  return fetchWithToken<WorkPhotosResponse>(
-    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos`,
-    token || ""
+  return fetchWithAuth<WorkPhotosResponse>(
+    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos`
   );
 }
 
@@ -36,18 +34,16 @@ export async function uploadWorkPhotos(
   applicationId: number,
   assignmentId: number,
   photoType: "before" | "after",
-  files: File[],
-  token?: string
+  files: File[]
 ): Promise<WorkPhotoUploadResponse> {
   const formData = new FormData();
   files.forEach((file) => {
-    formData.append("files", file);
+    formData.append("photos", file);
   });
 
   return uploadWithAuth<WorkPhotoUploadResponse>(
     `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos/${photoType}`,
-    formData,
-    token
+    formData
   );
 }
 
@@ -58,13 +54,11 @@ export async function deleteWorkPhoto(
   applicationId: number,
   assignmentId: number,
   photoType: "before" | "after",
-  photoIndex: number,
-  token?: string
+  photoIndex: number
 ): Promise<{ message: string; remaining_count: number }> {
-  return fetchWithToken<{ message: string; remaining_count: number }>(
-    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos/${photoType}?photo_index=${photoIndex}`,
-    token || "",
-    { method: "DELETE" }
+  return fetchWithAuth<{ message: string; remaining_count: number }>(
+    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos/${photoType}`,
+    { method: "DELETE", params: { photo_index: photoIndex } }
   );
 }
 
@@ -75,12 +69,10 @@ export async function deleteWorkPhoto(
  */
 export async function getCustomerUrl(
   applicationId: number,
-  assignmentId: number,
-  token?: string
+  assignmentId: number
 ): Promise<CustomerUrlResponse> {
-  return fetchWithToken<CustomerUrlResponse>(
-    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url`,
-    token || ""
+  return fetchWithAuth<CustomerUrlResponse>(
+    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url`
   );
 }
 
@@ -90,12 +82,10 @@ export async function getCustomerUrl(
 export async function createCustomerUrl(
   applicationId: number,
   assignmentId: number,
-  data?: CustomerUrlCreate,
-  token?: string
+  data?: CustomerUrlCreate
 ): Promise<CustomerUrlResponse> {
-  return fetchWithToken<CustomerUrlResponse>(
+  return fetchWithAuth<CustomerUrlResponse>(
     `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url`,
-    token || "",
     { method: "POST", body: data || {} }
   );
 }
@@ -106,12 +96,10 @@ export async function createCustomerUrl(
 export async function extendCustomerUrl(
   applicationId: number,
   assignmentId: number,
-  data: CustomerUrlExtend,
-  token?: string
+  data: CustomerUrlExtend
 ): Promise<CustomerUrlResponse> {
-  return fetchWithToken<CustomerUrlResponse>(
+  return fetchWithAuth<CustomerUrlResponse>(
     `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url/extend`,
-    token || "",
     { method: "POST", body: data }
   );
 }
@@ -122,12 +110,10 @@ export async function extendCustomerUrl(
 export async function renewCustomerUrl(
   applicationId: number,
   assignmentId: number,
-  data?: CustomerUrlCreate,
-  token?: string
+  data?: CustomerUrlCreate
 ): Promise<CustomerUrlResponse> {
-  return fetchWithToken<CustomerUrlResponse>(
+  return fetchWithAuth<CustomerUrlResponse>(
     `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url/renew`,
-    token || "",
     { method: "POST", body: data || {} }
   );
 }
@@ -137,12 +123,10 @@ export async function renewCustomerUrl(
  */
 export async function revokeCustomerUrl(
   applicationId: number,
-  assignmentId: number,
-  token?: string
+  assignmentId: number
 ): Promise<CustomerUrlResponse> {
-  return fetchWithToken<CustomerUrlResponse>(
+  return fetchWithAuth<CustomerUrlResponse>(
     `${BASE_URL}/${applicationId}/assignments/${assignmentId}/customer-url/revoke`,
-    token || "",
     { method: "POST" }
   );
 }

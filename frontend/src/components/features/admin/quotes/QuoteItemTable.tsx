@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +20,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Pencil, Trash2, Calculator, Loader2, FileDown } from "lucide-react";
+import { Plus, Pencil, Trash2, Calculator, Loader2, FileDown, Send, Link } from "lucide-react";
+import { toast } from "@/hooks";
 import {
   getQuoteItems,
   createQuoteItem,
@@ -33,10 +34,16 @@ import {
   type QuoteItemUpdate,
   type QuoteSummary,
 } from "@/lib/api/admin";
+import { sendSMS } from "@/lib/api/admin/sms";
+import { getCustomerUrl, createCustomerUrl } from "@/lib/api/admin/work-photos";
+import { useAuthStore } from "@/lib/stores/auth";
 
 interface QuoteItemTableProps {
+  applicationId: number;
   assignmentId: number;
   onTotalChange?: (total: number) => void;
+  customerName?: string;
+  customerPhone?: string;
 }
 
 const UNIT_OPTIONS = [
@@ -50,12 +57,25 @@ const UNIT_OPTIONS = [
   { value: "회", label: "회" },
 ];
 
-export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTableProps) {
+export function QuoteItemTable({
+  applicationId,
+  assignmentId,
+  onTotalChange,
+  customerName,
+  customerPhone,
+}: QuoteItemTableProps) {
+  const { getValidToken } = useAuthStore();
   const [summary, setSummary] = useState<QuoteSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [sendingSMS, setSendingSMS] = useState(false);
+  const [copyingUrl, setCopyingUrl] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // onTotalChange를 ref로 저장하여 useCallback 의존성에서 제외 (무한 루프 방지)
+  const onTotalChangeRef = useRef(onTotalChange);
+  onTotalChangeRef.current = onTotalChange;
 
   // 모달 상태
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -76,7 +96,7 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
       setLoading(true);
       const data = await getQuoteItems(assignmentId);
       setSummary(data);
-      onTotalChange?.(data.total_amount);
+      onTotalChangeRef.current?.(data.total_amount);
       setError(null);
     } catch (err) {
       console.error("Failed to load quote items:", err);
@@ -84,7 +104,7 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
     } finally {
       setLoading(false);
     }
-  }, [assignmentId, onTotalChange]);
+  }, [assignmentId]);
 
   useEffect(() => {
     loadQuoteItems();
@@ -172,7 +192,7 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
       setSaving(true);
       const data = await calculateQuote(assignmentId, { update_assignment: true });
       setSummary(data);
-      onTotalChange?.(data.total_amount);
+      onTotalChangeRef.current?.(data.total_amount);
       alert("견적 금액이 저장되었습니다.");
     } catch (err) {
       console.error("Failed to calculate quote:", err);
@@ -202,6 +222,134 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
       alert(err instanceof Error ? err.message : "PDF 다운로드에 실패했습니다.");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  // 견적 SMS 전송
+  const handleSendQuoteSMS = async () => {
+    if (!customerPhone) {
+      toast.error("고객 연락처 정보가 없습니다");
+      return;
+    }
+
+    if (!summary || summary.items.length === 0) {
+      toast.error("견적 항목이 없습니다");
+      return;
+    }
+
+    setSendingSMS(true);
+    try {
+      const token = await getValidToken();
+      if (!token) {
+        toast.error("인증 정보가 없습니다");
+        return;
+      }
+
+      // 고객 열람 URL 조회 또는 자동 발급
+      let customerViewUrl: string | null = null;
+      try {
+        const urlData = await getCustomerUrl(applicationId, assignmentId);
+        if (urlData?.url && urlData.is_valid) {
+          customerViewUrl = urlData.url;
+        } else {
+          // URL이 없거나 만료된 경우 자동 발급
+          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
+            expires_in_days: 7,
+          });
+          customerViewUrl = newUrlData.url;
+        }
+      } catch {
+        // URL 발급 실패 시 자동 발급 시도
+        try {
+          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
+            expires_in_days: 7,
+          });
+          customerViewUrl = newUrlData.url;
+        } catch {
+          toast.error("고객 열람 URL 발급에 실패했습니다");
+          setSendingSMS(false);
+          return;
+        }
+      }
+
+      if (!customerViewUrl) {
+        toast.error("고객 열람 URL을 가져올 수 없습니다");
+        setSendingSMS(false);
+        return;
+      }
+
+      const totalFormatted = new Intl.NumberFormat("ko-KR").format(summary.total_amount);
+      const message = `[전방홈케어] ${customerName || "고객"}님, 견적서를 안내드립니다.\n\n견적 금액: ${totalFormatted}원\n\n상세 내역 확인: ${customerViewUrl}\n\n문의: 031-797-4004`;
+
+      const result = await sendSMS(token, {
+        receiver_phone: customerPhone,
+        message,
+        sms_type: "quote_notification",
+      });
+
+      if (result.success) {
+        toast.success("견적서가 SMS로 발송되었습니다");
+      } else {
+        toast.error(result.message || "SMS 발송에 실패했습니다");
+      }
+    } catch (err) {
+      console.error("Failed to send quote SMS:", err);
+      toast.error("SMS 발송에 실패했습니다");
+    } finally {
+      setSendingSMS(false);
+    }
+  };
+
+  // URL 복사
+  const handleCopyUrl = async () => {
+    if (!summary || summary.items.length === 0) {
+      toast.error("견적 항목이 없습니다");
+      return;
+    }
+
+    setCopyingUrl(true);
+    try {
+      // 고객 열람 URL 조회 또는 자동 발급
+      let customerViewUrl: string | null = null;
+      try {
+        const urlData = await getCustomerUrl(applicationId, assignmentId);
+        if (urlData?.url && urlData.is_valid) {
+          customerViewUrl = urlData.url;
+        } else {
+          // URL이 없거나 만료된 경우 자동 발급
+          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
+            expires_in_days: 7,
+          });
+          customerViewUrl = newUrlData.url;
+        }
+      } catch {
+        // URL 발급 실패 시 자동 발급 시도
+        try {
+          const newUrlData = await createCustomerUrl(applicationId, assignmentId, {
+            expires_in_days: 7,
+          });
+          customerViewUrl = newUrlData.url;
+        } catch {
+          toast.error("고객 열람 URL 발급에 실패했습니다");
+          setCopyingUrl(false);
+          return;
+        }
+      }
+
+      if (!customerViewUrl) {
+        toast.error("고객 열람 URL을 가져올 수 없습니다");
+        setCopyingUrl(false);
+        return;
+      }
+
+      // 클립보드에 복사
+      await navigator.clipboard.writeText(customerViewUrl);
+      toast.success("URL이 클립보드에 복사되었습니다");
+    } catch (err) {
+      console.error("Failed to copy URL:", err);
+      toast.error("URL 복사에 실패했습니다");
+    } finally {
+      setCopyingUrl(false);
     }
   };
 
@@ -334,6 +482,33 @@ export function QuoteItemTable({ assignmentId, onTotalChange }: QuoteItemTablePr
             )}
             PDF 다운로드
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleCopyUrl}
+            disabled={copyingUrl}
+          >
+            {copyingUrl ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1" />
+            ) : (
+              <Link className="h-4 w-4 mr-1" />
+            )}
+            URL 복사
+          </Button>
+          {customerPhone && (
+            <Button
+              variant="default"
+              onClick={handleSendQuoteSMS}
+              disabled={sendingSMS}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {sendingSMS ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <Send className="h-4 w-4 mr-1" />
+              )}
+              견적 SMS 전송
+            </Button>
+          )}
           <Button onClick={handleCalculate} disabled={saving}>
             {saving ? (
               <Loader2 className="h-4 w-4 animate-spin mr-1" />
