@@ -1,641 +1,151 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
+import { useMemo } from "react";
+import { Send, MessageSquare, Users } from "lucide-react";
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
+import { useSMS, enableManualSMS, getImageUrl } from "@/hooks/useSMS";
+import { SMS_STATUS_OPTIONS } from "@/lib/constants/status";
+import { AdminListLayout } from "@/components/admin";
 import {
-  Send,
-  RefreshCw,
-  Loader2,
-  MessageSquare,
-  CheckCircle,
-  XCircle,
-  Users,
-  X,
-  ImageIcon,
-} from "lucide-react";
-import { useAuthStore } from "@/lib/stores/auth";
-import {
-  getSMSStats,
-  getSMSLogs,
-  retrySMS,
-  SMSLogItem,
-  SMSStats,
-} from "@/lib/api/admin";
-import {
-  SMS_STATUS_OPTIONS,
-  getSMSStatusLabel,
-  getSMSStatusColor,
-} from "@/lib/constants/status";
-import { formatDate, formatPhone } from "@/lib/utils";
-import { AdminListLayout, ColumnDef, FilterOption } from "@/components/admin";
-import { BulkSMSSheet, SMSSendSheet } from "@/components/features/admin/sms";
-import { toast } from "@/hooks";
-
-const TYPE_OPTIONS: FilterOption[] = [
-  { value: "", label: "전체유형" },
-  { value: "manual", label: "수동발송" },
-  { value: "application_new", label: "신규신청알림" },
-  { value: "partner_new", label: "협력사등록알림" },
-  { value: "bulk_announcement", label: "복수발송(공지)" },
-  { value: "bulk_status_notify", label: "복수발송(상태별)" },
-  { value: "bulk_manual_select", label: "복수발송(선택)" },
-];
-
-const TYPE_LABELS: Record<string, string> = {
-  manual: "수동발송",
-  application_new: "신규신청알림",
-  partner_new: "협력사등록알림",
-  manual_retry: "수동발송(재시도)",
-  application_new_retry: "신규신청알림(재시도)",
-  partner_new_retry: "협력사등록알림(재시도)",
-  bulk_announcement: "복수발송(공지)",
-  bulk_status_notify: "복수발송(상태별)",
-  bulk_manual_select: "복수발송(선택)",
-  mms_manual: "MMS 수동발송",
-  quote_notification: "견적 알림 발송",
-};
-
-// 발송 출처 (trigger_source) 옵션
-const TRIGGER_SOURCE_OPTIONS: FilterOption[] = [
-  { value: "", label: "전체출처" },
-  { value: "system", label: "시스템" },
-  { value: "manual", label: "직접발송" },
-  { value: "bulk", label: "대량발송" },
-];
-
-const TRIGGER_SOURCE_LABELS: Record<
-  string,
-  { label: string; className: string }
-> = {
-  system: { label: "시스템", className: "bg-blue-100 text-blue-700" },
-  manual: { label: "직접", className: "bg-green-100 text-green-700" },
-  bulk: { label: "대량", className: "bg-purple-100 text-purple-700" },
-};
-
-// Feature Flag: SMS 수동/복수 발송 기능 활성화 여부
-const enableManualSMS = process.env.NEXT_PUBLIC_ENABLE_MANUAL_SMS === "true";
+  BulkSMSSheet,
+  SMSSendSheet,
+  SMSStatsCards,
+  SMSFilters,
+  MessageDetailModal,
+  getSMSColumns,
+} from "@/components/features/admin/sms";
 
 export default function SMSPage() {
-  const router = useRouter();
-  const { getValidToken } = useAuthStore();
+  const hook = useSMS();
 
-  const [stats, setStats] = useState<SMSStats | null>(null);
-  const [logs, setLogs] = useState<SMSLogItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Lightbox용 슬라이드 생성
+  const slides = useMemo(() => {
+    if (!hook.selectedLog?.mms_images) return [];
+    return hook.selectedLog.mms_images.map((imgPath) => ({
+      src: getImageUrl(imgPath),
+    }));
+  }, [hook.selectedLog?.mms_images]);
 
-  // Pagination
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const pageSize = 20;
-
-  // Filters
-  const [statusFilter, setStatusFilter] = useState("");
-  const [typeFilter, setTypeFilter] = useState("");
-  const [triggerSourceFilter, setTriggerSourceFilter] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-
-  // Retry state
-  const [retryingId, setRetryingId] = useState<number | null>(null);
-
-  // SMS Sheets
-  const [showSendSheet, setShowSendSheet] = useState(false);
-  const [showBulkSMSSheet, setShowBulkSMSSheet] = useState(false);
-
-  // Message detail modal
-  const [selectedLog, setSelectedLog] = useState<SMSLogItem | null>(null);
-  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
-
-  // 이미지 URL 생성
-  // Next.js rewrites가 /uploads 와 /api/v1/files를 백엔드로 프록시함
-  const getImageUrl = (path: string) => {
-    // 1. 절대 URL인 경우 - 경로만 추출 (중복 방지)
-    if (path.startsWith("http://") || path.startsWith("https://")) {
-      try {
-        const url = new URL(path);
-        // 경로에서 /api/v1/files/... 또는 /uploads/... 형식 처리
-        return url.pathname;
-      } catch {
-        return path;
-      }
-    }
-    // 2. /uploads/... 형식 - 그대로 사용
-    if (path.startsWith("/uploads/")) {
-      return path;
-    }
-    // 3. /api/v1/files/... 형식 (토큰 기반) - 그대로 사용
-    if (path.startsWith("/api/v1/files/")) {
-      return path;
-    }
-    // 4. 그 외 - /uploads 접두어 추가
-    return `/uploads${path.startsWith("/") ? "" : "/"}${path}`;
+  // 이미지 클릭 핸들러
+  const handleImageClick = (index: number) => {
+    hook.setLightboxIndex(index);
+    hook.setLightboxOpen(true);
   };
 
-  const loadStats = async () => {
-    try {
-      const token = await getValidToken();
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
+  // 컬럼 정의
+  const columns = useMemo(
+    () =>
+      getSMSColumns({
+        onMessageClick: hook.setSelectedLog,
+        onRetry: hook.handleRetry,
+        retryingId: hook.retryingId,
+      }),
+    [hook.setSelectedLog, hook.handleRetry, hook.retryingId]
+  );
 
-      const data = await getSMSStats(token);
-      setStats(data);
-    } catch (err) {
-      console.error("SMS 통계 로드 실패:", err);
-    }
-  };
-
-  const loadLogs = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const token = await getValidToken();
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
-      const data = await getSMSLogs(token, {
-        page,
-        page_size: pageSize,
-        status: statusFilter || undefined,
-        sms_type: typeFilter || undefined,
-        trigger_source:
-          (triggerSourceFilter as "system" | "manual" | "bulk") || undefined,
-        search: searchQuery || undefined,
-      });
-
-      setLogs(data.items);
-      setTotalPages(data.total_pages);
-      setTotal(data.total);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "데이터를 불러올 수 없습니다"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
-  useEffect(() => {
-    loadLogs();
-  }, [page, statusFilter, typeFilter, triggerSourceFilter, searchQuery]);
-
-  const handleSearch = () => {
-    setSearchQuery(searchInput);
-    setPage(1);
-  };
-
-  const handleRetry = async (logId: number) => {
-    try {
-      setRetryingId(logId);
-
-      const token = await getValidToken();
-      if (!token) {
-        router.push("/admin/login");
-        return;
-      }
-
-      const result = await retrySMS(token, logId);
-
-      if (result.success) {
-        toast.success("SMS가 재발송되었습니다");
-        loadStats();
-        loadLogs();
-      } else {
-        toast.error(result.message || "SMS 재발송에 실패했습니다");
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "SMS 재발송에 실패했습니다"
-      );
-    } finally {
-      setRetryingId(null);
-    }
-  };
-
-  const columns: ColumnDef<SMSLogItem>[] = [
-    {
-      key: "receiver_phone",
-      header: "수신번호",
-      render: (log) => (
-        <span className="font-mono text-sm font-semibold text-gray-900">
-          {formatPhone(log.receiver_phone)}
-        </span>
-      ),
-      className: "px-5 py-4 whitespace-nowrap",
-    },
-    {
-      key: "message",
-      header: "메시지",
-      headerClassName: "hidden md:table-cell",
-      render: (log) => (
+  // 헤더 액션 버튼
+  const headerAction = (
+    <div className="flex items-center gap-2">
+      {enableManualSMS && (
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedLog(log);
-          }}
-          className="text-sm text-gray-700 max-w-xs truncate text-left hover:text-primary transition-colors"
+          onClick={() => hook.setShowBulkSMSSheet(true)}
+          className="inline-flex items-center px-4 py-2.5 border border-primary text-primary rounded-xl hover:bg-primary-50 font-medium text-sm transition-colors"
         >
-          {log.message}
+          <Users size={18} className="mr-2" />
+          복수 발송
         </button>
-      ),
-      className: "px-5 py-4 hidden md:table-cell",
-    },
-    {
-      key: "sms_type",
-      header: "유형/출처",
-      headerClassName: "hidden sm:table-cell",
-      render: (log) => {
-        const sourceInfo = TRIGGER_SOURCE_LABELS[log.trigger_source] || {
-          label: log.trigger_source,
-          className: "bg-gray-100 text-gray-700",
-        };
-        return (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              {log.mms_images && log.mms_images.length > 0 && (
-                <ImageIcon size={14} className="text-purple-500" />
-              )}
-              <span className="text-sm text-gray-600">
-                {TYPE_LABELS[log.sms_type] || log.sms_type}
-              </span>
-            </div>
-            <span
-              className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded w-fit ${sourceInfo.className}`}
-            >
-              {sourceInfo.label}
-            </span>
-          </div>
-        );
-      },
-      className: "px-5 py-4 hidden sm:table-cell",
-    },
-    {
-      key: "status",
-      header: "상태",
-      render: (log) => (
-        <div>
-          <span
-            className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(
-              log.status
-            )}`}
-          >
-            {getSMSStatusLabel(log.status)}
-          </span>
-          {log.result_message && log.status === "failed" && (
-            <p className="text-xs text-red-500 mt-1">{log.result_message}</p>
-          )}
-        </div>
-      ),
-      className: "px-5 py-4 whitespace-nowrap",
-    },
-    {
-      key: "sent_at",
-      header: "발송일시",
-      headerClassName: "hidden sm:table-cell",
-      render: (log) => formatDate(log.sent_at || log.created_at),
-      className:
-        "px-5 py-4 whitespace-nowrap text-sm text-gray-500 hidden sm:table-cell",
-    },
-    {
-      key: "actions",
-      header: "관리",
-      headerClassName: "text-center",
-      render: (log) =>
-        log.status === "failed" && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRetry(log.id);
-            }}
-            disabled={retryingId === log.id}
-            className="inline-flex items-center px-3 py-2 text-sm font-medium text-primary hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {retryingId === log.id ? (
-              <Loader2 size={16} className="mr-1.5 animate-spin" />
-            ) : (
-              <RefreshCw size={16} className="mr-1.5" />
-            )}
-            재발송
-          </button>
-        ),
-      className: "px-5 py-4 whitespace-nowrap text-center",
-    },
-  ];
+      )}
+      <button
+        onClick={() => hook.setShowSendSheet(true)}
+        className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
+      >
+        <Send size={18} className="mr-2" />
+        SMS 발송
+      </button>
+    </div>
+  );
+
+  // 추가 필터
+  const additionalFilters = (
+    <SMSFilters
+      typeFilter={hook.typeFilter}
+      onTypeFilterChange={hook.handleTypeFilterChange}
+      triggerSourceFilter={hook.triggerSourceFilter}
+      onTriggerSourceFilterChange={hook.handleTriggerSourceFilterChange}
+    />
+  );
 
   // 통계 카드
-  const StatsCards = stats && (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary-50 rounded-xl">
-            <CheckCircle className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">오늘 발송</p>
-            <p className="text-xl font-bold text-gray-900">
-              {stats.today_sent}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-red-50 rounded-xl">
-            <XCircle className="w-5 h-5 text-red-500" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">오늘 실패</p>
-            <p className="text-xl font-bold text-gray-900">
-              {stats.today_failed}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-secondary-50 rounded-xl">
-            <MessageSquare className="w-5 h-5 text-secondary" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">이번달 발송</p>
-            <p className="text-xl font-bold text-gray-900">
-              {stats.this_month_sent}
-            </p>
-          </div>
-        </div>
-      </div>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md transition-shadow">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-gray-100 rounded-xl">
-            <MessageSquare className="w-5 h-5 text-gray-600" />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">전체 발송</p>
-            <p className="text-xl font-bold text-gray-900">
-              {stats.total_sent}
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  // 유형 및 출처 필터
-  const AdditionalFilters = (
-    <div className="flex items-center gap-2">
-      <select
-        value={typeFilter}
-        onChange={(e) => {
-          setTypeFilter(e.target.value);
-          setPage(1);
-        }}
-        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
-      >
-        {TYPE_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <select
-        value={triggerSourceFilter}
-        onChange={(e) => {
-          setTriggerSourceFilter(e.target.value);
-          setPage(1);
-        }}
-        className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
-      >
-        {TRIGGER_SOURCE_OPTIONS.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
+  const statsCards = hook.stats && <SMSStatsCards stats={hook.stats} />;
 
   return (
     <AdminListLayout
       // 헤더
       title="SMS 관리"
       subtitle="SMS 발송 내역 및 수동 발송"
-      headerAction={
-        <div className="flex items-center gap-2">
-          {/* 복수 발송 버튼: Feature Flag로 제어 */}
-          {enableManualSMS && (
-            <button
-              onClick={() => setShowBulkSMSSheet(true)}
-              className="inline-flex items-center px-4 py-2.5 border border-primary text-primary rounded-xl hover:bg-primary-50 font-medium text-sm transition-colors"
-            >
-              <Users size={18} className="mr-2" />
-              복수 발송
-            </button>
-          )}
-          {/* 단일 SMS 발송 버튼: 항상 표시 */}
-          <button
-            onClick={() => setShowSendSheet(true)}
-            className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
-          >
-            <Send size={18} className="mr-2" />
-            SMS 발송
-          </button>
-        </div>
-      }
+      headerAction={headerAction}
       // 필터
       statusOptions={SMS_STATUS_OPTIONS}
-      statusFilter={statusFilter}
-      onStatusFilterChange={setStatusFilter}
-      additionalFilters={AdditionalFilters}
+      statusFilter={hook.statusFilter}
+      onStatusFilterChange={hook.handleStatusFilterChange}
+      additionalFilters={additionalFilters}
       searchPlaceholder="수신번호 검색..."
-      searchValue={searchInput}
-      onSearchChange={setSearchInput}
-      onSearch={handleSearch}
+      searchValue={hook.searchInput}
+      onSearchChange={hook.setSearchInput}
+      onSearch={hook.handleSearch}
       // 상태
-      isLoading={isLoading}
-      error={error}
+      isLoading={hook.isLoading}
+      error={hook.error}
       // 테이블
       columns={columns}
-      data={logs}
+      data={hook.logs}
       keyExtractor={(log) => log.id}
       emptyIcon={<MessageSquare className="w-5 h-5 text-gray-400" />}
       emptyMessage="SMS 발송 내역이 없습니다"
       // 페이지네이션
-      page={page}
-      totalPages={totalPages}
-      total={total}
-      pageSize={pageSize}
-      onPageChange={setPage}
+      page={hook.page}
+      totalPages={hook.totalPages}
+      total={hook.total}
+      pageSize={hook.pageSize}
+      onPageChange={hook.setPage}
       // 추가 컨텐츠
-      beforeTable={StatsCards}
+      beforeTable={statsCards}
       afterPagination={
         <>
+          {/* SMS 발송 시트 */}
           <SMSSendSheet
-            open={showSendSheet}
-            onOpenChange={setShowSendSheet}
-            onComplete={() => {
-              loadStats();
-              loadLogs();
-            }}
-            // 복수 선택 기능 비활성화 시 단일 선택 모드
+            open={hook.showSendSheet}
+            onOpenChange={hook.setShowSendSheet}
+            onComplete={hook.handleSendComplete}
             singleSelect={!enableManualSMS}
           />
-          {/* 복수 발송 시트: Feature Flag로 제어 */}
+
+          {/* 복수 발송 시트 */}
           {enableManualSMS && (
             <BulkSMSSheet
-              open={showBulkSMSSheet}
-              onOpenChange={setShowBulkSMSSheet}
-              onComplete={() => {
-                loadStats();
-                loadLogs();
-              }}
+              open={hook.showBulkSMSSheet}
+              onOpenChange={hook.setShowBulkSMSSheet}
+              onComplete={hook.handleSendComplete}
             />
           )}
+
           {/* 메시지 상세 모달 */}
-          {selectedLog && (
-            <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-              onClick={() => setSelectedLog(null)}
-            >
-              <div
-                className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-b border-gray-100">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    메시지 상세
-                  </h3>
-                  <button
-                    onClick={() => setSelectedLog(null)}
-                    className="p-1.5 hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex items-center gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-500">수신번호:</span>{" "}
-                      <span className="font-mono font-semibold">
-                        {formatPhone(selectedLog.receiver_phone)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">발송일시:</span>{" "}
-                      <span>
-                        {formatDate(
-                          selectedLog.sent_at || selectedLog.created_at
-                        )}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm flex-wrap">
-                    <span className="text-gray-500">상태:</span>
-                    <span
-                      className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${getSMSStatusColor(
-                        selectedLog.status
-                      )}`}
-                    >
-                      {getSMSStatusLabel(selectedLog.status)}
-                    </span>
-                    <span className="text-gray-500">유형:</span>
-                    <span className="text-gray-700">
-                      {TYPE_LABELS[selectedLog.sms_type] ||
-                        selectedLog.sms_type}
-                    </span>
-                    <span className="text-gray-500">출처:</span>
-                    <span
-                      className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                        TRIGGER_SOURCE_LABELS[selectedLog.trigger_source]
-                          ?.className || "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {TRIGGER_SOURCE_LABELS[selectedLog.trigger_source]
-                        ?.label || selectedLog.trigger_source}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-2">메시지 내용</p>
-                    <div className="p-4 bg-gray-50 rounded-xl text-sm text-gray-800 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
-                      {selectedLog.message}
-                    </div>
-                  </div>
-                  {/* MMS 이미지 (이미지가 있는 경우만 표시) */}
-                  {selectedLog.mms_images &&
-                    selectedLog.mms_images.length > 0 && (
-                      <div>
-                        <p className="text-sm text-gray-500 mb-2">
-                          첨부 이미지
-                        </p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {selectedLog.mms_images.map((imgPath, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => setFullscreenImage(imgPath)}
-                              className="relative aspect-square rounded-lg overflow-hidden border border-gray-200 hover:border-primary transition-colors"
-                            >
-                              <Image
-                                src={getImageUrl(imgPath)}
-                                alt={`첨부 이미지 ${idx + 1}`}
-                                fill
-                                className="object-cover"
-                                unoptimized
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  {selectedLog.result_message &&
-                    selectedLog.status === "failed" && (
-                      <div className="p-3 bg-red-50 text-red-700 rounded-xl text-sm">
-                        <span className="font-medium">실패 사유:</span>{" "}
-                        {selectedLog.result_message}
-                      </div>
-                    )}
-                </div>
-                <div className="px-6 py-4 border-t border-gray-100">
-                  <button
-                    onClick={() => setSelectedLog(null)}
-                    className="w-full py-2.5 text-gray-600 hover:bg-gray-100 rounded-xl font-medium transition-colors"
-                  >
-                    닫기
-                  </button>
-                </div>
-              </div>
-            </div>
+          {hook.selectedLog && (
+            <MessageDetailModal
+              log={hook.selectedLog}
+              onClose={() => hook.setSelectedLog(null)}
+              onImageClick={handleImageClick}
+            />
           )}
-          {/* 이미지 전체화면 보기 */}
-          {fullscreenImage && (
-            <div
-              className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center cursor-pointer"
-              onClick={() => setFullscreenImage(null)}
-            >
-              <Image
-                src={getImageUrl(fullscreenImage)}
-                alt="확대 이미지"
-                fill
-                className="object-contain p-4"
-                unoptimized
-              />
-              <button
-                className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
-                onClick={() => setFullscreenImage(null)}
-              >
-                <X size={24} className="text-white" />
-              </button>
-            </div>
-          )}
+
+          {/* 이미지 라이트박스 */}
+          <Lightbox
+            open={hook.lightboxOpen}
+            close={() => hook.setLightboxOpen(false)}
+            index={hook.lightboxIndex}
+            slides={slides}
+          />
         </>
       }
     />

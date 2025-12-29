@@ -18,6 +18,7 @@ from app.core.database import get_db
 from app.core.security import get_current_admin
 from app.core.encryption import decrypt_value, encrypt_value
 from app.core.config import settings
+from app.core.file_token import get_file_url
 from app.models.admin import Admin
 from app.models.sms_log import SMSLog
 from app.models.bulk_sms_job import BulkSMSJob
@@ -172,6 +173,13 @@ def save_mms_images(base64_images: list[str]) -> list[str]:
 
 def decrypt_sms_log(log: SMSLog) -> dict:
     """SMS 로그의 암호화된 필드를 복호화"""
+    # mms_images를 토큰화된 URL로 변환
+    mms_image_urls = None
+    if log.mms_images:
+        mms_image_urls = [get_file_url(path) for path in log.mms_images if path]
+        # None 값 제거
+        mms_image_urls = [url for url in mms_image_urls if url]
+
     return {
         "id": log.id,
         "receiver_phone": decrypt_value(log.receiver_phone),
@@ -183,7 +191,7 @@ def decrypt_sms_log(log: SMSLog) -> dict:
         "status": log.status,
         "result_code": log.result_code,
         "result_message": log.result_message,
-        "mms_images": log.mms_images,
+        "mms_images": mms_image_urls,
         "created_at": log.created_at,
         "sent_at": log.sent_at,
     }
