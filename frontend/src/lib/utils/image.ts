@@ -9,7 +9,7 @@ import imageCompression from "browser-image-compression";
 const COMPRESSION_OPTIONS = {
   maxSizeMB: 0.5, // 최대 500KB
   maxWidthOrHeight: 1920, // 최대 1920px
-  useWebWorker: true, // Web Worker 사용 (성능 향상)
+  useWebWorker: false, // CSP 제한으로 Web Worker 비활성화
   fileType: "image/jpeg", // JPEG로 변환
   initialQuality: 0.85, // 초기 품질 85%
 };

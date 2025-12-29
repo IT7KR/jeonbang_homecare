@@ -59,7 +59,7 @@ export function DaumPostcode({
     if (typeof window !== "undefined" && !window.daum) {
       const script = document.createElement("script");
       script.src =
-        "//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
+        "https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js";
       script.async = true;
       script.onload = () => setIsScriptLoaded(true);
       document.head.appendChild(script);

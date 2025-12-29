@@ -89,8 +89,8 @@ const nextConfig: NextConfig = {
             value: [
               // 기본 정책: 동일 출처만 허용
               "default-src 'self'",
-              // 스크립트: 동일 출처 + Next.js 인라인 스크립트 허용 (개발용 eval 포함)
-              `script-src 'self' 'unsafe-inline' ${
+              // 스크립트: 동일 출처 + Next.js 인라인 스크립트 허용 + Daum 우편번호 API
+              `script-src 'self' 'unsafe-inline' https://t1.daumcdn.net ${
                 process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
               }`,
               // 스타일: 동일 출처 + 인라인 스타일 허용 (Tailwind CSS용)
@@ -101,8 +101,8 @@ const nextConfig: NextConfig = {
               "font-src 'self'",
               // API 연결: 동일 출처 + 백엔드 API
               "connect-src 'self' http://localhost:8000 https://*.jeonbang.com https://*.geonbang.com",
-              // iframe: 주소 검색용 카카오/다음 API
-              "frame-src 'self' https://t1.daumcdn.net https://postcode.map.daum.net",
+              // iframe: 주소 검색용 카카오/다음 API (HTTP/HTTPS 모두 허용)
+              "frame-src 'self' https://t1.daumcdn.net http://t1.daumcdn.net https://postcode.map.daum.net http://postcode.map.daum.net",
               // 기본 URI: 동일 출처
               "base-uri 'self'",
               // form 액션: 동일 출처
