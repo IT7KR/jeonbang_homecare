@@ -35,8 +35,8 @@ import {
 } from "@/lib/api/customer-portal";
 import { getServiceName } from "@/lib/utils/service";
 
-// API URL for file serving
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+// API Base URL for file serving (without /api/v1 suffix since file URLs already include it)
+const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace(/\/api\/v1$/, "");
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("ko-KR").format(amount) + "원";
@@ -167,7 +167,7 @@ export default function CustomerViewPage() {
   }, [token]);
 
   const openLightbox = (photos: { url: string }[], index: number) => {
-    setLightboxPhotos(photos.map(p => ({ src: `${API_URL}${p.url}` })));
+    setLightboxPhotos(photos.map(p => ({ src: `${API_BASE_URL}${p.url}` })));
     setLightboxIndex(index);
     setLightboxOpen(true);
   };
@@ -540,8 +540,6 @@ function PhotoGrid({
   photos: { url: string; filename: string }[];
   onPhotoClick: (index: number) => void;
 }) {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
-
   return (
     <div className="grid grid-cols-3 gap-2">
       {photos.map((photo, index) => (
@@ -551,7 +549,7 @@ function PhotoGrid({
           onClick={() => onPhotoClick(index)}
         >
           <Image
-            src={`${API_URL}${photo.url}`}
+            src={`${API_BASE_URL}${photo.url}`}
             alt={`사진 ${index + 1}`}
             fill
             className="object-cover transition-transform group-hover:scale-105"
