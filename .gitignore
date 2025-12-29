@@ -89,4 +89,5 @@ coverage/
 *.temp
 
 *피드백*.pdf
-docs/*REQUIRE_SPEC*.docx
+docs/*REQUIRE*
+docs/*TEST_CASE*
