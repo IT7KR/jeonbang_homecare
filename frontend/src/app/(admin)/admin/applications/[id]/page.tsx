@@ -1387,33 +1387,68 @@ export default function ApplicationDetailPage() {
                 )}
 
                 {/* 견적 합계 및 상태 요약 */}
-                {application.assignments && application.assignments.length > 0 && (
-                  <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-600">
-                          총 {application.assignments.length}개 배정
-                        </span>
-                        <span className="text-gray-400">|</span>
-                        <span className="font-medium text-gray-900">
-                          견적 합계: {application.assignments.reduce(
-                            (sum, a) => sum + (a.estimated_cost || 0), 0
-                          ).toLocaleString()}원
-                        </span>
-                        {application.assignments.some(a => a.final_cost) && (
-                          <>
+                {application.assignments && application.assignments.length > 0 && (() => {
+                  const activeAssignments = application.assignments.filter(a => a.status !== "cancelled");
+                  const allCompleted = activeAssignments.length > 0 && activeAssignments.every(a => a.status === "completed");
+                  const anyScheduled = activeAssignments.some(a => a.status === "scheduled" || a.status === "in_progress");
+
+                  // 상태 불일치 체크
+                  const hasStatusMismatch =
+                    (application.status === "completed" && !allCompleted) ||
+                    (application.status === "scheduled" && !anyScheduled && activeAssignments.length > 0) ||
+                    (application.status === "assigned" && (allCompleted || anyScheduled));
+
+                  return (
+                    <div className="space-y-2">
+                      {/* 상태 불일치 경고 */}
+                      {hasStatusMismatch && (
+                        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                          <div className="flex items-start gap-2">
+                            <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-medium text-amber-800">
+                                신청 상태와 배정 상태가 일치하지 않습니다
+                              </p>
+                              <p className="text-xs text-amber-600 mt-0.5">
+                                신청: {STATUS_OPTIONS.find(s => s.value === application.status)?.label} |
+                                배정: {activeAssignments.map(a =>
+                                  getAssignmentStatusInfo(a.status).label
+                                ).join(", ")}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 견적 합계 */}
+                      <div className="p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className="text-gray-600">
+                              총 {application.assignments.length}개 배정
+                            </span>
                             <span className="text-gray-400">|</span>
-                            <span className="font-medium text-green-700">
-                              최종 합계: {application.assignments.reduce(
-                                (sum, a) => sum + (a.final_cost || 0), 0
+                            <span className="font-medium text-gray-900">
+                              견적 합계: {application.assignments.reduce(
+                                (sum, a) => sum + (a.estimated_cost || 0), 0
                               ).toLocaleString()}원
                             </span>
-                          </>
-                        )}
+                            {application.assignments.some(a => a.final_cost) && (
+                              <>
+                                <span className="text-gray-400">|</span>
+                                <span className="font-medium text-green-700">
+                                  최종 합계: {application.assignments.reduce(
+                                    (sum, a) => sum + (a.final_cost || 0), 0
+                                  ).toLocaleString()}원
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {/* 배정 목록 */}
                 {application.assignments &&
@@ -1441,6 +1476,11 @@ export default function ApplicationDetailPage() {
                                     assignment.partner_company ||
                                     "알 수 없음"}
                                 </span>
+                                {assignmentIndex === 0 && (
+                                  <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-primary-100 text-primary-700 border border-primary-200">
+                                    대표
+                                  </span>
+                                )}
                                 <span
                                   className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.color}`}
                                 >
