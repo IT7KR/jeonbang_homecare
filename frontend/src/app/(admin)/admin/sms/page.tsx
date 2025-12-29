@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import Image from "next/image";
 import {
   Send,
@@ -13,7 +12,6 @@ import {
   XCircle,
   Users,
   X,
-  FileText,
   ImageIcon,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
@@ -111,10 +109,29 @@ export default function SMSPage() {
   const [selectedLog, setSelectedLog] = useState<SMSLogItem | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
-  // 이미지 URL 생성 (파일 API 경로)
-  // Next.js rewrites가 /api/v1/files를 백엔드로 프록시함
+  // 이미지 URL 생성
+  // Next.js rewrites가 /uploads 와 /api/v1/files를 백엔드로 프록시함
   const getImageUrl = (path: string) => {
-    return `/api/v1/files${path}`;
+    // 1. 절대 URL인 경우 - 경로만 추출 (중복 방지)
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      try {
+        const url = new URL(path);
+        // 경로에서 /api/v1/files/... 또는 /uploads/... 형식 처리
+        return url.pathname;
+      } catch {
+        return path;
+      }
+    }
+    // 2. /uploads/... 형식 - 그대로 사용
+    if (path.startsWith("/uploads/")) {
+      return path;
+    }
+    // 3. /api/v1/files/... 형식 (토큰 기반) - 그대로 사용
+    if (path.startsWith("/api/v1/files/")) {
+      return path;
+    }
+    // 4. 그 외 - /uploads 접두어 추가
+    return `/uploads${path.startsWith("/") ? "" : "/"}${path}`;
   };
 
   const loadStats = async () => {
@@ -415,14 +432,6 @@ export default function SMSPage() {
       subtitle="SMS 발송 내역 및 수동 발송"
       headerAction={
         <div className="flex items-center gap-2">
-          {/* 템플릿 관리 */}
-          <Link
-            href="/admin/sms/templates"
-            className="inline-flex items-center px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium text-sm transition-colors"
-          >
-            <FileText size={18} className="mr-2" />
-            템플릿 관리
-          </Link>
           {/* 복수 발송 버튼: Feature Flag로 제어 */}
           {enableManualSMS && (
             <button
@@ -580,6 +589,7 @@ export default function SMSPage() {
                                 alt={`첨부 이미지 ${idx + 1}`}
                                 fill
                                 className="object-cover"
+                                unoptimized
                               />
                             </button>
                           ))}
@@ -616,6 +626,7 @@ export default function SMSPage() {
                 alt="확대 이미지"
                 fill
                 className="object-contain p-4"
+                unoptimized
               />
               <button
                 className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors"
