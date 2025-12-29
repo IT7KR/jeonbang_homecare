@@ -26,8 +26,12 @@ import {
   SMSRecipient,
   BulkSMSJobDetail,
 } from "@/lib/api/admin";
+import { sendMMS } from "@/lib/api/admin/sms";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { MMSTemplateSelector } from "./MMSTemplateSelector";
+import { ImageUpload, imageFileToBase64 } from "./ImageUpload";
+import type { SMSTemplate, ImageFile } from "@/lib/api/admin/types";
 
 interface SMSSendSheetProps {
   open: boolean;
@@ -46,6 +50,9 @@ interface SelectedRecipient {
   phone: string;
   type: "customer" | "partner";
 }
+
+// 메시지 프리픽스
+const MESSAGE_PREFIX = "[전방홈케어] ";
 
 export function SMSSendSheet({
   open,
@@ -77,10 +84,14 @@ export function SMSSendSheet({
 
   // Message
   const [message, setMessage] = useState("");
+  const [selectedTemplate, setSelectedTemplate] = useState<SMSTemplate | null>(null);
+
+  // Images
+  const [images, setImages] = useState<ImageFile[]>([]);
 
   // Result
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<BulkSMSJobDetail | null>(null);
+  const [result, setResult] = useState<{ sent_count: number; failed_count: number } | null>(null);
 
   // Load recipients
   const loadCustomers = async () => {
@@ -137,6 +148,13 @@ export function SMSSendSheet({
     }
   }, [open, activeTab, partnerPage, partnerSearch]);
 
+  // Cleanup image previews on unmount
+  useEffect(() => {
+    return () => {
+      images.forEach((img) => URL.revokeObjectURL(img.preview));
+    };
+  }, []);
+
   // Toggle recipient selection
   const toggleRecipient = (recipient: SMSRecipient) => {
     const exists = selectedRecipients.find(
@@ -174,6 +192,22 @@ export function SMSSendSheet({
     );
   };
 
+  // 템플릿 선택 핸들러
+  const handleTemplateSelect = (template: SMSTemplate | null, templateMessage: string) => {
+    setSelectedTemplate(template);
+    setMessage(templateMessage);
+  };
+
+  // 메시지 타입 결정
+  const getMessageType = (): "SMS" | "LMS" | "MMS" => {
+    if (images.length > 0) return "MMS";
+    const totalLength = MESSAGE_PREFIX.length + message.length;
+    if (totalLength > 45) return "LMS";
+    return "SMS";
+  };
+
+  const messageType = getMessageType();
+
   // Send
   const handleSend = async () => {
     if (!message.trim()) {
@@ -193,54 +227,79 @@ export function SMSSendSheet({
       const token = await getValidToken();
       if (!token) return;
 
-      // Group by type
-      const customerIds = selectedRecipients
-        .filter((r) => r.type === "customer")
-        .map((r) => r.id);
-      const partnerIds = selectedRecipients
-        .filter((r) => r.type === "partner")
-        .map((r) => r.id);
+      // 프리픽스 추가한 메시지
+      const formattedMessage = `${MESSAGE_PREFIX}${message}`;
 
-      // Send to each group
-      const results: BulkSMSJobDetail[] = [];
+      // 이미지가 있으면 MMS로 개별 발송
+      if (images.length > 0) {
+        const base64Images = await Promise.all(images.map(imageFileToBase64));
 
-      if (customerIds.length > 0) {
-        const job = await createBulkSMSJob(token, {
-          job_type: "manual_select",
-          target_type: "customer",
-          target_ids: customerIds,
-          message,
-        });
-        const finalJob = await pollJob(token, job.job_id);
-        results.push(finalJob);
+        let sentCount = 0;
+        let failedCount = 0;
+
+        for (const recipient of selectedRecipients) {
+          try {
+            const response = await sendMMS(token, {
+              receiver_phone: recipient.phone,
+              message: formattedMessage,
+              sms_type: "manual",
+              image1: base64Images[0],
+              image2: base64Images[1],
+              image3: base64Images[2],
+            });
+            if (response.success) {
+              sentCount++;
+            } else {
+              failedCount++;
+            }
+          } catch {
+            failedCount++;
+          }
+        }
+
+        setResult({ sent_count: sentCount, failed_count: failedCount });
+        setStatus(failedCount === 0 ? "success" : sentCount > 0 ? "success" : "error");
+      } else {
+        // 이미지 없으면 기존 Bulk SMS Job 사용
+        const customerIds = selectedRecipients
+          .filter((r) => r.type === "customer")
+          .map((r) => r.id);
+        const partnerIds = selectedRecipients
+          .filter((r) => r.type === "partner")
+          .map((r) => r.id);
+
+        const results: BulkSMSJobDetail[] = [];
+
+        if (customerIds.length > 0) {
+          const job = await createBulkSMSJob(token, {
+            job_type: "manual_select",
+            target_type: "customer",
+            target_ids: customerIds,
+            message: formattedMessage,
+          });
+          const finalJob = await pollJob(token, job.job_id);
+          results.push(finalJob);
+        }
+
+        if (partnerIds.length > 0) {
+          const job = await createBulkSMSJob(token, {
+            job_type: "manual_select",
+            target_type: "partner",
+            target_ids: partnerIds,
+            message: formattedMessage,
+          });
+          const finalJob = await pollJob(token, job.job_id);
+          results.push(finalJob);
+        }
+
+        const combined = {
+          sent_count: results.reduce((sum, r) => sum + r.sent_count, 0),
+          failed_count: results.reduce((sum, r) => sum + r.failed_count, 0),
+        };
+
+        setResult(combined);
+        setStatus(combined.failed_count === 0 ? "success" : combined.sent_count > 0 ? "success" : "error");
       }
-
-      if (partnerIds.length > 0) {
-        const job = await createBulkSMSJob(token, {
-          job_type: "manual_select",
-          target_type: "partner",
-          target_ids: partnerIds,
-          message,
-        });
-        const finalJob = await pollJob(token, job.job_id);
-        results.push(finalJob);
-      }
-
-      // Combine results
-      const combined: BulkSMSJobDetail = {
-        ...results[0],
-        total_count: results.reduce((sum, r) => sum + r.total_count, 0),
-        sent_count: results.reduce((sum, r) => sum + r.sent_count, 0),
-        failed_count: results.reduce((sum, r) => sum + r.failed_count, 0),
-        status: results.every((r) => r.status === "completed")
-          ? "completed"
-          : results.some((r) => r.status === "failed")
-          ? "failed"
-          : "partial_failed",
-      };
-
-      setResult(combined);
-      setStatus(combined.status === "completed" ? "success" : "error");
     } catch (err) {
       setError(err instanceof Error ? err.message : "발송에 실패했습니다");
       setStatus("error");
@@ -260,11 +319,15 @@ export function SMSSendSheet({
     if (status === "success") {
       onComplete?.();
     }
+    // Cleanup image previews
+    images.forEach((img) => URL.revokeObjectURL(img.preview));
     // Reset
     setStatus("select");
     setActiveTab("customer");
     setSelectedRecipients([]);
     setMessage("");
+    setSelectedTemplate(null);
+    setImages([]);
     setError(null);
     setResult(null);
     setCustomerSearch("");
@@ -282,6 +345,10 @@ export function SMSSendSheet({
 
   const customerCount = selectedRecipients.filter((r) => r.type === "customer").length;
   const partnerCount = selectedRecipients.filter((r) => r.type === "partner").length;
+
+  // 첫 번째 수신자 이름 (변수 치환용)
+  const firstRecipientName = selectedRecipients.length === 1 ? selectedRecipients[0].name : "";
+  const firstRecipientType = selectedRecipients.length > 0 ? selectedRecipients[0].type : "customer";
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -481,71 +548,112 @@ export function SMSSendSheet({
 
         {/* Compose Message */}
         {status === "compose" && (
-          <div className="flex-1 flex flex-col p-6">
-            {/* Recipients Summary */}
-            <div className="p-4 bg-gray-50 rounded-xl mb-5">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-white rounded-lg shadow-sm">
-                  <Send className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    <span className="text-primary">{selectedRecipients.length}명</span>에게 발송
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    {customerCount > 0 && `고객 ${customerCount}명`}
-                    {customerCount > 0 && partnerCount > 0 && ", "}
-                    {partnerCount > 0 && `협력사 ${partnerCount}명`}
-                  </p>
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {/* Recipients Summary */}
+              <div className="p-4 bg-gray-50 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Send className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">
+                      <span className="text-primary">{selectedRecipients.length}명</span>에게 발송
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {customerCount > 0 && `고객 ${customerCount}명`}
+                      {customerCount > 0 && partnerCount > 0 && ", "}
+                      {partnerCount > 0 && `협력사 ${partnerCount}명`}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Message */}
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                메시지 내용
-              </label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="발송할 메시지를 입력하세요"
-                rows={8}
-                maxLength={2000}
-                autoFocus
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm resize-none"
+              {/* Template Selector */}
+              <MMSTemplateSelector
+                selectedTemplateId={selectedTemplate?.id || null}
+                onSelect={handleTemplateSelect}
+                customerName={firstRecipientType === "customer" ? firstRecipientName : ""}
+                partnerName={firstRecipientType === "partner" ? firstRecipientName : ""}
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-2">
-                <span>90자 초과 시 LMS로 발송</span>
-                <span className={cn(message.length > 90 ? "text-amber-600" : "")}>
-                  {message.length}/2000
-                </span>
-              </div>
-            </div>
 
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-sm mt-4">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
+              {/* Message */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    메시지 내용
+                  </label>
+                  <span
+                    className={cn(
+                      "px-2 py-0.5 rounded-full text-xs font-medium",
+                      messageType === "SMS" && "bg-blue-100 text-blue-700",
+                      messageType === "LMS" && "bg-amber-100 text-amber-700",
+                      messageType === "MMS" && "bg-purple-100 text-purple-700"
+                    )}
+                  >
+                    {messageType}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500 mb-2 px-1">
+                  ※ 발송 시 앞에 &quot;{MESSAGE_PREFIX.trim()}&quot;가 자동으로 붙습니다
+                </div>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="발송할 메시지를 입력하세요"
+                  rows={6}
+                  maxLength={2000 - MESSAGE_PREFIX.length}
+                  autoFocus
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm resize-none"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                  <span>45자 초과 시 LMS, 이미지 첨부 시 MMS</span>
+                  <span
+                    className={cn(
+                      MESSAGE_PREFIX.length + message.length > 45 ? "text-amber-600" : ""
+                    )}
+                  >
+                    {MESSAGE_PREFIX.length + message.length}/2000
+                  </span>
+                </div>
+
+                {/* 다중 수신자 안내 */}
+                {selectedRecipients.length > 1 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    ※ 복수 수신자 발송 시 변수 치환은 적용되지 않습니다
+                  </p>
+                )}
               </div>
-            )}
+
+              {/* Image Upload */}
+              <ImageUpload images={images} onChange={setImages} />
+
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 text-red-700 rounded-xl text-sm">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+            </div>
 
             {/* Actions */}
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setStatus("select")}
-                className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
-              >
-                이전
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={!message.trim()}
-                className="flex-1 py-3 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Send className="w-4 h-4" />
-                발송하기
-              </button>
+            <div className="px-6 py-4 border-t">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setStatus("select")}
+                  className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                >
+                  이전
+                </button>
+                <button
+                  onClick={handleSend}
+                  disabled={!message.trim()}
+                  className="flex-1 py-3 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-4 h-4" />
+                  발송하기
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -556,7 +664,7 @@ export function SMSSendSheet({
             <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
             <p className="text-gray-900 font-medium">발송 중...</p>
             <p className="text-sm text-gray-500 mt-1">
-              {selectedRecipients.length}명에게 발송하고 있습니다
+              {selectedRecipients.length}명에게 {messageType}를 발송하고 있습니다
             </p>
           </div>
         )}
@@ -571,6 +679,7 @@ export function SMSSendSheet({
               <p className="text-gray-900 font-medium text-lg mb-1">발송 완료</p>
               <p className="text-sm text-gray-500 mb-6">
                 {result.sent_count}명에게 성공적으로 발송되었습니다
+                {images.length > 0 && ` (사진 ${images.length}장)`}
               </p>
 
               <div className="w-full grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">

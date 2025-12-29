@@ -11,7 +11,7 @@ export { SMSSendSheet } from "./SMSSendSheet";
 export { ImageUpload, imageFileToBase64 } from "./ImageUpload";
 export { MMSSheet } from "./MMSSheet";
 export { WorkPhotoSelector } from "./WorkPhotoSelector";
-export { MMSTemplateSelector, DEFAULT_TEMPLATES, type MMSTemplate } from "./MMSTemplateSelector";
+export { MMSTemplateSelector, type MMSTemplate } from "./MMSTemplateSelector";
 
 // SMS 페이지 컴포넌트
 export { SMSStatsCards } from "./SMSStatsCards";
