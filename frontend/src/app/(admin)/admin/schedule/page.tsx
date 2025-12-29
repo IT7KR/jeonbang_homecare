@@ -12,16 +12,13 @@ import {
   MapPin,
   User,
   Eye,
-  Filter,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import {
   getSchedule,
   getMonthlyStats,
-  getSchedulePartners,
   ScheduleItem,
   MonthlyStats,
-  SchedulePartner,
 } from "@/lib/api/admin";
 import { getServiceName } from "@/lib/utils/service";
 
@@ -46,13 +43,9 @@ export default function SchedulePage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
-  const [partners, setPartners] = useState<SchedulePartner[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Filters
-  const [partnerFilter, setPartnerFilter] = useState<number | "">("");
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth() + 1;
@@ -107,18 +100,6 @@ export default function SchedulePage() {
     return schedulesByDate[selectedDate] || [];
   }, [selectedDate, schedulesByDate]);
 
-  const loadPartners = async () => {
-    try {
-      const token = await getValidToken();
-      if (!token) return;
-
-      const data = await getSchedulePartners(token);
-      setPartners(data);
-    } catch (err) {
-      console.error("협력사 로드 실패:", err);
-    }
-  };
-
   const loadSchedules = async () => {
     try {
       setIsLoading(true);
@@ -139,7 +120,6 @@ export default function SchedulePage() {
         getSchedule(token, {
           start_date: startDate,
           end_date: endDate,
-          partner_id: partnerFilter || undefined,
         }),
         getMonthlyStats(token, year, month),
       ]);
@@ -154,12 +134,8 @@ export default function SchedulePage() {
   };
 
   useEffect(() => {
-    loadPartners();
-  }, []);
-
-  useEffect(() => {
     loadSchedules();
-  }, [year, month, partnerFilter]);
+  }, [year, month]);
 
   const handlePrevMonth = () => {
     setCurrentDate(new Date(year, month - 2, 1));
@@ -283,25 +259,6 @@ export default function SchedulePage() {
             >
               오늘
             </button>
-          </div>
-
-          {/* Partner Filter */}
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center">
-              <Filter size={16} className="text-gray-500" />
-            </div>
-            <select
-              value={partnerFilter}
-              onChange={(e) => setPartnerFilter(e.target.value ? Number(e.target.value) : "")}
-              className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-colors bg-white"
-            >
-              <option value="">전체 협력사</option>
-              {partners.map((partner) => (
-                <option key={partner.id} value={partner.id}>
-                  {partner.company_name}
-                </option>
-              ))}
-            </select>
           </div>
         </div>
       </div>
