@@ -91,6 +91,10 @@ class AssignmentSummary(BaseModel):
     final_cost: Optional[int]
     estimate_note: Optional[str]
     note: Optional[str]
+    # 견적 상태
+    quote_status: str = "none"
+    quote_sent_at: Optional[datetime] = None
+    quote_viewed_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
 

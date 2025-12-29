@@ -118,7 +118,14 @@ export interface AssignmentSummary {
   final_cost: number | null;
   estimate_note: string | null;
   note: string | null;
+  // 견적 상태
+  quote_status: QuoteStatus;
+  quote_sent_at: string | null;
+  quote_viewed_at: string | null;
 }
+
+// 견적 상태 타입
+export type QuoteStatus = "none" | "draft" | "sent" | "viewed" | "confirmed" | "rejected";
 
 export interface Assignment {
   id: number;
@@ -131,6 +138,10 @@ export interface Assignment {
   estimated_cost: number | null;
   final_cost: number | null;
   estimate_note: string | null;
+  // 견적 상태
+  quote_status: QuoteStatus;
+  quote_sent_at: string | null;
+  quote_viewed_at: string | null;
   assigned_by: number | null;
   assigned_at: string | null;
   note: string | null;
@@ -167,7 +178,14 @@ export interface AssignmentUpdate {
   estimated_cost?: number;
   final_cost?: number;
   estimate_note?: string;
+  quote_status?: QuoteStatus;
   note?: string;
+  send_sms?: boolean;
+}
+
+// 견적 상태 변경 요청
+export interface QuoteStatusUpdate {
+  quote_status: QuoteStatus;
   send_sms?: boolean;
 }
 
