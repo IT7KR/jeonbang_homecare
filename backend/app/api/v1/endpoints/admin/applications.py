@@ -37,6 +37,8 @@ from app.schemas.application_assignment import (
     AssignmentUpdate,
     AssignmentResponse,
     AssignmentListResponse,
+    CustomerUrlExtend,
+    PartnerUrlExtend,
 )
 from app.schemas.application_note import (
     ApplicationNoteCreate,
@@ -52,6 +54,7 @@ from app.services.sms import (
     send_completion_notification,
     send_schedule_changed_notification,
     send_assignment_changed_notification,
+    send_application_received_notification,
 )
 from app.api.v1.endpoints.partner_portal import (
     get_partner_view_url,
@@ -474,6 +477,23 @@ async def update_application(
     if data.status or data.assigned_partner_id:
         application.assigned_admin_id = current_admin.id
 
+    # Application 상태 변경 시 관련 Assignment 상태도 동기화
+    if data.status and data.status != prev_status:
+        # Application → Assignment 상태 매핑
+        # scheduled, completed, cancelled는 Assignment에도 동일하게 적용
+        sync_statuses = ["scheduled", "completed", "cancelled"]
+        if data.status in sync_statuses:
+            assignments = db.query(ApplicationPartnerAssignment).filter(
+                ApplicationPartnerAssignment.application_id == application_id,
+                ApplicationPartnerAssignment.status.notin_(["completed", "cancelled"])  # 이미 완료/취소된 건 제외
+            ).all()
+            for assignment in assignments:
+                assignment.status = data.status
+                if data.status == "completed":
+                    assignment.completed_at = datetime.now(timezone.utc)
+                elif data.status == "cancelled":
+                    assignment.cancelled_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(application)
 
@@ -618,6 +638,16 @@ async def update_application(
                     )
                 logger.info(f"SMS scheduled: schedule confirmation for {application.application_number}")
 
+        # 접수 확인 알림 (new -> consulting 상태 전환)
+        if data.status == "consulting" and prev_status == "new":
+            background_tasks.add_task(
+                send_application_received_notification,
+                customer_phone,
+                application.application_number,
+                customer_name,
+            )
+            logger.info(f"SMS scheduled: application received for {application.application_number}")
+
         # 취소 알림
         if data.status == "cancelled" and prev_status != "cancelled":
             background_tasks.add_task(
@@ -632,18 +662,44 @@ async def update_application(
         # 완료 알림
         if data.status == "completed" and prev_status != "completed":
             partner_name = None
+            customer_view_url = None
+
             if application.assigned_partner_id:
                 partner = db.query(Partner).filter(Partner.id == application.assigned_partner_id).first()
                 if partner:
                     partner_name = partner.company_name
+
+            # 고객 열람 URL 가져오기 또는 생성
+            assignment = db.query(ApplicationPartnerAssignment).filter(
+                ApplicationPartnerAssignment.application_id == application_id,
+                ApplicationPartnerAssignment.status.in_(["completed", "in_progress", "scheduled", "accepted"])
+            ).first()
+
+            if assignment:
+                # 토큰이 없거나 만료된 경우 새로 생성 (기본 7일)
+                if not assignment.customer_token:
+                    token = generate_customer_view_token(assignment.id, expires_in_days=7)
+                    assignment.customer_token = token
+
+                    from app.core.file_token import decode_file_token_extended
+                    token_info = decode_file_token_extended(token)
+                    if not isinstance(token_info, str):
+                        assignment.customer_token_expires_at = datetime.fromtimestamp(
+                            token_info.expires_at, tz=timezone.utc
+                        )
+                    db.commit()
+
+                customer_view_url = _build_customer_view_url(assignment.customer_token)
+
             background_tasks.add_task(
                 send_completion_notification,
                 customer_phone,
                 application.application_number,
                 partner_name,
                 customer_name,
+                customer_view_url,
             )
-            logger.info(f"SMS scheduled: completion for {application.application_number}")
+            logger.info(f"SMS scheduled: completion for {application.application_number} with URL: {customer_view_url}")
 
     decrypted = decrypt_application(application)
 
@@ -1500,15 +1556,17 @@ def revoke_assignment_url(
 def extend_assignment_url(
     application_id: int,
     assignment_id: int,
-    data: URLRenewRequest,
+    data: PartnerUrlExtend,
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    배정의 협력사 포털 URL 연장
+    배정의 협력사 포털 URL 기간 연장 (기존 URL 유지)
 
-    기존 URL 만료시간 연장 (새 토큰 발급)
+    기존 URL을 유지하면서 만료 시간만 연장합니다.
     """
+    from datetime import timedelta
+
     assignment = db.query(ApplicationPartnerAssignment).filter(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
@@ -1520,29 +1578,21 @@ def extend_assignment_url(
     if not assignment.url_token:
         raise HTTPException(status_code=400, detail="발급된 URL이 없습니다. 먼저 URL을 발급해주세요.")
 
-    # 새 토큰 발급 (기존 토큰 대체)
-    new_token = generate_partner_view_token(assignment_id, expires_in_days=data.expires_in_days)
+    # 기존 만료 시간 + 추가 일수 (기존 URL 유지)
+    current_expires = assignment.url_expires_at or datetime.now(timezone.utc)
+    new_expires_at = current_expires + timedelta(days=data.additional_days)
 
-    # 토큰에서 만료 시간 추출
-    token_info = decode_file_token_extended(new_token)
-    expires_at = None
-    if not isinstance(token_info, str):
-        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc)
-
-    # DB에 저장 (기존 토큰 무효화)
-    from datetime import timedelta
-    assignment.url_invalidated_before = datetime.now(timezone.utc) - timedelta(seconds=1)
-    assignment.url_token = new_token
-    assignment.url_expires_at = expires_at
+    # 만료 시간만 업데이트 (토큰 변경 없음)
+    assignment.url_expires_at = new_expires_at
     db.commit()
 
-    logger.info(f"URL extended: assignment={assignment_id} by admin={current_admin.id}")
+    logger.info(f"URL extended: assignment={assignment_id} by admin={current_admin.id}, additional_days={data.additional_days}")
 
     return URLInfoResponse(
         assignment_id=assignment_id,
-        token=new_token,
-        view_url=_build_view_url(new_token),
-        expires_at=expires_at.isoformat() if expires_at else None,
+        token=assignment.url_token,
+        view_url=_build_view_url(assignment.url_token),
+        expires_at=new_expires_at.isoformat() if new_expires_at else None,
         is_issued=True,
         is_expired=False,
     )
@@ -1559,6 +1609,8 @@ from app.schemas.application_assignment import (
     WorkPhotoUploadResponse,
     WorkPhotosResponse,
     CustomerUrlCreate,
+    CustomerUrlExtend,
+    PartnerUrlExtend,
     CustomerUrlResponse,
 )
 
@@ -1757,7 +1809,7 @@ def _build_customer_view_url(token: str) -> str:
     """토큰으로 고객 열람 URL 생성"""
     base_url = getattr(settings, 'FRONTEND_URL', 'https://jeonbang-homecare.com')
     base_path = getattr(settings, 'BASE_PATH', '/homecare')
-    return f"{base_url}{base_path}/view/quote/{token}"
+    return f"{base_url}{base_path}/view/customer/{token}"
 
 
 @router.get("/{application_id}/assignments/{assignment_id}/customer-url", response_model=CustomerUrlResponse)
@@ -1853,13 +1905,17 @@ def create_customer_url(
 def extend_customer_url(
     application_id: int,
     assignment_id: int,
-    data: CustomerUrlCreate,
+    data: CustomerUrlExtend,
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
-    고객 열람 URL 연장
+    고객 열람 URL 기간 연장 (기존 URL 유지)
+
+    기존 URL을 유지하면서 만료 시간만 연장합니다.
     """
+    from datetime import timedelta
+
     assignment = db.query(ApplicationPartnerAssignment).filter(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
@@ -1871,30 +1927,23 @@ def extend_customer_url(
     if not assignment.customer_token:
         raise HTTPException(status_code=400, detail="발급된 URL이 없습니다. 먼저 URL을 발급해주세요.")
 
-    # 기존 토큰 무효화 및 새 토큰 생성
-    from datetime import timedelta
-    assignment.customer_token_invalidated_before = datetime.now(timezone.utc) - timedelta(seconds=1)
+    # 기존 만료 시간 + 추가 일수 (기존 URL 유지)
+    current_expires = assignment.customer_token_expires_at or datetime.now(timezone.utc)
+    new_expires_at = current_expires + timedelta(days=data.additional_days)
 
-    token = generate_customer_view_token(assignment_id, expires_in_days=data.expires_in_days)
-
-    token_info = decode_file_token_extended(token)
-    expires_at = None
-    if not isinstance(token_info, str):
-        expires_at = datetime.fromtimestamp(token_info.expires_at, tz=timezone.utc)
-
-    assignment.customer_token = token
-    assignment.customer_token_expires_at = expires_at
+    # 만료 시간만 업데이트 (토큰 변경 없음)
+    assignment.customer_token_expires_at = new_expires_at
     db.commit()
 
-    logger.info(f"Customer URL extended: assignment={assignment_id} by admin={current_admin.id}")
+    logger.info(f"Customer URL extended: assignment={assignment_id} by admin={current_admin.id}, additional_days={data.additional_days}")
 
     return CustomerUrlResponse(
         assignment_id=assignment_id,
-        token=token,
-        url=_build_customer_view_url(token),
-        expires_at=expires_at,
+        token=assignment.customer_token,
+        url=_build_customer_view_url(assignment.customer_token),
+        expires_at=new_expires_at,
         is_valid=True,
-        message="URL이 연장되었습니다",
+        message=f"URL 유효기간이 {data.additional_days}일 연장되었습니다",
     )
 
 

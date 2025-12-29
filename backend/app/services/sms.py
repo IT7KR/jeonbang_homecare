@@ -459,6 +459,7 @@ async def send_application_notification(
     services: list[str],
     preferred_consultation_date: Optional[date] = None,
     preferred_work_date: Optional[date] = None,
+    duplicate_info: Optional[dict] = None,
     db: Optional[Session] = None,
 ) -> list[dict]:
     """
@@ -470,12 +471,19 @@ async def send_application_notification(
         services: 신청 서비스 목록 (서비스 코드)
         preferred_consultation_date: 희망 상담일
         preferred_work_date: 희망 작업일
+        duplicate_info: 중복 신청 정보 (있는 경우)
+            - existing_application_number: 기존 신청번호
+            - existing_status: 기존 신청 상태
         db: 데이터베이스 세션
 
     Returns:
         각 관리자별 발송 결과 리스트
     """
-    template_key = "admin_new_application"
+    # 중복 여부에 따라 템플릿 선택
+    if duplicate_info and duplicate_info.get("existing_application_number"):
+        template_key = "admin_new_application_duplicate"
+    else:
+        template_key = "admin_new_application"
 
     # DB 세션 확보
     close_db = False
@@ -491,6 +499,14 @@ async def send_application_notification(
             logger.warning("No admin phones found for notification")
             return []
 
+        # 상태 한글화 매핑
+        status_labels = {
+            "new": "신규",
+            "consulting": "상담중",
+            "assigned": "배정완료",
+            "scheduled": "일정확정",
+        }
+
         # 템플릿 변수 준비
         variables = {
             "application_number": application_number,
@@ -500,6 +516,14 @@ async def send_application_notification(
                 preferred_consultation_date, preferred_work_date
             ),
         }
+
+        # 중복 정보가 있으면 변수 추가
+        if duplicate_info:
+            variables["existing_application_number"] = duplicate_info.get(
+                "existing_application_number", ""
+            )
+            raw_status = duplicate_info.get("existing_status", "")
+            variables["existing_status"] = status_labels.get(raw_status, raw_status)
 
         # 템플릿 기반 메시지 생성
         message = build_message_from_template(template_key, variables, db)
@@ -969,6 +993,7 @@ async def send_completion_notification(
     application_number: str,
     partner_name: Optional[str] = None,
     customer_name: str = "",
+    customer_view_url: Optional[str] = None,
     db: Optional[Session] = None,
 ) -> dict:
     """
@@ -979,6 +1004,7 @@ async def send_completion_notification(
         application_number: 신청번호
         partner_name: 협력사명
         customer_name: 고객명 (템플릿 변수용)
+        customer_view_url: 시공 결과 열람 URL (선택)
         db: 데이터베이스 세션
 
     Returns:
@@ -998,6 +1024,7 @@ async def send_completion_notification(
             "customer_name": customer_name,
             "application_number": application_number,
             "partner_name": partner_name or "",
+            "view_url": customer_view_url or "",
         }
 
         # 템플릿 기반 메시지 생성
@@ -1007,6 +1034,53 @@ async def send_completion_notification(
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
 
         return await send_sms(customer_phone, message, "[완료안내]")
+    finally:
+        if close_db:
+            db.close()
+
+
+async def send_application_received_notification(
+    customer_phone: str,
+    application_number: str,
+    customer_name: str = "",
+    db: Optional[Session] = None,
+) -> dict:
+    """
+    접수 확인 알림 SMS 발송 (고객에게)
+
+    신청 상태가 new -> consulting으로 변경될 때 발송
+
+    Args:
+        customer_phone: 고객 연락처
+        application_number: 신청번호
+        customer_name: 고객명 (템플릿 변수용)
+        db: 데이터베이스 세션
+
+    Returns:
+        발송 결과
+    """
+    template_key = "application_received"
+
+    # DB 세션 확보
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        # 템플릿 변수 준비
+        variables = {
+            "customer_name": customer_name,
+            "application_number": application_number,
+        }
+
+        # 템플릿 기반 메시지 생성
+        message = build_message_from_template(template_key, variables, db)
+
+        if message is None:
+            return {"result_code": "-1", "message": "템플릿 없음/비활성"}
+
+        return await send_sms(customer_phone, message, "[접수확인]")
     finally:
         if close_db:
             db.close()
@@ -1076,6 +1150,7 @@ async def send_sms_direct(
     receiver: str,
     message: str,
     sms_type: str = "manual",
+    trigger_source: str = "system",
     reference_type: Optional[str] = None,
     reference_id: Optional[int] = None,
     db: Optional[Session] = None,
@@ -1090,6 +1165,7 @@ async def send_sms_direct(
         receiver: 수신자 전화번호
         message: 메시지 내용
         sms_type: 발송 유형 (manual, application_new, partner_new 등)
+        trigger_source: 발송 출처 (system: 시스템 자동, manual: 수동 발송, bulk: 대량 발송)
         reference_type: 참조 타입 (application, partner)
         reference_id: 참조 ID
         db: 데이터베이스 세션 (로그 기록용)
@@ -1113,6 +1189,7 @@ async def send_sms_direct(
                 receiver_phone=encrypt_value(receiver),
                 message=message,
                 sms_type=sms_type,
+                trigger_source=trigger_source,
                 reference_type=reference_type,
                 reference_id=reference_id,
                 bulk_job_id=bulk_job_id,
