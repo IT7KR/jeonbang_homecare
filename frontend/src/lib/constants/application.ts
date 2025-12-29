@@ -107,6 +107,6 @@ export const willSendSmsForStatusChange = (
 };
 
 // 타입 정의
-export type StatusOption = typeof STATUS_OPTIONS[number];
+export type ApplicationStatusItem = typeof STATUS_OPTIONS[number];
 export type TimeOption = typeof TIME_OPTIONS[number];
 export type CancelReason = typeof CANCEL_REASONS[number];
