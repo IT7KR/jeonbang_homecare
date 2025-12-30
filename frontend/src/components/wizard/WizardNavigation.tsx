@@ -32,7 +32,7 @@ export function WizardNavigation({
   isFirstStep = false,
   isLastStep = false,
   showPhoneButton = true,
-  phoneNumber = "031-771-7114",
+  phoneNumber = "1551-6640",
   variant = "primary",
   className,
   showProgressPercentage = false,

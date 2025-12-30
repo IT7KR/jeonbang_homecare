@@ -302,7 +302,7 @@ export function QuoteItemTable({
       );
       const message = `[전방홈케어] ${
         customerName || "고객"
-      }님, 견적서를 안내드립니다.\n\n견적 금액: ${totalFormatted}원\n\n상세 내역 확인: ${customerViewUrl}\n\n문의: 031-797-4004`;
+      }님, 견적서를 안내드립니다.\n\n견적 금액: ${totalFormatted}원\n\n상세 내역 확인: ${customerViewUrl}\n\n문의: 1551-6640`;
 
       const result = await sendSMS(token, {
         receiver_phone: customerPhone,

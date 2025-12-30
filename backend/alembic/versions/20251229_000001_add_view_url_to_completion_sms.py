@@ -23,7 +23,7 @@ def upgrade() -> None:
         SET content = '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다.
 이용해 주셔서 감사합니다.
 시공 결과 확인: {view_url}
-문의: 031-797-4004',
+문의: 1551-6640',
             available_variables = '["customer_name", "application_number", "partner_name", "view_url"]'
         WHERE template_key = 'service_completed';
     """)
@@ -35,7 +35,7 @@ def downgrade() -> None:
         UPDATE sms_templates
         SET content = '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다.
 이용해 주셔서 감사합니다.
-문의: 031-797-4004',
+문의: 1551-6640',
             available_variables = '["customer_name", "application_number"]'
         WHERE template_key = 'service_completed';
     """)

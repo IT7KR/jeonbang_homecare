@@ -11,7 +11,7 @@ export const COMPANY_INFO = {
   fullName: "전방 홈케어 서비스",
   slogan: "전원주택 관리의 새로운 기준",
   description: "전방은 고객과 협력사를 연결하는 신뢰할 수 있는 파트너입니다",
-  phone: "031-797-4004",
+  phone: "1551-6640",
   email: "info@geonbang.com",
   website: "geonbang.com/homecare",
   address: "경기도 하남시 검단산로 239, B1층 23호(창우동, 하남시 벤처집적시설)",

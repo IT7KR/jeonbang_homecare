@@ -64,7 +64,7 @@ def upgrade() -> None:
          '["scheduled_date", "scheduled_time", "customer_name", "address", "application_number"]', true, true),
 
         ('service_completed', '서비스 완료 안내', '서비스가 완료되었을 때 고객에게 발송',
-         '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다. 이용해 주셔서 감사합니다. 문의: 031-XXX-XXXX',
+         '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다. 이용해 주셔서 감사합니다. 문의: 1551-6640',
          '["customer_name", "application_number"]', true, true),
 
         ('application_cancelled', '신청 취소 안내', '신청이 취소되었을 때 고객에게 발송',
@@ -80,7 +80,7 @@ def upgrade() -> None:
          '["company_name", "representative_name"]', true, true),
 
         ('partner_rejected', '협력사 등록 반려', '협력사가 반려되었을 때 발송',
-         '[전방홈케어] {company_name} 협력사 등록이 반려되었습니다. 사유: {rejection_reason}. 문의: 031-XXX-XXXX',
+         '[전방홈케어] {company_name} 협력사 등록이 반려되었습니다. 사유: {rejection_reason}. 문의: 1551-6640',
          '["company_name", "rejection_reason"]', true, true);
     """)
 

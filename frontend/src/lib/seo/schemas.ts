@@ -4,7 +4,7 @@
 
 const SITE_URL = "https://geonbang.com/homecare";
 const COMPANY_NAME = "전방 홈케어";
-const COMPANY_PHONE = "031-797-4004";
+const COMPANY_PHONE = "1551-6640";
 const COMPANY_EMAIL = "mycron37@naver.com";
 
 export interface BreadcrumbItem {

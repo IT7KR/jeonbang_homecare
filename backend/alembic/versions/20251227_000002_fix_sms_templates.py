@@ -136,7 +136,7 @@ def upgrade():
         UPDATE sms_templates
         SET content = '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다.
 이용해 주셔서 감사합니다.
-문의: 031-797-4004'
+문의: 1551-6640'
         WHERE template_key = 'service_completed';
     """)
 
@@ -145,7 +145,7 @@ def upgrade():
         UPDATE sms_templates
         SET content = '[전방홈케어] {company_name} 협력사 등록이 반려되었습니다.
 사유: {rejection_reason}
-문의: 031-797-4004'
+문의: 1551-6640'
         WHERE template_key = 'partner_rejected';
     """)
 
@@ -185,13 +185,13 @@ def downgrade():
     # service_completed 원복
     op.execute("""
         UPDATE sms_templates
-        SET content = '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다. 이용해 주셔서 감사합니다. 문의: 031-XXX-XXXX'
+        SET content = '[전방홈케어] {customer_name}님, 서비스가 완료되었습니다. 이용해 주셔서 감사합니다. 문의: 1551-6640'
         WHERE template_key = 'service_completed';
     """)
 
     # partner_rejected 원복
     op.execute("""
         UPDATE sms_templates
-        SET content = '[전방홈케어] {company_name} 협력사 등록이 반려되었습니다. 사유: {rejection_reason}. 문의: 031-XXX-XXXX'
+        SET content = '[전방홈케어] {company_name} 협력사 등록이 반려되었습니다. 사유: {rejection_reason}. 문의: 1551-6640'
         WHERE template_key = 'partner_rejected';
     """)

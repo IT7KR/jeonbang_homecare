@@ -27,7 +27,7 @@ def upgrade() -> None:
             '[전방홈케어] {customer_name}님, 서비스 신청이 접수되었습니다.
 신청번호: {application_number}
 담당자가 곧 연락드릴 예정입니다.
-문의: 031-797-4004',
+문의: 1551-6640',
             '["customer_name", "application_number"]',
             true,
             true
