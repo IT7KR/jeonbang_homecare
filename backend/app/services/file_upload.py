@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # 업로드 설정
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp", "image/heic"}
-MAX_FILES_PER_UPLOAD = 5
+MAX_FILES_PER_UPLOAD = 30  # 한 번에 최대 30개 파일 업로드 가능
 
 
 async def process_uploaded_files(

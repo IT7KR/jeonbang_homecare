@@ -1670,7 +1670,7 @@ from app.schemas.application_assignment import (
     CustomerUrlResponse,
 )
 
-MAX_WORK_PHOTOS_PER_TYPE = 10  # 시공 전/후 각각 최대 10장
+MAX_WORK_PHOTOS_PER_TYPE = 30  # 시공 전/후 각각 최대 30장
 
 
 @router.get("/{application_id}/assignments/{assignment_id}/work-photos", response_model=WorkPhotosResponse)

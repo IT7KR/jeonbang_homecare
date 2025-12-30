@@ -291,7 +291,7 @@ def get_partner_view_url(assignment_id: int, base_url: str = "") -> tuple[str, s
 
 # 시공 사진 업로드 가능 상태
 UPLOADABLE_STATUSES = ["accepted", "scheduled", "in_progress"]
-MAX_WORK_PHOTOS_PER_TYPE = 10
+MAX_WORK_PHOTOS_PER_TYPE = 30  # 시공 전/후 각각 최대 30장
 
 
 @router.get("/work-photos/{token}", response_model=PartnerWorkPhotosResponse)
