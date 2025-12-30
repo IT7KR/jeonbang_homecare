@@ -28,6 +28,9 @@ async def lifespan(app: FastAPI):
     # 업로드 디렉토리 생성
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
+    # 로그 디렉토리 생성
+    os.makedirs(settings.LOG_DIR, exist_ok=True)
+
     # 서비스 코드 캐시 초기화 (SMS 발송 시 사용)
     from app.services.sms import load_service_cache
     db = SessionLocal()
