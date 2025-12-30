@@ -120,9 +120,14 @@ export function PartnerUrlManager({
       const token = await getValidToken();
       if (!token) return;
 
-      const data = await generateAssignmentURL(token, applicationId, assignmentId, {
-        expires_in_days: createDays,
-      });
+      const data = await generateAssignmentURL(
+        token,
+        applicationId,
+        assignmentId,
+        {
+          expires_in_days: createDays,
+        }
+      );
       setUrlData(data);
       setShowCreateDialog(false);
       toast.success("협력사 포털 URL이 발급되었습니다");
@@ -140,9 +145,14 @@ export function PartnerUrlManager({
       const token = await getValidToken();
       if (!token) return;
 
-      const data = await renewAssignmentURL(token, applicationId, assignmentId, {
-        expires_in_days: createDays,
-      });
+      const data = await renewAssignmentURL(
+        token,
+        applicationId,
+        assignmentId,
+        {
+          expires_in_days: createDays,
+        }
+      );
       setUrlData(data);
       setShowCreateDialog(false);
       toast.success("새 URL이 발급되었습니다");
@@ -160,9 +170,14 @@ export function PartnerUrlManager({
       const token = await getValidToken();
       if (!token) return;
 
-      const data = await extendAssignmentURL(token, applicationId, assignmentId, {
-        additional_days: extendDays,
-      });
+      const data = await extendAssignmentURL(
+        token,
+        applicationId,
+        assignmentId,
+        {
+          additional_days: extendDays,
+        }
+      );
       setUrlData(data);
       setShowExtendDialog(false);
       toast.success(`유효기간이 ${extendDays}일 연장되었습니다`);
@@ -207,7 +222,11 @@ export function PartnerUrlManager({
         return;
       }
 
-      const message = `[전방홈케어] ${partnerName || "협력사"}님, 배정된 작업을 확인하실 수 있습니다.\n\n포털 URL: ${urlData.view_url}\n\n문의: 031-797-4004`;
+      const message = `[전방홈케어] ${
+        partnerName || "협력사"
+      }님, 배정된 작업을 확인하실 수 있습니다.\n\n포털 URL: ${
+        urlData.view_url
+      }\n\n문의: 1551-6640`;
 
       const result = await sendSMS(token, {
         receiver_phone: partnerPhone,
@@ -235,9 +254,9 @@ export function PartnerUrlManager({
     );
   }
 
-  const isExpired = urlData?.is_expired || (urlData?.expires_at
-    ? isPast(parseISO(urlData.expires_at))
-    : false);
+  const isExpired =
+    urlData?.is_expired ||
+    (urlData?.expires_at ? isPast(parseISO(urlData.expires_at)) : false);
   const hasValidUrl = urlData?.is_issued && urlData?.view_url && !isExpired;
 
   return (
@@ -296,7 +315,10 @@ export function PartnerUrlManager({
           {urlData.expires_at && (
             <div className="text-xs text-gray-500 flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
-              만료일: {format(parseISO(urlData.expires_at), "yyyy년 M월 d일 HH:mm", { locale: ko })}
+              만료일:{" "}
+              {format(parseISO(urlData.expires_at), "yyyy년 M월 d일 HH:mm", {
+                locale: ko,
+              })}
             </div>
           )}
 
@@ -358,7 +380,9 @@ export function PartnerUrlManager({
           ) : (
             <>
               <Link2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm text-gray-600 mb-3">발급된 URL이 없습니다</p>
+              <p className="text-sm text-gray-600 mb-3">
+                발급된 URL이 없습니다
+              </p>
             </>
           )}
           <Button
@@ -418,7 +442,9 @@ export function PartnerUrlManager({
               onClick={hasValidUrl ? handleRenew : handleCreate}
               disabled={isProcessing || createDays < 1 || createDays > 365}
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               {hasValidUrl ? "재발급" : "발급"}
             </Button>
           </DialogFooter>
@@ -450,7 +476,9 @@ export function PartnerUrlManager({
             {urlData?.expires_at && (
               <p className="text-sm text-gray-600">
                 현재 만료일:{" "}
-                {format(parseISO(urlData.expires_at), "yyyy년 M월 d일", { locale: ko })}
+                {format(parseISO(urlData.expires_at), "yyyy년 M월 d일", {
+                  locale: ko,
+                })}
               </p>
             )}
           </div>
@@ -467,7 +495,9 @@ export function PartnerUrlManager({
               onClick={handleExtend}
               disabled={isProcessing || extendDays < 1 || extendDays > 365}
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               연장
             </Button>
           </DialogFooter>
@@ -480,7 +510,8 @@ export function PartnerUrlManager({
           <AlertDialogHeader>
             <AlertDialogTitle>URL 만료 처리</AlertDialogTitle>
             <AlertDialogDescription>
-              이 URL을 만료 처리하시겠습니까? 협력사는 더 이상 이 링크로 접근할 수 없게 됩니다.
+              이 URL을 만료 처리하시겠습니까? 협력사는 더 이상 이 링크로 접근할
+              수 없게 됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -490,7 +521,9 @@ export function PartnerUrlManager({
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700"
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               만료 처리
             </AlertDialogAction>
           </AlertDialogFooter>

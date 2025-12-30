@@ -30,11 +30,31 @@ const ASSIGNMENT_STATUS_CONFIG: Record<
   string,
   { label: string; color: string; bgColor: string }
 > = {
-  pending: { label: "배정 대기", color: "text-gray-600", bgColor: "bg-gray-100" },
-  notified: { label: "알림 발송됨", color: "text-blue-600", bgColor: "bg-blue-50" },
-  accepted: { label: "수락됨", color: "text-emerald-600", bgColor: "bg-emerald-50" },
-  scheduled: { label: "일정 확정", color: "text-purple-600", bgColor: "bg-purple-50" },
-  in_progress: { label: "작업 중", color: "text-orange-600", bgColor: "bg-orange-50" },
+  pending: {
+    label: "배정 대기",
+    color: "text-gray-600",
+    bgColor: "bg-gray-100",
+  },
+  notified: {
+    label: "알림 발송됨",
+    color: "text-blue-600",
+    bgColor: "bg-blue-50",
+  },
+  accepted: {
+    label: "수락됨",
+    color: "text-emerald-600",
+    bgColor: "bg-emerald-50",
+  },
+  scheduled: {
+    label: "일정 확정",
+    color: "text-purple-600",
+    bgColor: "bg-purple-50",
+  },
+  in_progress: {
+    label: "작업 중",
+    color: "text-orange-600",
+    bgColor: "bg-orange-50",
+  },
   completed: { label: "완료", color: "text-green-600", bgColor: "bg-green-50" },
   cancelled: { label: "취소됨", color: "text-red-600", bgColor: "bg-red-50" },
 };
@@ -160,7 +180,7 @@ export default function PartnerViewPage() {
               <div className="pt-4 space-y-2 text-sm text-gray-500">
                 <p>문의가 필요하시면</p>
                 <a
-                  href="tel:031-XXX-XXXX"
+                  href="tel:1551-6640"
                   className="flex items-center justify-center gap-2 text-primary font-medium"
                 >
                   <Phone className="h-4 w-4" />
@@ -190,7 +210,9 @@ export default function PartnerViewPage() {
           <div className="text-center space-y-1">
             <p className="text-primary-100 text-sm font-medium">전방홈케어</p>
             <h1 className="text-2xl font-bold">배정 정보</h1>
-            <p className="text-primary-200 text-sm">#{data.application_number}</p>
+            <p className="text-primary-200 text-sm">
+              #{data.application_number}
+            </p>
           </div>
         </div>
       </div>
@@ -200,7 +222,9 @@ export default function PartnerViewPage() {
         <Card className="border-0 shadow-lg">
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-500 text-sm font-medium">현재 상태</span>
+              <span className="text-gray-500 text-sm font-medium">
+                현재 상태
+              </span>
               <Badge
                 className={`${statusConfig.bgColor} ${statusConfig.color} border-0 px-3 py-1 text-sm font-medium`}
               >
@@ -265,7 +289,9 @@ export default function PartnerViewPage() {
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-green-600 font-medium">확정된 일정</p>
+                  <p className="text-xs text-green-600 font-medium">
+                    확정된 일정
+                  </p>
                 </div>
               </div>
             ) : (
@@ -381,15 +407,22 @@ export default function PartnerViewPage() {
         )}
 
         {/* 시공 사진 업로드 - 업로드 가능한 상태에서만 표시 */}
-        {["accepted", "scheduled", "in_progress"].includes(data.assignment_status) && (
-          <PartnerPhotoUpload token={token} onUploadComplete={() => loadData()} />
+        {["accepted", "scheduled", "in_progress"].includes(
+          data.assignment_status
+        ) && (
+          <PartnerPhotoUpload
+            token={token}
+            onUploadComplete={() => loadData()}
+          />
         )}
 
         {/* 배정 메모 */}
         {data.note && (
           <Card className="border-0 shadow-md">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base text-gray-700">배정 메모</CardTitle>
+              <CardTitle className="text-base text-gray-700">
+                배정 메모
+              </CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
               <div className="p-3 bg-amber-50 rounded-xl border border-amber-100">

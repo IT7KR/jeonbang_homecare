@@ -210,7 +210,7 @@ export default function CustomerViewPage() {
               <div className="pt-4 space-y-2 text-sm text-gray-500">
                 <p>문의가 필요하시면</p>
                 <a
-                  href="tel:031-XXX-XXXX"
+                  href="tel:1551-6640"
                   className="flex items-center justify-center gap-2 text-primary font-medium"
                 >
                   <Phone className="h-4 w-4" />

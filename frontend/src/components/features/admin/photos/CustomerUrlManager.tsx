@@ -186,7 +186,11 @@ export function CustomerUrlManager({
         return;
       }
 
-      const message = `[전방홈케어] ${customerName || "고객"}님, 시공 결과를 확인하실 수 있습니다.\n\n확인 URL: ${urlData.url}\n\n문의: 031-797-4004`;
+      const message = `[전방홈케어] ${
+        customerName || "고객"
+      }님, 시공 결과를 확인하실 수 있습니다.\n\n확인 URL: ${
+        urlData.url
+      }\n\n문의: 1551-6640`;
 
       const result = await sendSMS(token, {
         receiver_phone: customerPhone,
@@ -274,7 +278,10 @@ export function CustomerUrlManager({
           {/* Expiry info */}
           <div className="text-xs text-gray-500 flex items-center gap-1">
             <Clock className="w-3.5 h-3.5" />
-            만료일: {format(parseISO(urlData.expires_at!), "yyyy년 M월 d일 HH:mm", { locale: ko })}
+            만료일:{" "}
+            {format(parseISO(urlData.expires_at!), "yyyy년 M월 d일 HH:mm", {
+              locale: ko,
+            })}
           </div>
 
           {/* Actions */}
@@ -335,7 +342,9 @@ export function CustomerUrlManager({
           ) : (
             <>
               <Link2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
-              <p className="text-sm text-gray-600 mb-3">발급된 URL이 없습니다</p>
+              <p className="text-sm text-gray-600 mb-3">
+                발급된 URL이 없습니다
+              </p>
             </>
           )}
           <Button
@@ -395,7 +404,9 @@ export function CustomerUrlManager({
               onClick={hasValidUrl ? handleRenew : handleCreate}
               disabled={isProcessing || createDays < 1 || createDays > 365}
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               {hasValidUrl ? "재발급" : "발급"}
             </Button>
           </DialogFooter>
@@ -427,7 +438,9 @@ export function CustomerUrlManager({
             {urlData?.expires_at && (
               <p className="text-sm text-gray-600">
                 현재 만료일:{" "}
-                {format(parseISO(urlData.expires_at), "yyyy년 M월 d일", { locale: ko })}
+                {format(parseISO(urlData.expires_at), "yyyy년 M월 d일", {
+                  locale: ko,
+                })}
               </p>
             )}
           </div>
@@ -444,7 +457,9 @@ export function CustomerUrlManager({
               onClick={handleExtend}
               disabled={isProcessing || extendDays < 1 || extendDays > 365}
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               연장
             </Button>
           </DialogFooter>
@@ -457,7 +472,8 @@ export function CustomerUrlManager({
           <AlertDialogHeader>
             <AlertDialogTitle>URL 만료 처리</AlertDialogTitle>
             <AlertDialogDescription>
-              이 URL을 만료 처리하시겠습니까? 고객은 더 이상 이 링크로 접근할 수 없게 됩니다.
+              이 URL을 만료 처리하시겠습니까? 고객은 더 이상 이 링크로 접근할 수
+              없게 됩니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -467,7 +483,9 @@ export function CustomerUrlManager({
               disabled={isProcessing}
               className="bg-red-600 hover:bg-red-700"
             >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin mr-1" />}
+              {isProcessing && (
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+              )}
               만료 처리
             </AlertDialogAction>
           </AlertDialogFooter>
