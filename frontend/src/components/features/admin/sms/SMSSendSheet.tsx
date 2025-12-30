@@ -29,9 +29,8 @@ import {
 import { sendMMS } from "@/lib/api/admin/sms";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { MMSTemplateSelector } from "./MMSTemplateSelector";
 import { ImageUpload, imageFileToBase64 } from "./ImageUpload";
-import type { SMSTemplate, ImageFile } from "@/lib/api/admin/types";
+import type { ImageFile } from "@/lib/api/admin/types";
 
 interface SMSSendSheetProps {
   open: boolean;
@@ -84,7 +83,6 @@ export function SMSSendSheet({
 
   // Message
   const [message, setMessage] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<SMSTemplate | null>(null);
 
   // Images
   const [images, setImages] = useState<ImageFile[]>([]);
@@ -190,12 +188,6 @@ export function SMSSendSheet({
         (r) => !(r.id === recipient.id && r.type === recipient.type)
       )
     );
-  };
-
-  // 템플릿 선택 핸들러
-  const handleTemplateSelect = (template: SMSTemplate | null, templateMessage: string) => {
-    setSelectedTemplate(template);
-    setMessage(templateMessage);
   };
 
   // 메시지 타입 결정
@@ -326,7 +318,6 @@ export function SMSSendSheet({
     setActiveTab("customer");
     setSelectedRecipients([]);
     setMessage("");
-    setSelectedTemplate(null);
     setImages([]);
     setError(null);
     setResult(null);
@@ -345,10 +336,6 @@ export function SMSSendSheet({
 
   const customerCount = selectedRecipients.filter((r) => r.type === "customer").length;
   const partnerCount = selectedRecipients.filter((r) => r.type === "partner").length;
-
-  // 첫 번째 수신자 이름 (변수 치환용)
-  const firstRecipientName = selectedRecipients.length === 1 ? selectedRecipients[0].name : "";
-  const firstRecipientType = selectedRecipients.length > 0 ? selectedRecipients[0].type : "customer";
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -569,14 +556,6 @@ export function SMSSendSheet({
                 </div>
               </div>
 
-              {/* Template Selector */}
-              <MMSTemplateSelector
-                selectedTemplateId={selectedTemplate?.id || null}
-                onSelect={handleTemplateSelect}
-                customerName={firstRecipientType === "customer" ? firstRecipientName : ""}
-                partnerName={firstRecipientType === "partner" ? firstRecipientName : ""}
-              />
-
               {/* Message */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -616,13 +595,6 @@ export function SMSSendSheet({
                     {MESSAGE_PREFIX.length + message.length}/2000
                   </span>
                 </div>
-
-                {/* 다중 수신자 안내 */}
-                {selectedRecipients.length > 1 && (
-                  <p className="text-xs text-amber-600 mt-2">
-                    ※ 복수 수신자 발송 시 변수 치환은 적용되지 않습니다
-                  </p>
-                )}
               </div>
 
               {/* Image Upload */}

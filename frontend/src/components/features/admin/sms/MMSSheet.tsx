@@ -22,8 +22,7 @@ import { sendMMS, sendWorkPhotosMMS } from "@/lib/api/admin/sms";
 import { cn } from "@/lib/utils";
 import { ImageUpload, imageFileToBase64 } from "./ImageUpload";
 import { WorkPhotoSelector } from "./WorkPhotoSelector";
-import { MMSTemplateSelector } from "./MMSTemplateSelector";
-import type { ImageFile, SMSSendResponse, WorkPhotosResponse, SMSTemplate } from "@/lib/api/admin/types";
+import type { ImageFile, SMSSendResponse, WorkPhotosResponse } from "@/lib/api/admin/types";
 
 interface MMSSheetProps {
   open: boolean;
@@ -56,7 +55,6 @@ export function MMSSheet({
 
   const [status, setStatus] = useState<Status>("compose");
   const [message, setMessage] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<SMSTemplate | null>(null);
   const [images, setImages] = useState<ImageFile[]>([]);
   const [selectedWorkPhotos, setSelectedWorkPhotos] = useState<string[]>([]);
   const [imageSource, setImageSource] = useState<ImageSource>(
@@ -98,12 +96,6 @@ export function MMSSheet({
     } else {
       setSelectedWorkPhotos([]);
     }
-  };
-
-  // 템플릿 선택 핸들러
-  const handleTemplateSelect = (template: SMSTemplate | null, templateMessage: string) => {
-    setSelectedTemplate(template);
-    setMessage(templateMessage);
   };
 
   const handleSend = async () => {
@@ -172,7 +164,6 @@ export function MMSSheet({
     // Reset state
     setStatus("compose");
     setMessage("");
-    setSelectedTemplate(null);
     setImages([]);
     setSelectedWorkPhotos([]);
     setError(null);
@@ -231,13 +222,6 @@ export function MMSSheet({
                   </span>
                 </p>
               </div>
-
-              {/* Template selector */}
-              <MMSTemplateSelector
-                selectedTemplateId={selectedTemplate?.id || null}
-                onSelect={handleTemplateSelect}
-                customerName={recipientName}
-              />
 
               {/* Message input */}
               <div>
