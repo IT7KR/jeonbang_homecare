@@ -129,20 +129,22 @@ def process_uploaded_image(
     original_filename: str,
     upload_dir: str,
     entity_type: str = "applications",
+    generate_thumbnail: bool = True,
 ) -> dict:
     """
-    업로드된 이미지 처리 (최적화 + 저장)
-    리사이징된 이미지만 저장 (원본, 썸네일 별도 저장 안함)
+    업로드된 이미지 처리 (최적화 + 썸네일 생성 + 저장)
 
     Args:
         image_data: 원본 이미지 바이트 데이터
         original_filename: 원본 파일명
         upload_dir: 업로드 디렉토리 경로
-        entity_type: 엔티티 유형 (applications, partners 등)
+        entity_type: 엔티티 유형 (applications, partners, assignments 등)
+        generate_thumbnail: 썸네일 생성 여부 (기본: True)
 
     Returns:
         {
             "path": "/uploads/.../abc123.webp",
+            "thumbnail_path": "/uploads/.../thumb_abc123.webp" | None,
             "original_size": 12345,
             "optimized_size": 1234
         }
@@ -162,14 +164,35 @@ def process_uploaded_image(
     with open(file_path, "wb") as f:
         f.write(optimized_data)
 
-    # 상대 경로 반환 (API 응답용) - 실제 저장 경로와 일치
+    # 상대 경로 반환 (API 응답용)
     rel_path = f"/uploads/{entity_type}/{date_dir}/{new_filename}"
 
-    return {
+    result = {
         "path": rel_path,
+        "thumbnail_path": None,
         "original_size": len(image_data),
         "optimized_size": len(optimized_data),
     }
+
+    # 썸네일 생성 (옵션)
+    if generate_thumbnail:
+        try:
+            thumbnail_data = create_thumbnail(image_data)
+
+            # 썸네일 파일명 (thumb_ 접두사)
+            thumb_filename = f"thumb_{new_filename}"
+            thumb_path = os.path.join(full_dir, thumb_filename)
+
+            with open(thumb_path, "wb") as f:
+                f.write(thumbnail_data)
+
+            result["thumbnail_path"] = f"/uploads/{entity_type}/{date_dir}/{thumb_filename}"
+
+            logger.info(f"Thumbnail created: {thumb_filename} ({len(thumbnail_data)} bytes)")
+        except Exception as e:
+            logger.warning(f"Thumbnail creation skipped: {e}")
+
+    return result
 
 
 def _apply_exif_orientation(img: Image.Image) -> Image.Image:
