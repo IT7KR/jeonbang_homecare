@@ -824,6 +824,8 @@ export interface WorkPhotosResponse {
   after_photos: string[];
   before_photo_urls: string[];
   after_photo_urls: string[];
+  before_thumbnail_urls: string[];  // 썸네일 URL (300x300)
+  after_thumbnail_urls: string[];   // 썸네일 URL (300x300)
   uploaded_at: string | null;
   updated_at: string | null;
 }

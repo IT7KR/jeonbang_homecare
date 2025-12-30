@@ -353,6 +353,13 @@ async def view_assignment(
     work_photos_before = []
     work_photos_after = []
 
+    def get_thumbnail_path(photo_path: str) -> str:
+        """원본 경로에서 썸네일 경로 생성 (thumb_ 접두사)"""
+        parts = photo_path.rsplit("/", 1)
+        if len(parts) == 2:
+            return f"{parts[0]}/thumb_{parts[1]}"
+        return photo_path
+
     if assignment.work_photos_before:
         for photo_path in assignment.work_photos_before:
             if photo_path:
@@ -364,8 +371,18 @@ async def view_assignment(
                     entity_id=assignment.id,
                     requires_auth=False,
                 )
+                # 썸네일 토큰 생성
+                thumb_path = get_thumbnail_path(photo_path)
+                thumb_token = encode_file_token(
+                    thumb_path,
+                    expires_in=30 * 24 * 60 * 60,  # 30일
+                    entity_type="work_photo",
+                    entity_id=assignment.id,
+                    requires_auth=False,
+                )
                 work_photos_before.append(CustomerViewPhoto(
                     url=f"/api/v1/files/{photo_token}",
+                    thumbnail_url=f"/api/v1/files/{thumb_token}",
                     filename=filename,
                 ))
 
@@ -380,8 +397,18 @@ async def view_assignment(
                     entity_id=assignment.id,
                     requires_auth=False,
                 )
+                # 썸네일 토큰 생성
+                thumb_path = get_thumbnail_path(photo_path)
+                thumb_token = encode_file_token(
+                    thumb_path,
+                    expires_in=30 * 24 * 60 * 60,  # 30일
+                    entity_type="work_photo",
+                    entity_id=assignment.id,
+                    requires_auth=False,
+                )
                 work_photos_after.append(CustomerViewPhoto(
                     url=f"/api/v1/files/{photo_token}",
+                    thumbnail_url=f"/api/v1/files/{thumb_token}",
                     filename=filename,
                 ))
 
@@ -392,7 +419,7 @@ async def view_assignment(
     token_expires_at = assignment.customer_token_expires_at.isoformat() if assignment.customer_token_expires_at else ""
 
     # 연락처 정보 (설정에서 가져오기)
-    contact_info = getattr(settings, 'CONTACT_INFO', '문의: 031-XXX-XXXX')
+    contact_info = getattr(settings, 'CONTACT_INFO', '문의: 1551-6640')
 
     return CustomerViewResponse(
         # 배정 정보

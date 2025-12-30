@@ -335,6 +335,13 @@ async def get_partner_work_photos(
     before_photos = []
     after_photos = []
 
+    def get_thumbnail_path(photo_path: str) -> str:
+        """원본 경로에서 썸네일 경로 생성 (thumb_ 접두사)"""
+        parts = photo_path.rsplit("/", 1)
+        if len(parts) == 2:
+            return f"{parts[0]}/thumb_{parts[1]}"
+        return photo_path
+
     for photo_path in (assignment.work_photos_before or []):
         if photo_path:
             filename = os.path.basename(photo_path)
@@ -345,8 +352,18 @@ async def get_partner_work_photos(
                 entity_id=assignment.id,
                 requires_auth=False,
             )
+            # 썸네일 토큰 생성
+            thumb_path = get_thumbnail_path(photo_path)
+            thumb_token = encode_file_token(
+                thumb_path,
+                expires_in=7 * 24 * 60 * 60,
+                entity_type="assignment",
+                entity_id=assignment.id,
+                requires_auth=False,
+            )
             before_photos.append(PartnerViewPhoto(
                 url=f"/api/v1/files/{photo_token}",
+                thumbnail_url=f"/api/v1/files/{thumb_token}",
                 filename=filename,
             ))
 
@@ -360,8 +377,18 @@ async def get_partner_work_photos(
                 entity_id=assignment.id,
                 requires_auth=False,
             )
+            # 썸네일 토큰 생성
+            thumb_path = get_thumbnail_path(photo_path)
+            thumb_token = encode_file_token(
+                thumb_path,
+                expires_in=7 * 24 * 60 * 60,
+                entity_type="assignment",
+                entity_id=assignment.id,
+                requires_auth=False,
+            )
             after_photos.append(PartnerViewPhoto(
                 url=f"/api/v1/files/{photo_token}",
+                thumbnail_url=f"/api/v1/files/{thumb_token}",
                 filename=filename,
             ))
 
@@ -390,7 +417,7 @@ async def upload_partner_photos(
 
     - **token**: 협력사 열람 토큰 (SMS로 전달됨)
     - **photo_type**: "before" (시공 전) 또는 "after" (시공 후)
-    - **photos**: 업로드할 사진 파일 목록 (최대 10장/유형)
+    - **photos**: 업로드할 사진 파일 목록 (최대 30장/유형)
     """
     # photo_type 검증
     if photo_type not in ["before", "after"]:

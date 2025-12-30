@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
   Camera,
   ImagePlus,
   Loader2,
-  X,
   AlertCircle,
   CheckCircle,
   Upload,
+  Trash2,
+  CheckSquare,
+  Square,
+  X,
 } from "lucide-react";
+import Lightbox from "yet-another-react-lightbox";
+import Zoom from "yet-another-react-lightbox/plugins/zoom";
+import "yet-another-react-lightbox/styles.css";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +30,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { UploadProgress } from "@/components/ui/upload-progress";
+import { SimplePagination } from "@/components/ui/photo-pagination";
+import {
+  uploadInChunks,
+  type ChunkProgress,
+} from "@/lib/utils/chunk-upload";
 import {
   getPartnerWorkPhotos,
   uploadPartnerPhotos,
@@ -47,6 +59,7 @@ const PHOTO_TABS: { key: PhotoType; label: string; description: string }[] = [
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const ITEMS_PER_PAGE = 9; // 3x3 grid
 
 export function PartnerPhotoUpload({
   token,
@@ -57,18 +70,39 @@ export function PartnerPhotoUpload({
   const [data, setData] = useState<PartnerWorkPhotosResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<ChunkProgress | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     photoType: PhotoType;
-    photoIndex: number;
+    indices: number[];
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Selection mode
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  // 데이터 로드
+  // Reset on tab change
+  useEffect(() => {
+    setIsSelectionMode(false);
+    setSelectedIndices(new Set());
+    setCurrentPage(1);
+    setError(null);
+    setSuccessMessage(null);
+  }, [activeTab]);
+
+  // Load data
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -87,13 +121,24 @@ export function PartnerPhotoUpload({
     loadData();
   }, [loadData]);
 
-  // 현재 탭의 사진 목록
+  // Current tab photos
   const currentPhotos: PartnerViewPhoto[] =
     activeTab === "before" ? data?.before_photos || [] : data?.after_photos || [];
-  const maxPhotos = data?.max_photos_per_type || 10;
+  const maxPhotos = data?.max_photos_per_type || 30;
   const canUpload = data?.can_upload && currentPhotos.length < maxPhotos;
 
-  // 파일 유효성 검사
+  // Paginated photos
+  const paginatedPhotos = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return currentPhotos.slice(start, start + ITEMS_PER_PAGE);
+  }, [currentPhotos, currentPage]);
+
+  // Get actual index
+  const getActualIndex = (pageIndex: number) => {
+    return (currentPage - 1) * ITEMS_PER_PAGE + pageIndex;
+  };
+
+  // Validate files
   const validateFiles = (files: File[]): { valid: File[]; errors: string[] } => {
     const valid: File[] = [];
     const errors: string[] = [];
@@ -119,7 +164,7 @@ export function PartnerPhotoUpload({
     return { valid, errors };
   };
 
-  // 파일 업로드 처리
+  // Upload handler with chunk support
   const handleUpload = async (files: File[]) => {
     const { valid, errors } = validateFiles(files);
 
@@ -131,53 +176,97 @@ export function PartnerPhotoUpload({
 
     try {
       setIsUploading(true);
-      setUploadProgress(`${valid.length}장 업로드 중...`);
       setError(null);
+      setSuccessMessage(null);
 
-      await uploadPartnerPhotos(token, activeTab, valid);
+      const result = await uploadInChunks({
+        files: valid,
+        chunkSize: 5,
+        compress: true,
+        compressBatchSize: 3,
+        onProgress: setUploadProgress,
+        uploadFn: async (chunk) => {
+          return uploadPartnerPhotos(token, activeTab, chunk);
+        },
+      });
 
-      setUploadProgress("업로드 완료!");
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      setSuccessMessage(`${result.totalProcessed}장 업로드 완료!`);
       await loadData();
       onUploadComplete?.();
 
-      setTimeout(() => setUploadProgress(null), 2000);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
       console.error("Upload failed:", err);
       setError("사진 업로드에 실패했습니다. 다시 시도해주세요.");
-      setUploadProgress(null);
     } finally {
       setIsUploading(false);
+      setUploadProgress(null);
     }
   };
 
-  // 파일 선택 핸들러
+  // File input handler
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
       handleUpload(files);
     }
-    // 입력 초기화 (같은 파일 재선택 허용)
     e.target.value = "";
   };
 
-  // 사진 삭제 처리
+  // Delete handlers
+  const handleDeleteSingle = (index: number) => {
+    setDeleteConfirm({ photoType: activeTab, indices: [index] });
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedIndices.size === 0) return;
+    const indices = Array.from(selectedIndices).sort((a, b) => b - a);
+    setDeleteConfirm({ photoType: activeTab, indices });
+  };
+
   const handleDelete = async () => {
     if (!deleteConfirm) return;
 
     try {
       setIsDeleting(true);
-      await deletePartnerPhoto(
-        token,
-        deleteConfirm.photoType,
-        deleteConfirm.photoIndex
-      );
+      // Delete in reverse order
+      for (const index of deleteConfirm.indices) {
+        await deletePartnerPhoto(token, deleteConfirm.photoType, index);
+      }
       await loadData();
       setDeleteConfirm(null);
+      setIsSelectionMode(false);
+      setSelectedIndices(new Set());
     } catch (err) {
       console.error("Delete failed:", err);
       setError("사진 삭제에 실패했습니다.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  // Selection handlers
+  const toggleSelection = (index: number) => {
+    setSelectedIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIndices.size === currentPhotos.length) {
+      setSelectedIndices(new Set());
+    } else {
+      setSelectedIndices(new Set(currentPhotos.map((_, i) => i)));
     }
   };
 
@@ -195,12 +284,12 @@ export function PartnerPhotoUpload({
   }
 
   if (!data?.can_upload) {
-    return null; // 업로드 불가 상태면 표시하지 않음
+    return null;
   }
 
   return (
     <Card className={cn("border-0 shadow-md overflow-hidden", className)}>
-      {/* 헤더 */}
+      {/* Header */}
       <CardHeader className="bg-gradient-to-r from-indigo-500 to-indigo-600 text-white pb-3 pt-4 px-4">
         <CardTitle className="text-base flex items-center gap-2">
           <Camera className="h-5 w-5" />
@@ -209,7 +298,7 @@ export function PartnerPhotoUpload({
       </CardHeader>
 
       <CardContent className="p-4 space-y-4">
-        {/* 탭 전환 */}
+        {/* Tab switcher */}
         <div className="flex gap-2">
           {PHOTO_TABS.map((tab) => (
             <button
@@ -222,17 +311,17 @@ export function PartnerPhotoUpload({
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               )}
             >
-              {tab.label}
+              {tab.label} ({(activeTab === tab.key ? currentPhotos : (tab.key === "before" ? data?.before_photos : data?.after_photos))?.length || 0})
             </button>
           ))}
         </div>
 
-        {/* 현재 탭 설명 */}
+        {/* Tab description */}
         <p className="text-sm text-gray-500 text-center">
           {PHOTO_TABS.find((t) => t.key === activeTab)?.description}
         </p>
 
-        {/* 에러 메시지 */}
+        {/* Error message */}
         {error && (
           <div className="p-3 bg-red-50 rounded-xl flex items-start gap-2">
             <AlertCircle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
@@ -240,47 +329,138 @@ export function PartnerPhotoUpload({
           </div>
         )}
 
-        {/* 업로드 진행 상태 */}
-        {uploadProgress && (
-          <div className="p-3 bg-indigo-50 rounded-xl flex items-center gap-2">
-            {isUploading ? (
-              <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
-            ) : (
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            )}
-            <p className="text-sm text-indigo-700">{uploadProgress}</p>
+        {/* Success message */}
+        {successMessage && (
+          <div className="p-3 bg-green-50 rounded-xl flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <p className="text-sm text-green-700">{successMessage}</p>
           </div>
         )}
 
-        {/* 사진 그리드 */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* 기존 사진들 */}
-          {currentPhotos.map((photo, index) => (
-            <div
-              key={`${photo.filename}-${index}`}
-              className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group"
-            >
-              <Image
-                src={photo.url}
-                alt={`${activeTab === "before" ? "시공 전" : "시공 후"} ${index + 1}`}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 33vw, 120px"
-              />
-              {/* 삭제 버튼 */}
-              <button
-                onClick={() =>
-                  setDeleteConfirm({ photoType: activeTab, photoIndex: index })
-                }
-                className="absolute top-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="h-4 w-4 text-white" />
-              </button>
-            </div>
-          ))}
+        {/* Upload progress */}
+        {uploadProgress && (
+          <UploadProgress progress={uploadProgress} />
+        )}
 
-          {/* 업로드 버튼 (빈 슬롯) */}
-          {canUpload && (
+        {/* Selection toolbar */}
+        {currentPhotos.length > 0 && (
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-gray-500">
+              {currentPhotos.length}/{maxPhotos}장
+            </span>
+            <div className="flex items-center gap-2">
+              {isSelectionMode ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs"
+                    onClick={toggleSelectAll}
+                  >
+                    {selectedIndices.size === currentPhotos.length ? "해제" : "전체"}
+                  </Button>
+                  {selectedIndices.size > 0 && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={handleDeleteSelected}
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      {selectedIndices.size}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0"
+                    onClick={() => {
+                      setIsSelectionMode(false);
+                      setSelectedIndices(new Set());
+                    }}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => setIsSelectionMode(true)}
+                >
+                  선택
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Photo grid */}
+        <div className="grid grid-cols-3 gap-2">
+          {paginatedPhotos.map((photo, index) => {
+            const actualIndex = getActualIndex(index);
+            const thumbnailUrl = photo.thumbnail_url || photo.url;
+            const isSelected = selectedIndices.has(actualIndex);
+
+            return (
+              <div
+                key={`${photo.filename}-${actualIndex}`}
+                className={cn(
+                  "relative aspect-square rounded-xl overflow-hidden bg-gray-100 group cursor-pointer",
+                  isSelected && "ring-2 ring-indigo-500"
+                )}
+                onClick={() => {
+                  if (isSelectionMode) {
+                    toggleSelection(actualIndex);
+                  } else {
+                    setLightboxIndex(actualIndex);
+                    setLightboxOpen(true);
+                  }
+                }}
+              >
+                <Image
+                  src={thumbnailUrl}
+                  alt={`${activeTab === "before" ? "시공 전" : "시공 후"} ${actualIndex + 1}`}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 33vw, 120px"
+                />
+
+                {/* Selection checkbox */}
+                {isSelectionMode && (
+                  <div className="absolute top-1 left-1">
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5 text-indigo-500 bg-white rounded" />
+                    ) : (
+                      <Square className="w-5 h-5 text-gray-400 bg-white/80 rounded" />
+                    )}
+                  </div>
+                )}
+
+                {/* Delete button */}
+                {!isSelectionMode && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSingle(actualIndex);
+                    }}
+                    className="absolute top-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3 text-white" />
+                  </button>
+                )}
+
+                {/* Photo number */}
+                <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/60 rounded text-[10px] text-white">
+                  {actualIndex + 1}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Add button */}
+          {canUpload && !isSelectionMode && (
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
@@ -303,13 +483,16 @@ export function PartnerPhotoUpload({
           )}
         </div>
 
-        {/* 사진 카운트 */}
-        <p className="text-xs text-gray-400 text-center">
-          {currentPhotos.length} / {maxPhotos}장
-        </p>
+        {/* Pagination */}
+        <SimplePagination
+          totalItems={currentPhotos.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+        />
 
-        {/* 업로드 버튼들 */}
-        {canUpload && (
+        {/* Upload buttons */}
+        {canUpload && !isSelectionMode && (
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
@@ -332,12 +515,12 @@ export function PartnerPhotoUpload({
           </div>
         )}
 
-        {/* 안내 문구 */}
+        {/* Info text */}
         <p className="text-xs text-gray-400 text-center">
-          JPEG, PNG, WebP, HEIC 지원 / 최대 10MB
+          JPEG, PNG, WebP, HEIC 지원 / 최대 10MB / 각 {maxPhotos}장
         </p>
 
-        {/* 숨겨진 파일 입력들 */}
+        {/* Hidden file inputs */}
         <input
           ref={fileInputRef}
           type="file"
@@ -356,7 +539,7 @@ export function PartnerPhotoUpload({
         />
       </CardContent>
 
-      {/* 삭제 확인 다이얼로그 */}
+      {/* Delete confirmation dialog */}
       <AlertDialog
         open={!!deleteConfirm}
         onOpenChange={(open) => !open && setDeleteConfirm(null)}
@@ -365,7 +548,10 @@ export function PartnerPhotoUpload({
           <AlertDialogHeader>
             <AlertDialogTitle>사진 삭제</AlertDialogTitle>
             <AlertDialogDescription>
-              이 사진을 삭제하시겠습니까? 삭제된 사진은 복구할 수 없습니다.
+              {deleteConfirm?.indices.length === 1
+                ? "이 사진을 삭제하시겠습니까?"
+                : `선택한 ${deleteConfirm?.indices.length}장의 사진을 삭제하시겠습니까?`}
+              {" "}삭제된 사진은 복구할 수 없습니다.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -381,6 +567,19 @@ export function PartnerPhotoUpload({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Image lightbox with zoom */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={lightboxIndex}
+        slides={currentPhotos.map((photo) => ({ src: photo.url }))}
+        plugins={[Zoom]}
+        zoom={{
+          maxZoomPixelRatio: 3,
+          zoomInMultiplier: 2,
+        }}
+      />
     </Card>
   );
 }

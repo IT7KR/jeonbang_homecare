@@ -11,6 +11,7 @@ from pydantic import BaseModel
 class CustomerViewPhoto(BaseModel):
     """사진 정보 (토큰화된 URL)"""
     url: str
+    thumbnail_url: Optional[str] = None  # 썸네일 URL (300x300)
     filename: str
 
 
@@ -70,7 +71,7 @@ class CustomerViewResponse(BaseModel):
     # 메타 정보
     created_at: str
     token_expires_at: str
-    contact_info: str = "문의: 031-XXX-XXXX"
+    contact_info: str = "문의: 1551-6640"
 
 
 class CustomerViewTokenInfo(BaseModel):

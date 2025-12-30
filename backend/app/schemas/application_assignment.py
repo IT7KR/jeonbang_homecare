@@ -128,6 +128,8 @@ class WorkPhotosResponse(BaseModel):
     after_photos: list[str]
     before_photo_urls: list[str]  # 토큰화된 URL
     after_photo_urls: list[str]  # 토큰화된 URL
+    before_thumbnail_urls: list[str] = []  # 시공 전 썸네일 URL
+    after_thumbnail_urls: list[str] = []  # 시공 후 썸네일 URL
     uploaded_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

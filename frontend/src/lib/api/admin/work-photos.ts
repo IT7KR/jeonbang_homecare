@@ -62,6 +62,21 @@ export async function deleteWorkPhoto(
   );
 }
 
+/**
+ * 시공 사진 순서 변경
+ */
+export async function reorderWorkPhotos(
+  applicationId: number,
+  assignmentId: number,
+  photoType: "before" | "after",
+  order: number[]
+): Promise<{ success: boolean; message: string; photos: string[] }> {
+  return fetchWithAuth<{ success: boolean; message: string; photos: string[] }>(
+    `${BASE_URL}/${applicationId}/assignments/${assignmentId}/work-photos/${photoType}/reorder`,
+    { method: "PUT", body: order }
+  );
+}
+
 // ===== 고객 URL API =====
 
 /**

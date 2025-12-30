@@ -59,6 +59,37 @@ export async function compressImages(files: File[]): Promise<File[]> {
 }
 
 /**
+ * 진행률 콜백과 함께 이미지 배치 압축
+ * UI 블로킹 방지를 위해 동시 압축 수를 제한
+ *
+ * @param files 원본 파일 배열
+ * @param onProgress 진행률 콜백 (current, total)
+ * @param batchSize 동시 압축 수 (기본값: 3)
+ * @returns 압축된 파일 배열
+ */
+export async function compressImagesWithProgress(
+  files: File[],
+  onProgress?: (current: number, total: number) => void,
+  batchSize: number = 3
+): Promise<File[]> {
+  const results: File[] = [];
+  const total = files.length;
+
+  for (let i = 0; i < total; i += batchSize) {
+    const batch = files.slice(i, i + batchSize);
+    const compressed = await Promise.all(batch.map((file) => compressImage(file)));
+    results.push(...compressed);
+
+    // 진행률 콜백 호출
+    if (onProgress) {
+      onProgress(Math.min(i + batchSize, total), total);
+    }
+  }
+
+  return results;
+}
+
+/**
  * 파일 크기를 사람이 읽기 쉬운 형태로 변환
  * @param bytes 바이트 단위 크기
  * @returns 포맷된 문자열 (예: "1.5 MB")

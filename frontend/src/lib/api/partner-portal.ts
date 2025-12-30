@@ -19,6 +19,7 @@ const portalClient = axios.create({
 
 export interface PartnerViewPhoto {
   url: string;
+  thumbnail_url?: string;  // 썸네일 URL (300x300)
   filename: string;
 }
 

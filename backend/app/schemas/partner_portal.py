@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class PartnerViewPhoto(BaseModel):
     """사진 정보 (토큰화된 URL)"""
     url: str
+    thumbnail_url: Optional[str] = None  # 썸네일 URL (300x300)
     filename: str
 
 
@@ -74,4 +75,4 @@ class PartnerWorkPhotosResponse(BaseModel):
     before_photos: list[PartnerViewPhoto] = []
     after_photos: list[PartnerViewPhoto] = []
     can_upload: bool = False  # 업로드 가능 여부 (상태 기반)
-    max_photos_per_type: int = 10
+    max_photos_per_type: int = 30  # 시공 전/후 각각 최대 30장

@@ -1700,12 +1700,27 @@ def get_work_photos(
     def get_photo_urls(photos: list) -> list:
         return [get_file_url(photo) for photo in photos]
 
+    # 썸네일 URL 생성 (thumb_ 접두사)
+    def get_thumbnail_urls(photos: list) -> list:
+        thumbnails = []
+        for photo in photos:
+            # /uploads/assignments/202512/abc123.webp -> /uploads/assignments/202512/thumb_abc123.webp
+            parts = photo.rsplit("/", 1)
+            if len(parts) == 2:
+                thumb_path = f"{parts[0]}/thumb_{parts[1]}"
+                thumbnails.append(get_file_url(thumb_path))
+            else:
+                thumbnails.append(get_file_url(photo))
+        return thumbnails
+
     return WorkPhotosResponse(
         assignment_id=assignment_id,
         before_photos=before_photos,
         after_photos=after_photos,
         before_photo_urls=get_photo_urls(before_photos),
         after_photo_urls=get_photo_urls(after_photos),
+        before_thumbnail_urls=get_thumbnail_urls(before_photos),
+        after_thumbnail_urls=get_thumbnail_urls(after_photos),
         uploaded_at=assignment.work_photos_uploaded_at,
         updated_at=assignment.work_photos_updated_at,
     )
@@ -1841,6 +1856,71 @@ def delete_work_photo(
         "message": "사진이 삭제되었습니다",
         "deleted_photo": deleted_photo,
         "remaining_count": len(photos),
+    }
+
+
+@router.put("/{application_id}/assignments/{assignment_id}/work-photos/{photo_type}/reorder")
+def reorder_work_photos(
+    application_id: int,
+    assignment_id: int,
+    photo_type: str,
+    order: List[int],
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    시공 사진 순서 변경
+
+    - photo_type: "before" 또는 "after"
+    - order: 새로운 인덱스 순서 배열 [2, 0, 1] → 2번 사진이 첫번째로
+    """
+    if photo_type not in ["before", "after"]:
+        raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
+
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id,
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
+
+    # 기존 사진 목록
+    if photo_type == "before":
+        photos = list(assignment.work_photos_before or [])
+    else:
+        photos = list(assignment.work_photos_after or [])
+
+    # 인덱스 유효성 검사
+    if len(order) != len(photos):
+        raise HTTPException(
+            status_code=400,
+            detail=f"순서 배열 길이({len(order)})가 사진 수({len(photos)})와 일치하지 않습니다"
+        )
+
+    if sorted(order) != list(range(len(photos))):
+        raise HTTPException(
+            status_code=400,
+            detail="순서 배열에 유효하지 않은 인덱스가 포함되어 있습니다"
+        )
+
+    # 순서 재정렬
+    reordered = [photos[i] for i in order]
+
+    if photo_type == "before":
+        assignment.work_photos_before = reordered
+    else:
+        assignment.work_photos_after = reordered
+
+    assignment.work_photos_updated_at = datetime.now(timezone.utc)
+    db.commit()
+
+    logger.info(f"Work photos reordered: assignment={assignment_id}, type={photo_type}, order={order}")
+
+    return {
+        "success": True,
+        "message": "사진 순서가 변경되었습니다",
+        "photos": reordered,
     }
 
 
