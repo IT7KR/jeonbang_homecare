@@ -25,7 +25,7 @@ const navigation = [
   { name: "신청 관리", href: "/admin/applications", icon: FileText },
   { name: "협력사 관리", href: "/admin/partners", icon: Users },
   { name: "일정 관리", href: "/admin/schedule", icon: Calendar },
-  { name: "SMS 관리", href: "/admin/sms", icon: MessageSquare },
+  { name: "문자 관리", href: "/admin/sms", icon: MessageSquare },
   { name: "QR코드 생성", href: "/admin/qr-code", icon: QrCode },
   { name: "설정", href: "/admin/settings", icon: Settings },
 ];

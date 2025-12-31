@@ -24,7 +24,6 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Calculator,
   Loader2,
   FileDown,
   Send,
@@ -36,7 +35,6 @@ import {
   createQuoteItem,
   updateQuoteItem,
   deleteQuoteItem,
-  calculateQuote,
   downloadQuotePdf,
   type QuoteItem,
   type QuoteItemCreate,
@@ -195,25 +193,7 @@ export function QuoteItemTable({
     }
   };
 
-  // 합계 계산 및 저장
-  const handleCalculate = async () => {
-    try {
-      setSaving(true);
-      const data = await calculateQuote(assignmentId, {
-        update_assignment: true,
-      });
-      setSummary(data);
-      onTotalChangeRef.current?.(data.total_amount);
-      toast.success("견적 금액이 저장되었습니다.");
-    } catch (err) {
-      console.error("Failed to calculate quote:", err);
-      toast.error("계산에 실패했습니다.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // PDF 다운로드
+  // 견적서 다운로드
   const handleDownloadPdf = async () => {
     try {
       setDownloading(true);
@@ -230,13 +210,13 @@ export function QuoteItemTable({
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Failed to download PDF:", err);
-      toast.error("PDF 다운로드에 실패했습니다.");
+      toast.error("견적서 다운로드에 실패했습니다.");
     } finally {
       setDownloading(false);
     }
   };
 
-  // 견적 SMS 전송
+  // 견적 문자 발송
   const handleSendQuoteSMS = async () => {
     if (!customerPhone) {
       toast.error("고객 연락처 정보가 없습니다");
@@ -513,7 +493,7 @@ export function QuoteItemTable({
             ) : (
               <FileDown className="h-4 w-4 mr-1" />
             )}
-            PDF 다운로드
+            견적서 다운로드
           </Button>
           <Button
             variant="outline"
@@ -539,17 +519,9 @@ export function QuoteItemTable({
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              견적 SMS 전송
+              견적 문자 발송
             </Button>
           )}
-          <Button onClick={handleCalculate} disabled={saving}>
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin mr-1" />
-            ) : (
-              <Calculator className="h-4 w-4 mr-1" />
-            )}
-            견적 금액 저장
-          </Button>
         </div>
       )}
 

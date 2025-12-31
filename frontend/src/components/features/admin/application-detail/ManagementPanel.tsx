@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   FileText,
   ChevronDown,
@@ -8,9 +7,11 @@ import {
   XCircle,
   Zap,
   User,
+  ExternalLink,
 } from "lucide-react";
 import { ApplicationDetail, ApplicationNote, CustomerHistoryResponse } from "@/lib/api/admin";
 import { STATUS_OPTIONS, getStatusInfo } from "@/lib/constants/application";
+import { getServiceNames } from "@/lib/utils/service";
 
 interface ManagementPanelProps {
   application: ApplicationDetail;
@@ -140,41 +141,44 @@ export function ManagementPanel({
               총 {customerHistory.total_applications}건
             </span>
           </h3>
-          <p className="text-xs text-gray-500 mb-3">
-            {customerHistory.customer_phone_masked}
-          </p>
           <div className="space-y-2 max-h-48 overflow-y-auto">
             {customerHistory.applications
               .filter((app) => app.id !== applicationId)
-              .map((app) => (
-                <Link
-                  key={app.id}
-                  href={`/admin/applications/${app.id}`}
-                  className="block p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <span className="text-sm font-medium text-gray-900">
-                      {app.application_number}
-                    </span>
-                    <span
-                      className={`px-1.5 py-0.5 text-xs font-medium rounded ${
-                        getStatusInfo(app.status).color
-                      }`}
-                    >
-                      {app.status_label}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>{new Date(app.created_at).toLocaleDateString("ko-KR")}</span>
-                    <span>·</span>
-                    <span>
-                      {app.selected_services.slice(0, 2).join(", ")}
-                      {app.selected_services.length > 2 &&
-                        ` 외 ${app.selected_services.length - 2}개`}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+              .map((app) => {
+                const serviceNames = getServiceNames(app.selected_services);
+                return (
+                  <a
+                    key={app.id}
+                    href={`/admin/applications/${app.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors group"
+                  >
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-sm font-medium text-gray-900 flex items-center gap-1">
+                        {app.application_number}
+                        <ExternalLink size={12} className="text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                      <span
+                        className={`px-1.5 py-0.5 text-xs font-medium rounded ${
+                          getStatusInfo(app.status).color
+                        }`}
+                      >
+                        {app.status_label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <span>{new Date(app.created_at).toLocaleDateString("ko-KR")}</span>
+                      <span>·</span>
+                      <span>
+                        {serviceNames.slice(0, 2).join(", ")}
+                        {serviceNames.length > 2 &&
+                          ` 외 ${serviceNames.length - 2}개`}
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
           </div>
           {customerHistory.total_applications > 5 && (
             <p className="text-xs text-gray-400 text-center mt-2">

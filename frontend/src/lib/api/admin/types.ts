@@ -428,7 +428,8 @@ export interface SMSLogListParams {
 export interface SMSRecipient {
   id: number;
   name: string;
-  phone: string; // 마스킹된 번호 (010-****-5678)
+  phone: string; // 마스킹된 번호 (010-****-5678) - UI 표시용
+  phone_raw: string; // 실제 전화번호 - SMS 발송용
   label: string; // 신청번호 또는 회사명
   type: "customer" | "partner";
   status?: string;

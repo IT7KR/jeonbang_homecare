@@ -299,7 +299,7 @@ export function CustomerUrlManager({
                 ) : (
                   <Send className="w-4 h-4 mr-1" />
                 )}
-                SMS 전송
+                문자 발송
               </Button>
             )}
             <Button
