@@ -60,9 +60,23 @@ class SMSTemplate(Base):
             **kwargs: 변수명=값 형태의 인자들
 
         Returns:
-            변수가 치환된 메시지
+            변수가 치환된 메시지 (빈 값이 포함된 라인은 자동 제거)
         """
         message = self.content
         for key, value in kwargs.items():
             message = message.replace(f"{{{key}}}", str(value) if value else "")
-        return message
+
+        # 빈 값으로 끝나는 라인 정리
+        # 예: "- 예정일: " 또는 "견적: " 같은 라인 제거
+        lines = message.split('\n')
+        cleaned_lines = []
+        for line in lines:
+            stripped = line.rstrip()
+            # 콜론 뒤에 내용이 없는 경우 제거
+            if stripped.endswith(':') or stripped.endswith(': '):
+                continue
+            # 빈 라인이 아닌 경우만 포함
+            if stripped:
+                cleaned_lines.append(line)
+
+        return '\n'.join(cleaned_lines).strip()
