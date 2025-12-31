@@ -27,18 +27,48 @@ const SEARCH_TYPE_LABELS: Record<SearchType, string> = {
   company: "회사명",
 };
 
+function isValidDate(dateStr: string): boolean {
+  // YYYYMMDD 형식의 날짜 유효성 검사
+  if (dateStr.length !== 8) return false;
+
+  const year = parseInt(dateStr.substring(0, 4), 10);
+  const month = parseInt(dateStr.substring(4, 6), 10);
+  const day = parseInt(dateStr.substring(6, 8), 10);
+
+  // 연도: 2020~2099
+  if (year < 2020 || year > 2099) return false;
+  // 월: 1~12
+  if (month < 1 || month > 12) return false;
+  // 일: 1~31
+  if (day < 1 || day > 31) return false;
+
+  return true;
+}
+
 function detectSearchType(query: string): SearchType {
   if (!query) return "auto";
 
-  // 전화번호: 숫자/하이픈만, 4자리 이상
-  const cleaned = query.replace(/-/g, "").replace(/\s/g, "");
-  if (/^\d+$/.test(cleaned) && cleaned.length >= 4) {
-    return "phone";
+  // 신청번호: YYYYMMDD-XXX 또는 YYYYMMDDXXX 형식
+  // 하이픈 있는 경우
+  if (/^\d{8}-\d{1,3}$/.test(query)) {
+    const datePart = query.substring(0, 8);
+    if (isValidDate(datePart)) {
+      return "number";
+    }
   }
 
-  // 신청번호: YYYYMMDD-XXX 형식
-  if (/^\d{8}-\d{1,3}$/.test(query)) {
-    return "number";
+  // 하이픈 없는 경우 (9~11자리 숫자, 앞 8자리가 유효한 날짜)
+  if (/^\d{9,11}$/.test(query)) {
+    const datePart = query.substring(0, 8);
+    if (isValidDate(datePart)) {
+      return "number";
+    }
+  }
+
+  // 전화번호: 숫자/하이픈만, 4~11자리 (010-xxxx-xxxx 또는 01012345678)
+  const cleaned = query.replace(/-/g, "").replace(/\s/g, "");
+  if (/^\d+$/.test(cleaned) && cleaned.length >= 4 && cleaned.length <= 11) {
+    return "phone";
   }
 
   // 기본: 이름

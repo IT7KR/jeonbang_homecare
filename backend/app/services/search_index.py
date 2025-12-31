@@ -250,16 +250,56 @@ def unified_search(
         return search_by_field(db, entity_type, "name", query)
 
 
+def is_valid_date(date_str: str) -> bool:
+    """YYYYMMDD 형식의 날짜 유효성 검사"""
+    if len(date_str) != 8:
+        return False
+
+    try:
+        year = int(date_str[0:4])
+        month = int(date_str[4:6])
+        day = int(date_str[6:8])
+
+        # 연도: 2020~2099
+        if year < 2020 or year > 2099:
+            return False
+        # 월: 1~12
+        if month < 1 or month > 12:
+            return False
+        # 일: 1~31
+        if day < 1 or day > 31:
+            return False
+
+        return True
+    except ValueError:
+        return False
+
+
 def detect_search_type(query: str) -> str:
     """검색어로 검색 타입 자동 감지
 
     Returns:
+        'number': 신청번호 (YYYYMMDD-XXX 또는 YYYYMMDDXXX 형식)
         'phone': 전화번호
         'name': 이름
     """
-    # 숫자와 하이픈만 있고, 숫자가 4개 이상이면 전화번호
+    import re
+
+    # 신청번호: 하이픈 있는 경우 (YYYYMMDD-XXX)
+    if re.match(r'^\d{8}-\d{1,3}$', query):
+        date_part = query[0:8]
+        if is_valid_date(date_part):
+            return "number"
+
+    # 신청번호: 하이픈 없는 경우 (9~11자리 숫자, 앞 8자리가 유효한 날짜)
+    if re.match(r'^\d{9,11}$', query):
+        date_part = query[0:8]
+        if is_valid_date(date_part):
+            return "number"
+
+    # 전화번호: 숫자/하이픈만, 4~11자리
     cleaned = query.replace("-", "").replace(" ", "")
-    if cleaned.isdigit() and len(cleaned) >= 4:
+    if cleaned.isdigit() and 4 <= len(cleaned) <= 11:
         return "phone"
 
     # 기본: 이름
