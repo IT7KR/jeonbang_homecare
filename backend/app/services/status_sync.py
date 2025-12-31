@@ -3,14 +3,17 @@ Application ↔ Assignment 상태 동기화 서비스
 
 Assignment 상태 변경 시 Application 상태를 자동으로 동기화합니다.
 
-동기화 규칙 (모든 배정 완료 시 완료):
+배정 상태 (3개로 단순화):
+- pending: 배정 대기 (일정 미확정)
+- scheduled: 일정 확정됨
+- completed: 완료
+- 취소는 배정 삭제로 처리
+
+동기화 규칙:
 1. 배정 없음 → consulting
-2. 모든 배정 cancelled → cancelled
-3. 모든 활성 배정 completed → completed
-4. 하나라도 in_progress → scheduled
-5. 하나라도 scheduled → scheduled
-6. 하나라도 accepted → assigned
-7. 그 외 → assigned
+2. 모든 배정 completed → completed
+3. 하나라도 scheduled → scheduled
+4. 그 외 (pending만 있음) → assigned
 """
 
 from datetime import datetime, timezone
@@ -21,15 +24,14 @@ from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
 
 
+# 배정 상태 (3개로 단순화)
+ASSIGNMENT_STATUSES = ["pending", "scheduled", "completed"]
+
 # 상태 우선순위 (숫자가 높을수록 진행됨)
 STATUS_PRIORITY = {
-    "cancelled": 0,
     "pending": 1,
-    "notified": 2,
-    "accepted": 3,
-    "scheduled": 4,
-    "in_progress": 5,
-    "completed": 6,
+    "scheduled": 2,
+    "completed": 3,
 }
 
 
@@ -37,35 +39,29 @@ def calculate_application_status(assignments: List[ApplicationPartnerAssignment]
     """
     모든 Assignment 상태를 기반으로 Application 상태 계산
 
-    규칙 (모든 배정 완료 시 완료):
+    배정 상태 (3개): pending, scheduled, completed
+    취소는 배정 삭제로 처리
+
+    규칙:
     1. 배정 없음 → consulting
-    2. 모든 배정 cancelled → cancelled
-    3. 모든 활성 배정 completed → completed ✅
-    4. 하나라도 in_progress → scheduled
-    5. 하나라도 scheduled → scheduled
-    6. 하나라도 accepted → assigned
-    7. 그 외 → assigned
+    2. 모든 배정 completed → completed
+    3. 하나라도 scheduled → scheduled
+    4. 그 외 (pending만 있음) → assigned
     """
     if not assignments:
         return "consulting"
 
-    active_assignments = [a for a in assignments if a.status != "cancelled"]
+    statuses = [a.status for a in assignments]
 
-    if not active_assignments:
-        return "cancelled"
-
-    statuses = [a.status for a in active_assignments]
-
-    # 모든 활성 배정이 완료되어야 신청도 완료
+    # 모든 배정이 완료되어야 신청도 완료
     if all(s == "completed" for s in statuses):
         return "completed"
-    if "in_progress" in statuses:
-        return "scheduled"
+
+    # 하나라도 일정 확정이면 scheduled
     if "scheduled" in statuses:
         return "scheduled"
-    if "accepted" in statuses:
-        return "assigned"
 
+    # 그 외 (pending만 있음) → assigned
     return "assigned"
 
 
@@ -107,8 +103,6 @@ def sync_application_from_assignments(
         now = datetime.now(timezone.utc)
         if new_status == "completed":
             application.completed_at = now
-        elif new_status == "cancelled":
-            application.cancelled_at = now
 
         db.flush()  # 변경사항을 DB에 반영하되 커밋은 호출자에게 위임
 
@@ -132,10 +126,6 @@ def get_status_mismatch_info(
     if not assignments:
         return None
 
-    active_assignments = [a for a in assignments if a.status != "cancelled"]
-    if not active_assignments:
-        return None
-
     expected_status = calculate_application_status(assignments)
     actual_status = application.status
 
@@ -146,7 +136,7 @@ def get_status_mismatch_info(
             "actual_status": actual_status,
             "assignment_statuses": [
                 {"id": a.id, "status": a.status, "partner_id": a.partner_id}
-                for a in active_assignments
+                for a in assignments
             ],
             "recommendation": f"신청 상태를 '{expected_status}'로 변경하는 것을 권장합니다."
         }

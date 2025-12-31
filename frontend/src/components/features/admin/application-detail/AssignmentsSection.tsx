@@ -15,10 +15,19 @@ import {
   Trash2,
   Plus,
   Loader2,
+  MoreHorizontal,
+  CheckCircle,
 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ApplicationDetail, PartnerListItem, AssignmentSummary } from "@/lib/api/admin";
-import { getAssignmentStatusInfo } from "@/lib/constants/application";
+import { getAssignmentQuickAction } from "@/lib/constants/application";
 import { formatPhone } from "@/hooks/useApplicationDetail";
+import { AssignmentStatusStepper } from "./AssignmentStatusStepper";
+import { AssignmentStatusDropdown } from "./AssignmentStatusDropdown";
 
 interface AssignmentsSectionProps {
   application: ApplicationDetail;
@@ -27,9 +36,11 @@ interface AssignmentsSectionProps {
   expanded: boolean;
   onToggle: () => void;
   isDeletingAssignment: number | null;
+  isChangingStatus: number | null;
   onOpenNewAssignment: () => void;
   onEditAssignment: (assignment: AssignmentSummary) => void;
   onDeleteAssignment: (assignmentId: number) => void;
+  onStatusChange: (assignmentId: number, newStatus: string) => void;
   onOpenQuote: (assignmentId: number) => void;
   onOpenPhotos: (assignmentId: number) => void;
   onOpenPartnerUrl: (assignmentId: number) => void;
@@ -43,9 +54,11 @@ export function AssignmentsSection({
   expanded,
   onToggle,
   isDeletingAssignment,
+  isChangingStatus,
   onOpenNewAssignment,
   onEditAssignment,
   onDeleteAssignment,
+  onStatusChange,
   onOpenQuote,
   onOpenPhotos,
   onOpenPartnerUrl,
@@ -99,24 +112,35 @@ export function AssignmentsSection({
           {application.assignments && application.assignments.length > 0 ? (
             <div className="space-y-3">
               {application.assignments.map((assignment) => {
-                const statusInfo = getAssignmentStatusInfo(assignment.status);
                 const partner = partners.find((p) => p.id === assignment.partner_id);
+                const quickAction = getAssignmentQuickAction(assignment.status);
+                const isLoading = isChangingStatus === assignment.id;
 
                 return (
                   <div
                     key={assignment.id}
-                    className="border border-gray-200 rounded-xl p-4 hover:border-primary/30 transition-colors"
+                    className="border border-gray-200 rounded-xl p-4 hover:border-primary/30 transition-colors relative"
                   >
+                    {/* 로딩 오버레이 */}
+                    {isLoading && (
+                      <div className="absolute inset-0 bg-white/60 rounded-xl flex items-center justify-center z-10">
+                        <Loader2 size={24} className="animate-spin text-primary" />
+                      </div>
+                    )}
+
+                    {/* 헤더: 협력사 정보 + 상태 드롭다운 */}
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <Building2 size={14} className="text-primary" />
-                          <span className="font-semibold text-gray-900">
+                          <Building2 size={14} className="text-primary flex-shrink-0" />
+                          <span className="font-semibold text-gray-900 truncate">
                             {assignment.partner_name || assignment.partner_company || "알 수 없음"}
                           </span>
-                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
+                          <AssignmentStatusDropdown
+                            currentStatus={assignment.status}
+                            onSelect={(newStatus) => onStatusChange(assignment.id, newStatus)}
+                            isLoading={isLoading}
+                          />
                         </div>
                         {partner && (
                           <a
@@ -128,57 +152,79 @@ export function AssignmentsSection({
                           </a>
                         )}
                       </div>
-                      <div className="flex items-center gap-1.5">
+
+                      {/* 버튼 그룹 */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           onClick={() => onOpenQuote(assignment.id)}
                           className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors border border-gray-200 hover:border-green-200"
+                          title="견적 관리"
                         >
                           <FileText size={12} />
-                          <span>견적</span>
+                          <span className="hidden sm:inline">견적</span>
                         </button>
                         <button
                           onClick={() => onOpenPhotos(assignment.id)}
                           className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors border border-gray-200 hover:border-purple-200"
+                          title="작업 사진"
                         >
                           <Camera size={12} />
-                          <span>사진</span>
+                          <span className="hidden sm:inline">사진</span>
                         </button>
-                        <button
-                          onClick={() => onOpenPartnerUrl(assignment.id)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-gray-200 hover:border-blue-200"
-                          title="협력사 포털 URL"
-                        >
-                          <Link2 size={12} />
-                          <span>협력사</span>
-                        </button>
-                        <button
-                          onClick={() => onOpenCustomerUrl(assignment.id)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-cyan-700 hover:bg-cyan-50 rounded-lg transition-colors border border-gray-200 hover:border-cyan-200"
-                          title="고객 열람 URL"
-                        >
-                          <Link2 size={12} />
-                          <span>고객</span>
-                        </button>
-                        <button
-                          onClick={() => onEditAssignment(assignment)}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-primary hover:bg-primary-50 rounded-lg transition-colors border border-gray-200 hover:border-primary-200"
-                        >
-                          <Pencil size={12} />
-                          <span>수정</span>
-                        </button>
-                        <button
-                          onClick={() => onDeleteAssignment(assignment.id)}
-                          disabled={isDeletingAssignment === assignment.id}
-                          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-gray-200 hover:border-red-200 disabled:opacity-50"
-                        >
-                          {isDeletingAssignment === assignment.id ? (
-                            <Loader2 size={12} className="animate-spin" />
-                          ) : (
-                            <Trash2 size={12} />
-                          )}
-                          <span>삭제</span>
-                        </button>
+
+                        {/* 더보기 메뉴 */}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 hover:border-gray-300"
+                              title="더보기"
+                            >
+                              <MoreHorizontal size={12} />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="end" className="w-40 p-1">
+                            <button
+                              onClick={() => onOpenPartnerUrl(assignment.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 rounded-md transition-colors"
+                            >
+                              <Link2 size={14} />
+                              협력사 URL
+                            </button>
+                            <button
+                              onClick={() => onOpenCustomerUrl(assignment.id)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-cyan-50 hover:text-cyan-700 rounded-md transition-colors"
+                            >
+                              <Link2 size={14} />
+                              고객 URL
+                            </button>
+                            <div className="my-1 border-t border-gray-100" />
+                            <button
+                              onClick={() => onEditAssignment(assignment)}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary rounded-md transition-colors"
+                            >
+                              <Pencil size={14} />
+                              배정 수정
+                            </button>
+                            <button
+                              onClick={() => onDeleteAssignment(assignment.id)}
+                              disabled={isDeletingAssignment === assignment.id}
+                              className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50"
+                            >
+                              {isDeletingAssignment === assignment.id ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <Trash2 size={14} />
+                              )}
+                              배정 삭제
+                            </button>
+                          </PopoverContent>
+                        </Popover>
                       </div>
+                    </div>
+
+                    {/* 스텝 인디케이터 */}
+                    <div className="mb-3 py-2 px-1 bg-gray-50 rounded-lg">
+                      <AssignmentStatusStepper currentStatus={assignment.status} />
                     </div>
 
                     {/* 담당 서비스 */}
@@ -194,7 +240,7 @@ export function AssignmentsSection({
                     </div>
 
                     {/* 일정 & 비용 */}
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
                       {(assignment.scheduled_date || assignment.scheduled_time) && (
                         <div className="flex items-center gap-1.5 text-gray-600">
                           <CalendarIcon size={12} className="text-gray-400" />
@@ -217,6 +263,24 @@ export function AssignmentsSection({
                         </div>
                       )}
                     </div>
+
+                    {/* 퀵 액션 버튼 */}
+                    {quickAction && (
+                      <div className="pt-3 border-t border-gray-100">
+                        <button
+                          onClick={() => onStatusChange(assignment.id, quickAction.nextStatus)}
+                          disabled={isLoading}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-600 transition-colors disabled:opacity-50"
+                        >
+                          {quickAction.icon === "Calendar" ? (
+                            <CalendarIcon size={14} />
+                          ) : (
+                            <CheckCircle size={14} />
+                          )}
+                          {quickAction.label}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

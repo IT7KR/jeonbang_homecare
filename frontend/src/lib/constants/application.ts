@@ -57,17 +57,49 @@ export const CANCEL_REASONS = [
   { value: "other", label: "기타 (직접 입력)" },
 ] as const;
 
+// 배정 상태 (3개로 단순화)
+export const ASSIGNMENT_STATUSES = ["pending", "scheduled", "completed"] as const;
+export type AssignmentStatus = (typeof ASSIGNMENT_STATUSES)[number];
+
 // 배정 상태 매핑
-export const ASSIGNMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {
-  pending: { label: "대기", color: "bg-gray-100 text-gray-700" },
-  notified: { label: "알림발송", color: "bg-blue-50 text-blue-700" },
-  accepted: { label: "수락", color: "bg-green-50 text-green-700" },
-  rejected: { label: "거절", color: "bg-red-50 text-red-600" },
-  scheduled: { label: "일정확정", color: "bg-purple-50 text-purple-700" },
-  in_progress: { label: "진행중", color: "bg-yellow-50 text-yellow-700" },
-  completed: { label: "완료", color: "bg-primary-50 text-primary-700" },
-  cancelled: { label: "취소", color: "bg-red-50 text-red-600" },
+export const ASSIGNMENT_STATUS_MAP: Record<string, { label: string; color: string; description: string }> = {
+  pending: {
+    label: "대기",
+    color: "bg-gray-100 text-gray-700",
+    description: "일정 미확정",
+  },
+  scheduled: {
+    label: "일정확정",
+    color: "bg-purple-50 text-purple-700",
+    description: "일정이 확정됨",
+  },
+  completed: {
+    label: "완료",
+    color: "bg-green-50 text-green-700",
+    description: "작업 완료",
+  },
 };
+
+// 배정 상태 전환 규칙
+export const ASSIGNMENT_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ["scheduled"],
+  scheduled: ["completed"],
+  completed: [], // 최종 상태
+};
+
+// 배정 퀵 액션 정의
+export const ASSIGNMENT_QUICK_ACTIONS: Record<string, { label: string; nextStatus: string; icon: string } | null> = {
+  pending: { label: "일정 확정", nextStatus: "scheduled", icon: "Calendar" },
+  scheduled: { label: "완료 처리", nextStatus: "completed", icon: "CheckCircle" },
+  completed: null,
+};
+
+// 배정 스텝 정의 (스텝 인디케이터용)
+export const ASSIGNMENT_STEPS = [
+  { status: "pending", label: "대기" },
+  { status: "scheduled", label: "일정확정" },
+  { status: "completed", label: "완료" },
+] as const;
 
 // 헬퍼 함수들
 export const getStatusInfo = (statusValue: string) => {
@@ -75,7 +107,27 @@ export const getStatusInfo = (statusValue: string) => {
 };
 
 export const getAssignmentStatusInfo = (statusValue: string) => {
-  return ASSIGNMENT_STATUS_MAP[statusValue] || { label: statusValue, color: "bg-gray-100 text-gray-700" };
+  return ASSIGNMENT_STATUS_MAP[statusValue] || { label: statusValue, color: "bg-gray-100 text-gray-700", description: "" };
+};
+
+// 배정 상태 전환 가능 여부 확인
+export const canTransitionAssignmentTo = (fromStatus: string, toStatus: string): boolean => {
+  return ASSIGNMENT_STATUS_TRANSITIONS[fromStatus]?.includes(toStatus) ?? false;
+};
+
+// 다음 가능한 배정 상태 목록 조회
+export const getNextAssignmentStatuses = (currentStatus: string): string[] => {
+  return ASSIGNMENT_STATUS_TRANSITIONS[currentStatus] || [];
+};
+
+// 배정 퀵 액션 조회
+export const getAssignmentQuickAction = (status: string) => {
+  return ASSIGNMENT_QUICK_ACTIONS[status] || null;
+};
+
+// 현재 배정 상태의 스텝 인덱스 조회
+export const getAssignmentStepIndex = (status: string): number => {
+  return ASSIGNMENT_STEPS.findIndex(step => step.status === status);
 };
 
 /**

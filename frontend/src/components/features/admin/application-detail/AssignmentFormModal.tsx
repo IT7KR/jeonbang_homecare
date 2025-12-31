@@ -18,9 +18,20 @@ import { ApplicationDetail, AssignmentSummary } from "@/lib/api/admin";
 import { numberToKoreanCurrency } from "@/lib/utils/formatters";
 import { TIME_OPTIONS } from "@/lib/constants/application";
 import { DatePicker } from "@/components/ui/date-picker";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import type { PartnerWithMatch, AssignmentFormData } from "@/hooks/useApplicationDetail";
-import { formatPhone, formatCurrency, parseCurrency } from "@/hooks/useApplicationDetail";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import type {
+  PartnerWithMatch,
+  AssignmentFormData,
+} from "@/hooks/useApplicationDetail";
+import {
+  formatPhone,
+  formatCurrency,
+  parseCurrency,
+} from "@/hooks/useApplicationDetail";
 
 interface AssignmentFormModalProps {
   application: ApplicationDetail;
@@ -31,7 +42,10 @@ interface AssignmentFormModalProps {
   setIsPartnerDropdownOpen: (open: boolean) => void;
   partnerSearchQuery: string;
   setPartnerSearchQuery: (query: string) => void;
-  filteredPartners: { matched: PartnerWithMatch[]; unmatched: PartnerWithMatch[] };
+  filteredPartners: {
+    matched: PartnerWithMatch[];
+    unmatched: PartnerWithMatch[];
+  };
   selectedPartner: PartnerWithMatch | null;
   isAssignmentSaving: boolean;
   onClose: () => void;
@@ -82,7 +96,10 @@ export function AssignmentFormModal({
                 {selectedPartner?.company_name || "협력사 정보 없음"}
               </div>
             ) : (
-              <Popover open={isPartnerDropdownOpen} onOpenChange={setIsPartnerDropdownOpen}>
+              <Popover
+                open={isPartnerDropdownOpen}
+                onOpenChange={setIsPartnerDropdownOpen}
+              >
                 <PopoverTrigger asChild>
                   <button
                     type="button"
@@ -93,7 +110,9 @@ export function AssignmentFormModal({
                     } ${selectedPartner ? "text-gray-900" : "text-gray-500"}`}
                   >
                     <span className="truncate">
-                      {selectedPartner ? selectedPartner.company_name : "협력사를 선택하세요"}
+                      {selectedPartner
+                        ? selectedPartner.company_name
+                        : "협력사를 선택하세요"}
                     </span>
                     <ChevronDown
                       size={16}
@@ -103,11 +122,18 @@ export function AssignmentFormModal({
                     />
                   </button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" sideOffset={4}>
+                <PopoverContent
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                  align="start"
+                  sideOffset={4}
+                >
                   {/* 검색 입력 */}
                   <div className="p-2 border-b border-gray-100">
                     <div className="relative">
-                      <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <Search
+                        size={14}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                      />
                       <input
                         type="text"
                         value={partnerSearchQuery}
@@ -133,12 +159,17 @@ export function AssignmentFormModal({
                             key={partner.id}
                             type="button"
                             onClick={() => {
-                              setAssignmentForm((prev) => ({ ...prev, partner_id: partner.id }));
+                              setAssignmentForm((prev) => ({
+                                ...prev,
+                                partner_id: partner.id,
+                              }));
                               setIsPartnerDropdownOpen(false);
                               setPartnerSearchQuery("");
                             }}
                             className={`w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-b-0 ${
-                              assignmentForm.partner_id === partner.id ? "bg-primary-50" : ""
+                              assignmentForm.partner_id === partner.id
+                                ? "bg-primary-50"
+                                : ""
                             }`}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -165,11 +196,16 @@ export function AssignmentFormModal({
                                   </p>
                                 )}
                                 <div className="flex flex-wrap gap-1 mt-1.5">
-                                  {partner.matchedServices.slice(0, 3).map((s, i) => (
-                                    <span key={i} className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded">
-                                      {s}
-                                    </span>
-                                  ))}
+                                  {partner.matchedServices
+                                    .slice(0, 3)
+                                    .map((s, i) => (
+                                      <span
+                                        key={i}
+                                        className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded"
+                                      >
+                                        {s}
+                                      </span>
+                                    ))}
                                   {partner.matchedServices.length > 3 && (
                                     <span className="px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded">
                                       +{partner.matchedServices.length - 3}
@@ -178,7 +214,10 @@ export function AssignmentFormModal({
                                 </div>
                               </div>
                               {assignmentForm.partner_id === partner.id && (
-                                <Check size={16} className="text-primary flex-shrink-0 mt-0.5" />
+                                <Check
+                                  size={16}
+                                  className="text-primary flex-shrink-0 mt-0.5"
+                                />
                               )}
                             </div>
                           </button>
@@ -190,13 +229,21 @@ export function AssignmentFormModal({
                       <div className="px-3 py-6 text-center text-gray-500">
                         {partnerSearchQuery ? (
                           <>
-                            <Building2 size={24} className="mx-auto mb-2 text-gray-300" />
+                            <Building2
+                              size={24}
+                              className="mx-auto mb-2 text-gray-300"
+                            />
                             <p className="text-sm">검색 결과가 없습니다</p>
                           </>
                         ) : (
                           <>
-                            <AlertTriangle size={24} className="mx-auto mb-2 text-amber-400" />
-                            <p className="text-sm font-medium text-gray-700">매칭되는 협력사가 없습니다</p>
+                            <AlertTriangle
+                              size={24}
+                              className="mx-auto mb-2 text-amber-400"
+                            />
+                            <p className="text-sm font-medium text-gray-700">
+                              매칭되는 협력사가 없습니다
+                            </p>
                             <p className="text-xs mt-1">
                               미배정 서비스를 제공하는 협력사가 없습니다.
                               <br />
@@ -241,10 +288,15 @@ export function AssignmentFormModal({
                     )}
                     {selectedPartner.isMatched && (
                       <div className="mt-2">
-                        <p className="text-xs text-gray-500 mb-1">매칭 서비스:</p>
+                        <p className="text-xs text-gray-500 mb-1">
+                          매칭 서비스:
+                        </p>
                         <div className="flex flex-wrap gap-1">
                           {selectedPartner.matchedServices.map((s, i) => (
-                            <span key={i} className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded">
+                            <span
+                              key={i}
+                              className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded"
+                            >
                               {s}
                             </span>
                           ))}
@@ -254,7 +306,9 @@ export function AssignmentFormModal({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setAssignmentForm((prev) => ({ ...prev, partner_id: "" }))}
+                    onClick={() =>
+                      setAssignmentForm((prev) => ({ ...prev, partner_id: "" }))
+                    }
                     className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                     title="선택 해제"
                   >
@@ -272,9 +326,12 @@ export function AssignmentFormModal({
             </label>
             <div className="border border-gray-200 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto">
               {application?.selected_services.map((service) => {
-                const isChecked = assignmentForm.assigned_services.includes(service);
+                const isChecked =
+                  assignmentForm.assigned_services.includes(service);
                 const isAssignedToOther = application?.assignments?.some(
-                  (a) => a.id !== editingAssignment?.id && a.assigned_services.includes(service)
+                  (a) =>
+                    a.id !== editingAssignment?.id &&
+                    a.assigned_services.includes(service)
                 );
 
                 return (
@@ -296,12 +353,17 @@ export function AssignmentFormModal({
                         if (e.target.checked) {
                           setAssignmentForm((prev) => ({
                             ...prev,
-                            assigned_services: [...prev.assigned_services, service],
+                            assigned_services: [
+                              ...prev.assigned_services,
+                              service,
+                            ],
                           }));
                         } else {
                           setAssignmentForm((prev) => ({
                             ...prev,
-                            assigned_services: prev.assigned_services.filter((s) => s !== service),
+                            assigned_services: prev.assigned_services.filter(
+                              (s) => s !== service
+                            ),
                           }));
                         }
                       }}
@@ -319,7 +381,9 @@ export function AssignmentFormModal({
                       {service}
                     </span>
                     {isAssignedToOther && (
-                      <span className="ml-auto text-xs text-gray-400">(다른 배정)</span>
+                      <span className="ml-auto text-xs text-gray-400">
+                        (다른 배정)
+                      </span>
                     )}
                   </label>
                 );
@@ -332,17 +396,29 @@ export function AssignmentFormModal({
 
           {/* 일정 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">예정 일정</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              예정 일정
+            </label>
             <div className="grid grid-cols-2 gap-2">
               <DatePicker
                 date={assignmentForm.scheduled_date}
-                onDateChange={(date) => setAssignmentForm((prev) => ({ ...prev, scheduled_date: date }))}
+                onDateChange={(date) =>
+                  setAssignmentForm((prev) => ({
+                    ...prev,
+                    scheduled_date: date,
+                  }))
+                }
                 placeholder="날짜"
                 fromDate={startOfDay(new Date())}
               />
               <select
                 value={assignmentForm.scheduled_time}
-                onChange={(e) => setAssignmentForm((prev) => ({ ...prev, scheduled_time: e.target.value }))}
+                onChange={(e) =>
+                  setAssignmentForm((prev) => ({
+                    ...prev,
+                    scheduled_time: e.target.value,
+                  }))
+                }
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 {TIME_OPTIONS.map((option) => (
@@ -357,72 +433,104 @@ export function AssignmentFormModal({
           {/* 견적 비용 */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">견적 비용</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                견적 비용
+              </label>
               <div className="relative">
                 <input
                   type="text"
                   inputMode="numeric"
                   value={formatCurrency(assignmentForm.estimated_cost)}
                   onChange={(e) =>
-                    setAssignmentForm((prev) => ({ ...prev, estimated_cost: parseCurrency(e.target.value) }))
+                    setAssignmentForm((prev) => ({
+                      ...prev,
+                      estimated_cost: parseCurrency(e.target.value),
+                    }))
                   }
                   placeholder="0"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">원</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                  원
+                </span>
               </div>
-              {assignmentForm.estimated_cost !== "" && assignmentForm.estimated_cost > 0 && (
-                <p className="text-xs text-blue-600 mt-1">
-                  {numberToKoreanCurrency(assignmentForm.estimated_cost)}
-                </p>
-              )}
+              {assignmentForm.estimated_cost !== "" &&
+                assignmentForm.estimated_cost > 0 && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    {numberToKoreanCurrency(assignmentForm.estimated_cost)}
+                  </p>
+                )}
             </div>
 
             {editingAssignment && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">최종 비용</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  최종 비용
+                </label>
                 <div className="relative">
                   <input
                     type="text"
                     inputMode="numeric"
                     value={formatCurrency(assignmentForm.final_cost)}
                     onChange={(e) =>
-                      setAssignmentForm((prev) => ({ ...prev, final_cost: parseCurrency(e.target.value) }))
+                      setAssignmentForm((prev) => ({
+                        ...prev,
+                        final_cost: parseCurrency(e.target.value),
+                      }))
                     }
                     placeholder="0"
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">원</span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">
+                    원
+                  </span>
                 </div>
-                {assignmentForm.final_cost !== "" && assignmentForm.final_cost > 0 && (
-                  <p className="text-xs text-blue-600 mt-1">
-                    {numberToKoreanCurrency(assignmentForm.final_cost)}
-                  </p>
-                )}
+                {assignmentForm.final_cost !== "" &&
+                  assignmentForm.final_cost > 0 && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      {numberToKoreanCurrency(assignmentForm.final_cost)}
+                    </p>
+                  )}
               </div>
             )}
           </div>
 
           {/* 견적 메모 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">견적 메모</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              견적 메모
+            </label>
+            <p className="text-xs text-gray-500 mt-1">
+              견적에 대한 설명을 입력하세요 (견적서 하단에 표시됩니다.)
+            </p>
             <textarea
               value={assignmentForm.estimate_note}
-              onChange={(e) => setAssignmentForm((prev) => ({ ...prev, estimate_note: e.target.value }))}
+              onChange={(e) =>
+                setAssignmentForm((prev) => ({
+                  ...prev,
+                  estimate_note: e.target.value,
+                }))
+              }
               placeholder="견적에 대한 설명을 입력하세요 (예: 작업 범위, 추가 비용 안내 등)"
               rows={2}
               maxLength={1000}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
             />
-            <p className="text-xs text-gray-400 mt-1 text-right">{assignmentForm.estimate_note.length}/1000</p>
+            <p className="text-xs text-gray-400 mt-1 text-right">
+              {assignmentForm.estimate_note.length}/1000
+            </p>
           </div>
 
           {/* 메모 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">메모</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              메모
+            </label>
             <textarea
               value={assignmentForm.note}
-              onChange={(e) => setAssignmentForm((prev) => ({ ...prev, note: e.target.value }))}
+              onChange={(e) =>
+                setAssignmentForm((prev) => ({ ...prev, note: e.target.value }))
+              }
               placeholder="배정 관련 메모를 입력하세요..."
               rows={2}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
@@ -434,15 +542,24 @@ export function AssignmentFormModal({
             <input
               type="checkbox"
               checked={assignmentForm.send_sms}
-              onChange={(e) => setAssignmentForm((prev) => ({ ...prev, send_sms: e.target.checked }))}
+              onChange={(e) =>
+                setAssignmentForm((prev) => ({
+                  ...prev,
+                  send_sms: e.target.checked,
+                }))
+              }
               className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
             />
             <div className="flex-1">
               <div className="flex items-center gap-1.5">
                 <MessageSquare size={14} className="text-secondary" />
-                <span className="font-medium text-secondary-800 text-sm">SMS 알림 발송</span>
+                <span className="font-medium text-secondary-800 text-sm">
+                  SMS 알림 발송
+                </span>
               </div>
-              <p className="text-xs text-secondary-600 mt-0.5">협력사에게 배정 알림 SMS를 발송합니다</p>
+              <p className="text-xs text-secondary-600 mt-0.5">
+                협력사에게 배정 알림 SMS를 발송합니다
+              </p>
             </div>
           </label>
         </div>
@@ -458,7 +575,11 @@ export function AssignmentFormModal({
           </button>
           <button
             onClick={onSave}
-            disabled={isAssignmentSaving || !assignmentForm.partner_id || assignmentForm.assigned_services.length === 0}
+            disabled={
+              isAssignmentSaving ||
+              !assignmentForm.partner_id ||
+              assignmentForm.assigned_services.length === 0
+            }
             className="flex-1 py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
           >
             {isAssignmentSaving ? (

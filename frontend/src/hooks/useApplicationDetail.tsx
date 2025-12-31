@@ -171,6 +171,7 @@ export function useApplicationDetail(id: number) {
   const [editingAssignment, setEditingAssignment] = useState<AssignmentSummary | null>(null);
   const [isAssignmentSaving, setIsAssignmentSaving] = useState(false);
   const [isDeletingAssignment, setIsDeletingAssignment] = useState<number | null>(null);
+  const [isChangingAssignmentStatus, setIsChangingAssignmentStatus] = useState<number | null>(null);
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormData>(initialAssignmentForm);
   const [isPartnerDropdownOpen, setIsPartnerDropdownOpen] = useState(false);
   const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
@@ -757,6 +758,47 @@ export function useApplicationDetail(id: number) {
     }
   }, [id, confirm, getValidToken, router]);
 
+  // 배정 상태 변경 (드롭다운 또는 퀵 액션에서 호출)
+  const handleAssignmentStatusChange = useCallback(async (assignmentId: number, newStatus: string) => {
+    try {
+      setIsChangingAssignmentStatus(assignmentId);
+      setError(null);
+
+      const token = await getValidToken();
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const updateData: AssignmentUpdate = {
+        status: newStatus,
+      };
+
+      await updateApplicationAssignment(token, id, assignmentId, updateData);
+
+      // 데이터 새로고침
+      const updatedApp = await getApplication(token, id);
+      setApplication(updatedApp);
+      setStatus(updatedApp.status);
+      setOriginalStatus(updatedApp.status);
+
+      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, { page_size: 20 });
+      setAuditLogs(updatedAuditLogs.items);
+
+      const statusLabels: Record<string, string> = {
+        pending: "대기",
+        scheduled: "일정확정",
+        completed: "완료",
+      };
+      setSuccessMessage(`배정 상태가 '${statusLabels[newStatus] || newStatus}'(으)로 변경되었습니다`);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "상태 변경에 실패했습니다");
+    } finally {
+      setIsChangingAssignmentStatus(null);
+    }
+  }, [id, getValidToken, router]);
+
   // 섹션 토글
   const toggleSection = useCallback((section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -837,6 +879,7 @@ export function useApplicationDetail(id: number) {
     editingAssignment,
     isAssignmentSaving,
     isDeletingAssignment,
+    isChangingAssignmentStatus,
     assignmentForm,
     setAssignmentForm,
     isPartnerDropdownOpen,
@@ -884,5 +927,6 @@ export function useApplicationDetail(id: number) {
     openEditAssignmentModal,
     handleSaveAssignment,
     handleDeleteAssignment,
+    handleAssignmentStatusChange,
   };
 }

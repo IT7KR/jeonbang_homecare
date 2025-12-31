@@ -32,14 +32,11 @@ class ApplicationPartnerAssignment(Base):
     # 이 배정에서 담당할 서비스 (신청의 selected_services 중 일부)
     assigned_services = Column(JSONB, nullable=False, default=list)  # ["제초", "정원관리"]
 
-    # 배정별 상태
-    # pending: 배정 대기 (협력사에 알림 전)
-    # notified: 협력사에 알림 발송됨
-    # accepted: 협력사가 수락함
+    # 배정별 상태 (3개로 단순화)
+    # pending: 배정 대기 (일정 미확정)
     # scheduled: 일정 확정됨
-    # in_progress: 작업 진행중
     # completed: 완료
-    # cancelled: 취소됨
+    # 취소는 배정 삭제로 처리
     status = Column(String(20), nullable=False, default="pending", index=True)
 
     # 일정 정보 (배정별로 별도 관리)

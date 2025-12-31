@@ -992,10 +992,14 @@ async def create_application_assignment(
         )
 
     # 배정 생성 (코드로 저장)
+    # 일정이 입력되면 자동으로 scheduled 상태로 설정
+    initial_status = "scheduled" if data.scheduled_date else "pending"
+
     assignment = ApplicationPartnerAssignment(
         application_id=application_id,
         partner_id=data.partner_id,
         assigned_services=assigned_service_codes,  # 코드로 저장
+        status=initial_status,  # 일정 입력 시 자동 scheduled
         scheduled_date=data.scheduled_date,
         scheduled_time=data.scheduled_time,
         estimated_cost=data.estimated_cost,
@@ -1164,12 +1168,15 @@ async def update_application_assignment(
             if field == "status":
                 if value == "completed" and assignment.status != "completed":
                     assignment.completed_at = datetime.now(timezone.utc)
-                elif value == "cancelled" and assignment.status != "cancelled":
-                    assignment.cancelled_at = datetime.now(timezone.utc)
             elif field == "assigned_services":
                 # 서비스 이름 → 코드 변환
                 value = convert_service_names_to_codes(db, value)
             setattr(assignment, field, value)
+
+    # 일정이 새로 입력되고 현재 pending 상태면 자동으로 scheduled로 전환
+    if (data.scheduled_date and not prev_scheduled_date
+        and assignment.status == "pending"):
+        assignment.status = "scheduled"
 
     db.commit()
     db.refresh(assignment)
