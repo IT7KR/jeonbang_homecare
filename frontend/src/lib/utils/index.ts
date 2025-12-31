@@ -19,5 +19,5 @@ export {
 // 이미지 유틸리티
 export { compressImage, compressImages, formatFileSize } from "./image";
 
-// 서비스 유틸리티
-export { getServiceName, getServiceNames } from "./service";
+// 서비스 유틸리티 (deprecated - API가 직접 한글 이름 반환)
+// export { getServiceName, getServiceNames } from "./service";

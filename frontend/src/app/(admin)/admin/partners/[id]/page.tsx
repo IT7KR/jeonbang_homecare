@@ -11,6 +11,7 @@ import {
   PartnerServicesSection,
   BusinessRegistrationSection,
   PartnerManagementPanel,
+  PartnerStatusChangeModal,
 } from "@/components/features/admin/partner-detail";
 import { MMSSheet } from "@/components/features/admin/sms";
 
@@ -89,19 +90,22 @@ export default function PartnerDetailPage() {
             timelineNotes={timelineNotes}
             timelineAuditLogs={timelineAuditLogs}
             similarPartners={similarPartners}
-            isChangingStatus={hook.isChangingStatus}
             isAddingNote={hook.isAddingNote}
-            showStatusReasonModal={hook.showStatusReasonModal}
-            statusChangeReason={hook.statusChangeReason}
-            pendingStatus={hook.pendingStatus}
-            onStatusChangeReasonChange={hook.setStatusChangeReason}
-            onCancelStatusChange={hook.handleCancelStatusChange}
-            onConfirmStatusChange={hook.handleConfirmStatusChange}
             onAddNote={hook.handleAddNote}
             onDeleteNote={hook.handleDeleteNote}
           />
         </div>
       </div>
+
+      {/* 상태 변경 확인 모달 */}
+      <PartnerStatusChangeModal
+        isOpen={hook.showStatusReasonModal && hook.pendingStatus !== null}
+        onClose={hook.handleCancelStatusChange}
+        onConfirm={hook.confirmStatusChange}
+        currentStatus={partner.status}
+        newStatus={hook.pendingStatus || ""}
+        isLoading={hook.isChangingStatus}
+      />
 
       {/* MMS 발송 시트 */}
       <MMSSheet

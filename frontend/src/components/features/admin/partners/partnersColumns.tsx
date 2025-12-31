@@ -12,7 +12,6 @@ interface ColumnsConfig {
   enableManualSMS: boolean;
   selectedIds: number[];
   onToggleSelect: (id: number, e: React.MouseEvent) => void;
-  getServiceName: (code: string) => string;
   onApprovalClick: (partner: PartnerListItem) => void;
 }
 
@@ -20,7 +19,6 @@ export function getPartnersColumns({
   enableManualSMS,
   selectedIds,
   onToggleSelect,
-  getServiceName,
   onApprovalClick,
 }: ColumnsConfig): ColumnDef<PartnerListItem>[] {
   const columns: ColumnDef<PartnerListItem>[] = [];
@@ -79,7 +77,7 @@ export function getPartnersColumns({
               key={idx}
               className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
             >
-              {getServiceName(area)}
+              {area}
             </span>
           ))}
           {partner.service_areas.length > 2 && (

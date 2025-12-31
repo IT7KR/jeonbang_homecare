@@ -12,14 +12,12 @@ interface ColumnsConfig {
   enableManualSMS: boolean;
   selectedIds: number[];
   onToggleSelect: (id: number, e: React.MouseEvent) => void;
-  getServiceName: (code: string) => string;
 }
 
 export function getApplicationsColumns({
   enableManualSMS,
   selectedIds,
   onToggleSelect,
-  getServiceName,
 }: ColumnsConfig): ColumnDef<ApplicationListItem>[] {
   const columns: ColumnDef<ApplicationListItem>[] = [];
 
@@ -77,7 +75,7 @@ export function getApplicationsColumns({
               key={idx}
               className="inline-block px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-lg font-medium"
             >
-              {getServiceName(service)}
+              {service}
             </span>
           ))}
           {app.selected_services.length > 2 && (

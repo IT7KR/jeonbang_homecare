@@ -15,7 +15,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { ApplicationDetail, AssignmentSummary } from "@/lib/api/admin";
-import { getServiceName } from "@/lib/utils/service";
 import { numberToKoreanCurrency } from "@/lib/utils/formatters";
 import { TIME_OPTIONS } from "@/lib/constants/application";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -168,7 +167,7 @@ export function AssignmentFormModal({
                                 <div className="flex flex-wrap gap-1 mt-1.5">
                                   {partner.matchedServices.slice(0, 3).map((s, i) => (
                                     <span key={i} className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded">
-                                      {getServiceName(s)}
+                                      {s}
                                     </span>
                                   ))}
                                   {partner.matchedServices.length > 3 && (
@@ -246,7 +245,7 @@ export function AssignmentFormModal({
                         <div className="flex flex-wrap gap-1">
                           {selectedPartner.matchedServices.map((s, i) => (
                             <span key={i} className="px-1.5 py-0.5 text-xs bg-primary-100 text-primary-700 rounded">
-                              {getServiceName(s)}
+                              {s}
                             </span>
                           ))}
                         </div>
@@ -317,7 +316,7 @@ export function AssignmentFormModal({
                           : "text-gray-700"
                       }`}
                     >
-                      {getServiceName(service)}
+                      {service}
                     </span>
                     {isAssignedToOther && (
                       <span className="ml-auto text-xs text-gray-400">(다른 배정)</span>

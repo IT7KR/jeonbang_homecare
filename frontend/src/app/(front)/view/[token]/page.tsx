@@ -22,7 +22,6 @@ import {
   Phone,
 } from "lucide-react";
 import { fetchApi } from "@/lib/api/client";
-import { getServiceName } from "@/lib/utils/service";
 import { PartnerPhotoUpload } from "@/components/features/partner-portal";
 
 // 배정 상태 설정
@@ -253,7 +252,7 @@ export default function PartnerViewPage() {
                   variant="outline"
                   className="bg-primary-50 border-primary-200 text-primary-700 px-3 py-1.5 text-sm"
                 >
-                  {getServiceName(service)}
+                  {service}
                 </Badge>
               ))}
             </div>

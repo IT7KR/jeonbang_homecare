@@ -42,7 +42,7 @@ export function ApplicationsSelectionActionBar({
         className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 text-sm font-medium transition-colors"
       >
         <MessageSquare size={16} />
-        SMS 발송
+        문자 발송
       </button>
     </div>
   );

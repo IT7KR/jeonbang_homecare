@@ -9,7 +9,6 @@ import {
   ExternalLink,
 } from "lucide-react";
 import type { ScheduleItem } from "@/lib/api/admin";
-import { getServiceName } from "@/lib/utils/service";
 import {
   STATUS_COLORS,
   STATUS_LABELS,
@@ -113,7 +112,7 @@ export function ScheduleDetailPanel({
                       key={idx}
                       className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-lg font-medium"
                     >
-                      {getServiceName(service)}
+                      {service}
                     </span>
                   ))}
                   {schedule.selected_services.length > 3 && (

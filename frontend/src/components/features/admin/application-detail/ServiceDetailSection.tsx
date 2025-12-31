@@ -12,7 +12,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { ApplicationDetail } from "@/lib/api/admin";
-import { getServiceName } from "@/lib/utils/service";
 import { SafeText, SafeBlockText } from "@/components/common/SafeText";
 import { FILE_BASE_URL } from "@/hooks/useApplicationDetail";
 
@@ -61,7 +60,7 @@ export function ServiceDetailSection({
                   key={idx}
                   className="px-2.5 py-1 bg-primary-50 text-primary-700 text-sm font-medium rounded-full"
                 >
-                  {getServiceName(service)}
+                  {service}
                 </span>
               ))}
             </div>

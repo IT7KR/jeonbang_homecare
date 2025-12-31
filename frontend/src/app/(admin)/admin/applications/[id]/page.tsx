@@ -23,6 +23,7 @@ import {
   PartnerUrlModal,
   CustomerUrlModal,
   WorkPhotosModal,
+  ApplicationStatusChangeModal,
 } from "@/components/features/admin/application-detail";
 import { MMSSheet } from "@/components/features/admin/sms";
 
@@ -73,12 +74,6 @@ export default function ApplicationDetailPage() {
     return { ...assignment, partner };
   }) || [];
 
-  // 상태 변경 핸들러
-  const handleStatusChange = async (newStatus: string) => {
-    hook.setStatus(newStatus);
-    setTimeout(() => hook.handleSave(), 100);
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -87,7 +82,7 @@ export default function ApplicationDetailPage() {
           application={application}
           summaryCards={hook.summaryCards}
           isSaving={hook.isSaving}
-          onStatusChange={handleStatusChange}
+          onStatusChange={hook.handleStatusSelect}
           onCancelClick={() => hook.setShowCancelModal(true)}
           onSendSMS={() => hook.setShowMMSSheet(true)}
         />
@@ -160,15 +155,9 @@ export default function ApplicationDetailPage() {
               customerHistory={customerHistory}
               unassignedServices={hook.unassignedServices}
               status={hook.status}
-              setStatus={hook.setStatus}
-              originalStatus={hook.originalStatus}
-              hasStatusChanged={hook.hasStatusChanged}
-              sendSms={hook.sendSms}
-              setSendSms={hook.setSendSms}
-              isSaving={hook.isSaving}
               expanded={hook.expandedSections?.management ?? true}
               onToggle={() => hook.toggleSection?.("management")}
-              onSave={hook.handleSave}
+              onStatusSelect={hook.handleStatusSelect}
               setShowCancelModal={hook.setShowCancelModal}
               applicationId={id}
             />
@@ -185,6 +174,16 @@ export default function ApplicationDetailPage() {
       />
 
       {/* 모달들 */}
+      {/* 상태 변경 확인 모달 */}
+      <ApplicationStatusChangeModal
+        isOpen={hook.showStatusModal}
+        onClose={hook.cancelStatusChange}
+        onConfirm={hook.confirmStatusChange}
+        currentStatus={hook.originalStatus}
+        newStatus={hook.pendingStatus || ""}
+        isLoading={hook.isSaving}
+      />
+
       {hook.showCancelModal && (
         <CancelApplicationModal
           applicationNumber={application.application_number}

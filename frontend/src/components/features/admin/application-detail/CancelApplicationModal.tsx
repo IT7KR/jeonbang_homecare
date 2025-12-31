@@ -37,13 +37,16 @@ export function CancelApplicationModal({
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">신청 취소</h3>
-            <p className="text-sm text-gray-500">이 작업은 되돌릴 수 없습니다</p>
+            <p className="text-sm text-gray-500">
+              이 작업은 되돌릴 수 없습니다
+            </p>
           </div>
         </div>
 
         <div className="mb-4 space-y-3">
           <p className="text-sm text-gray-700">
-            <span className="font-medium">{applicationNumber}</span> 신청을 취소하시겠습니까?
+            <span className="font-medium">{applicationNumber}</span> 신청을
+            취소하시겠습니까?
           </p>
 
           <div className="space-y-2">
@@ -73,7 +76,7 @@ export function CancelApplicationModal({
             )}
           </div>
 
-          {/* SMS 발송 선택 */}
+          {/* 문자 발송 선택 */}
           <label className="flex items-center gap-2.5 p-2.5 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100 transition-colors">
             <input
               type="checkbox"
@@ -85,7 +88,7 @@ export function CancelApplicationModal({
               <div className="flex items-center gap-1.5">
                 <MessageSquare size={14} className="text-gray-600" />
                 <span className="font-medium text-gray-800 text-sm">
-                  고객에게 취소 알림 SMS 발송
+                  고객에게 취소 알림 문자 발송
                 </span>
               </div>
             </div>

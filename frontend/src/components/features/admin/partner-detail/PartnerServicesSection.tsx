@@ -4,7 +4,6 @@ import { Globe } from "lucide-react";
 import type { PartnerDetail } from "@/lib/api/admin";
 import { CollapsibleCard } from "@/components/admin";
 import { SafeBlockText } from "@/components/common/SafeText";
-import { getServiceName } from "@/lib/utils/service";
 
 interface PartnerServicesSectionProps {
   partner: PartnerDetail;
@@ -31,7 +30,7 @@ export function PartnerServicesSection({
                 key={idx}
                 className="px-3 py-1.5 bg-blue-100 text-blue-800 text-sm rounded-full font-medium"
               >
-                {getServiceName(area)}
+                {area}
               </span>
             ))}
           </div>

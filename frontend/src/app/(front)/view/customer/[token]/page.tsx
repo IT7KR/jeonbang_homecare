@@ -33,7 +33,6 @@ import {
   type CustomerViewResponse,
   type ProgressStep,
 } from "@/lib/api/customer-portal";
-import { getServiceName } from "@/lib/utils/service";
 
 // API Base URL for file serving (without /api/v1 suffix since file URLs already include it)
 const API_BASE_URL = (
@@ -297,7 +296,7 @@ export default function CustomerViewPage() {
                   variant="outline"
                   className="bg-primary-50 border-primary-200 text-primary-700 px-3 py-1.5 text-sm"
                 >
-                  {getServiceName(service)}
+                  {service}
                 </Badge>
               ))}
             </div>

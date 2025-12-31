@@ -61,7 +61,7 @@ export default function SMSPage() {
         className="inline-flex items-center px-4 py-2.5 bg-primary text-white rounded-xl hover:bg-primary-600 font-medium text-sm transition-colors shadow-sm"
       >
         <Send size={18} className="mr-2" />
-        SMS 발송
+        문자 발송
       </button>
     </div>
   );
@@ -82,8 +82,8 @@ export default function SMSPage() {
   return (
     <AdminListLayout
       // 헤더
-      title="SMS 관리"
-      subtitle="SMS 발송 내역 및 수동 발송"
+      title="문자 관리"
+      subtitle="문자 발송 내역 및 수동 발송"
       headerAction={headerAction}
       // 필터
       statusOptions={SMS_STATUS_OPTIONS}
@@ -102,7 +102,7 @@ export default function SMSPage() {
       data={hook.logs}
       keyExtractor={(log) => log.id}
       emptyIcon={<MessageSquare className="w-5 h-5 text-gray-400" />}
-      emptyMessage="SMS 발송 내역이 없습니다"
+      emptyMessage="문자 발송 내역이 없습니다"
       // 페이지네이션
       page={hook.page}
       totalPages={hook.totalPages}
@@ -113,7 +113,7 @@ export default function SMSPage() {
       beforeTable={statsCards}
       afterPagination={
         <>
-          {/* SMS 발송 시트 */}
+          {/* 문자 발송 시트 */}
           <SMSSendSheet
             open={hook.showSendSheet}
             onOpenChange={hook.setShowSendSheet}

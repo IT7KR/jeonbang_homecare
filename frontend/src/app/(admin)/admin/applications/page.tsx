@@ -22,9 +22,8 @@ export default function ApplicationsPage() {
         enableManualSMS,
         selectedIds: hook.selectedIds,
         onToggleSelect: hook.handleToggleSelect,
-        getServiceName: hook.getServiceName,
       }),
-    [hook.selectedIds, hook.handleToggleSelect, hook.getServiceName]
+    [hook.selectedIds, hook.handleToggleSelect]
   );
 
   // 필터 섹션

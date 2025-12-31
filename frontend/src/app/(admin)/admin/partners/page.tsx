@@ -22,10 +22,9 @@ export default function PartnersPage() {
         enableManualSMS,
         selectedIds: hook.selectedIds,
         onToggleSelect: hook.handleToggleSelect,
-        getServiceName: hook.getServiceName,
         onApprovalClick: hook.setApprovalTarget,
       }),
-    [hook.selectedIds, hook.handleToggleSelect, hook.getServiceName, hook.setApprovalTarget]
+    [hook.selectedIds, hook.handleToggleSelect, hook.setApprovalTarget]
   );
 
   // 필터 섹션

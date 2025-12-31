@@ -17,7 +17,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { ApplicationDetail, PartnerListItem, AssignmentSummary } from "@/lib/api/admin";
-import { getServiceName } from "@/lib/utils/service";
 import { getAssignmentStatusInfo } from "@/lib/constants/application";
 import { formatPhone } from "@/hooks/useApplicationDetail";
 
@@ -87,7 +86,7 @@ export function AssignmentsSection({
                         key={i}
                         className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full"
                       >
-                        {getServiceName(s)}
+                        {s}
                       </span>
                     ))}
                   </div>
@@ -189,7 +188,7 @@ export function AssignmentsSection({
                           key={i}
                           className="px-2 py-0.5 bg-primary-50 text-primary-700 text-xs font-medium rounded-full"
                         >
-                          {getServiceName(s)}
+                          {s}
                         </span>
                       ))}
                     </div>

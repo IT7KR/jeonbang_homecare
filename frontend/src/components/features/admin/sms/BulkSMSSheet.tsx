@@ -71,7 +71,9 @@ export function BulkSMSSheet({
     preSelectedType || "customer"
   );
   const [statusFilter, setStatusFilter] = useState("");
-  const [selectedIds, setSelectedIds] = useState<number[]>(preSelectedIds || []);
+  const [selectedIds, setSelectedIds] = useState<number[]>(
+    preSelectedIds || []
+  );
   const [recipientTotal, setRecipientTotal] = useState(0);
   const [message, setMessage] = useState("");
 
@@ -98,7 +100,9 @@ export function BulkSMSSheet({
       // Sending to ALL - confirm
       const confirmed = await confirm({
         title: "전체 발송 확인",
-        description: `전체 ${targetType === "customer" ? "고객" : "협력사"} ${recipientTotal}명에게 발송하시겠습니까?`,
+        description: `전체 ${
+          targetType === "customer" ? "고객" : "협력사"
+        } ${recipientTotal}명에게 발송하시겠습니까?`,
         type: "info",
         confirmText: "발송",
       });
@@ -169,7 +173,7 @@ export function BulkSMSSheet({
         <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <SheetTitle className="flex items-center gap-2.5 text-lg">
             <Megaphone className="w-5 h-5 text-primary" />
-            대량 SMS 발송
+            대량 문자 발송
           </SheetTitle>
           <p className="text-sm text-gray-500 mt-1">
             {step === "type" && "발송 대상과 조건을 선택하세요"}
@@ -201,13 +205,19 @@ export function BulkSMSSheet({
                     <Users
                       className={cn(
                         "w-8 h-8 mx-auto mb-2",
-                        targetType === "customer" ? "text-primary" : "text-gray-400"
+                        targetType === "customer"
+                          ? "text-primary"
+                          : "text-gray-400"
                       )}
                     />
-                    <p className={cn(
-                      "font-medium text-sm",
-                      targetType === "customer" ? "text-primary" : "text-gray-700"
-                    )}>
+                    <p
+                      className={cn(
+                        "font-medium text-sm",
+                        targetType === "customer"
+                          ? "text-primary"
+                          : "text-gray-700"
+                      )}
+                    >
                       고객
                     </p>
                   </button>
@@ -223,13 +233,19 @@ export function BulkSMSSheet({
                     <Building2
                       className={cn(
                         "w-8 h-8 mx-auto mb-2",
-                        targetType === "partner" ? "text-primary" : "text-gray-400"
+                        targetType === "partner"
+                          ? "text-primary"
+                          : "text-gray-400"
                       )}
                     />
-                    <p className={cn(
-                      "font-medium text-sm",
-                      targetType === "partner" ? "text-primary" : "text-gray-700"
-                    )}>
+                    <p
+                      className={cn(
+                        "font-medium text-sm",
+                        targetType === "partner"
+                          ? "text-primary"
+                          : "text-gray-700"
+                      )}
+                    >
                       협력사
                     </p>
                   </button>
@@ -331,10 +347,21 @@ export function BulkSMSSheet({
                   <div>
                     <p className="font-medium text-gray-900">
                       {targetType === "customer" ? "고객" : "협력사"}{" "}
-                      <span className="text-primary">{getRecipientCount()}명</span>에게 발송
+                      <span className="text-primary">
+                        {getRecipientCount()}명
+                      </span>
+                      에게 발송
                     </p>
                     <p className="text-sm text-gray-500">
-                      {selectedIds.length > 0 ? "선택된 수신자" : statusFilter ? `${STATUS_OPTIONS[targetType].find(o => o.value === statusFilter)?.label} 상태` : "전체"}
+                      {selectedIds.length > 0
+                        ? "선택된 수신자"
+                        : statusFilter
+                        ? `${
+                            STATUS_OPTIONS[targetType].find(
+                              (o) => o.value === statusFilter
+                            )?.label
+                          } 상태`
+                        : "전체"}
                     </p>
                   </div>
                 </div>
@@ -356,7 +383,9 @@ export function BulkSMSSheet({
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>90자 초과 시 LMS로 발송</span>
-                  <span className={cn(message.length > 90 ? "text-amber-600" : "")}>
+                  <span
+                    className={cn(message.length > 90 ? "text-amber-600" : "")}
+                  >
                     {message.length}/2000
                   </span>
                 </div>
@@ -374,7 +403,9 @@ export function BulkSMSSheet({
             <div className="pt-6">
               <div className="flex gap-3">
                 <button
-                  onClick={() => setStep(preSelectedIds?.length ? "message" : "recipients")}
+                  onClick={() =>
+                    setStep(preSelectedIds?.length ? "message" : "recipients")
+                  }
                   disabled={isSending}
                   className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                 >

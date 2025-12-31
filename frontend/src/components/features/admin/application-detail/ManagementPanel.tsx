@@ -3,18 +3,14 @@
 import Link from "next/link";
 import {
   FileText,
-  MessageSquare,
   ChevronDown,
   ChevronUp,
-  Save,
   XCircle,
-  Loader2,
   Zap,
   User,
 } from "lucide-react";
 import { ApplicationDetail, ApplicationNote, CustomerHistoryResponse } from "@/lib/api/admin";
-import { STATUS_OPTIONS, getStatusInfo, willSendSmsForStatusChange } from "@/lib/constants/application";
-import { getServiceName } from "@/lib/utils/service";
+import { STATUS_OPTIONS, getStatusInfo } from "@/lib/constants/application";
 
 interface ManagementPanelProps {
   application: ApplicationDetail;
@@ -22,15 +18,9 @@ interface ManagementPanelProps {
   customerHistory: CustomerHistoryResponse | null;
   unassignedServices: string[];
   status: string;
-  setStatus: (status: string) => void;
-  originalStatus: string;
-  hasStatusChanged: boolean;
-  sendSms: boolean;
-  setSendSms: (sendSms: boolean) => void;
-  isSaving: boolean;
   expanded: boolean;
   onToggle: () => void;
-  onSave: () => void;
+  onStatusSelect: (status: string) => void;
   setShowCancelModal: (show: boolean) => void;
   applicationId: number;
 }
@@ -41,15 +31,9 @@ export function ManagementPanel({
   customerHistory,
   unassignedServices,
   status,
-  setStatus,
-  originalStatus,
-  hasStatusChanged,
-  sendSms,
-  setSendSms,
-  isSaving,
   expanded,
   onToggle,
-  onSave,
+  onStatusSelect,
   setShowCancelModal,
   applicationId,
 }: ManagementPanelProps) {
@@ -77,7 +61,7 @@ export function ManagementPanel({
               </label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={(e) => onStatusSelect(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
               >
                 {STATUS_OPTIONS.map((option) => (
@@ -86,6 +70,9 @@ export function ManagementPanel({
                   </option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                상태를 선택하면 변경 확인 창이 표시됩니다
+              </p>
             </div>
 
             {/* 안내 메시지 */}
@@ -95,50 +82,9 @@ export function ManagementPanel({
               </p>
             </div>
 
-            {/* SMS 알림 & 저장 */}
-            <div className="pt-3 border-t border-gray-100 space-y-3">
-              {hasStatusChanged && willSendSmsForStatusChange(originalStatus, status) && (
-                <label className="flex items-start gap-2.5 p-2.5 bg-secondary-50 rounded-lg cursor-pointer hover:bg-secondary-100 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={sendSms}
-                    onChange={(e) => setSendSms(e.target.checked)}
-                    className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary mt-0.5"
-                  />
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <MessageSquare size={14} className="text-secondary" />
-                      <span className="font-medium text-secondary-800 text-sm">
-                        SMS 알림 발송
-                      </span>
-                    </div>
-                    <p className="text-xs text-secondary-600 mt-0.5">
-                      고객에게 상태 변경 알림
-                    </p>
-                  </div>
-                </label>
-              )}
-
-              <button
-                onClick={onSave}
-                disabled={isSaving}
-                className="w-full py-2.5 bg-primary text-white font-medium rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="animate-spin mr-2" size={18} />
-                    저장 중...
-                  </>
-                ) : (
-                  <>
-                    <Save size={18} className="mr-2" />
-                    저장하기
-                  </>
-                )}
-              </button>
-
-              {/* 취소 버튼 */}
-              {application.status !== "cancelled" && (
+            {/* 취소 버튼 */}
+            {application.status !== "cancelled" && (
+              <div className="pt-3 border-t border-gray-100">
                 <button
                   onClick={() => setShowCancelModal(true)}
                   className="w-full py-2.5 border border-red-200 text-red-600 font-medium rounded-lg hover:bg-red-50 flex items-center justify-center transition-colors"
@@ -146,8 +92,8 @@ export function ManagementPanel({
                   <XCircle size={18} className="mr-2" />
                   신청 취소
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -222,10 +168,7 @@ export function ManagementPanel({
                     <span>{new Date(app.created_at).toLocaleDateString("ko-KR")}</span>
                     <span>·</span>
                     <span>
-                      {app.selected_services
-                        .slice(0, 2)
-                        .map((s: string) => getServiceName(s))
-                        .join(", ")}
+                      {app.selected_services.slice(0, 2).join(", ")}
                       {app.selected_services.length > 2 &&
                         ` 외 ${app.selected_services.length - 2}개`}
                     </span>

@@ -201,10 +201,10 @@ export function CustomerUrlManager({
       if (result.success) {
         toast.success("시공 결과 URL이 SMS로 발송되었습니다");
       } else {
-        toast.error(result.message || "SMS 발송에 실패했습니다");
+        toast.error(result.message || "문자 발송에 실패했습니다");
       }
     } catch (error) {
-      toast.error("SMS 발송에 실패했습니다");
+      toast.error("문자 발송에 실패했습니다");
     } finally {
       setIsSendingSMS(false);
     }

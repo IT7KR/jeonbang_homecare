@@ -348,7 +348,6 @@ export function useApplications() {
 
     // 테이블
     getRowClassName,
-    getServiceName,
 
     // 선택
     selectedIds,

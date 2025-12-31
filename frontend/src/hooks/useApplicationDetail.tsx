@@ -28,7 +28,6 @@ import {
   CustomerHistoryResponse,
 } from "@/lib/api/admin";
 import { willSendSmsForStatusChange } from "@/lib/constants/application";
-import { getServiceName } from "@/lib/utils/service";
 import type { SummaryCardItem, NoteItem, AuditItem } from "@/components/admin";
 
 // 파일 URL 기본 경로
@@ -144,6 +143,10 @@ export function useApplicationDetail(id: number) {
   const [sendSms, setSendSms] = useState(true);
   const [showStatusHeaderDropdown, setShowStatusHeaderDropdown] = useState(false);
 
+  // 상태 변경 모달 관련
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+
   // 라이트박스 상태
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -248,7 +251,7 @@ export function useApplicationDetail(id: number) {
       p.company_name.toLowerCase().includes(query) ||
       p.representative_name?.toLowerCase().includes(query) ||
       p.service_areas.some((s) =>
-        getServiceName(s).toLowerCase().includes(query)
+        s.toLowerCase().includes(query)
       );
 
     return {
@@ -360,7 +363,78 @@ export function useApplicationDetail(id: number) {
     loadData();
   }, [loadData]);
 
-  // ===== 상태 저장 =====
+  // ===== 상태 변경 핸들러 =====
+  // 상태 드롭다운에서 선택 시 호출 - 모달 열기
+  const handleStatusSelect = useCallback(
+    (newStatus: string) => {
+      if (newStatus === originalStatus) return;
+
+      // 취소는 기존 CancelApplicationModal 사용
+      if (newStatus === "cancelled") {
+        setShowCancelModal(true);
+        return;
+      }
+
+      // 다른 상태는 상태 변경 모달 열기
+      setPendingStatus(newStatus);
+      setShowStatusModal(true);
+    },
+    [originalStatus]
+  );
+
+  // 모달에서 확인 버튼 클릭 시 호출
+  const confirmStatusChange = useCallback(
+    async (sendSmsOption: boolean) => {
+      if (!pendingStatus) return;
+
+      try {
+        setIsSaving(true);
+        setError(null);
+        setSuccessMessage(null);
+
+        const token = await getValidToken();
+        if (!token) {
+          router.push("/admin/login");
+          return;
+        }
+
+        const updateData = {
+          status: pendingStatus,
+          send_sms: sendSmsOption,
+        };
+
+        const updated = await updateApplication(token, id, updateData);
+        setApplication(updated);
+        setStatus(updated.status);
+        setOriginalStatus(updated.status);
+
+        const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, { page_size: 20 });
+        setAuditLogs(updatedAuditLogs.items);
+
+        const willSendSms =
+          sendSmsOption && willSendSmsForStatusChange(originalStatus, pendingStatus);
+        const smsNote = willSendSms ? " (SMS 알림 발송됨)" : "";
+        setSuccessMessage(`상태가 변경되었습니다${smsNote}`);
+
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "상태 변경에 실패했습니다");
+      } finally {
+        setIsSaving(false);
+        setShowStatusModal(false);
+        setPendingStatus(null);
+      }
+    },
+    [id, pendingStatus, originalStatus, getValidToken, router]
+  );
+
+  // 상태 변경 모달 취소
+  const cancelStatusChange = useCallback(() => {
+    setShowStatusModal(false);
+    setPendingStatus(null);
+  }, []);
+
+  // 기존 handleSave 유지 (하위 호환성)
   const handleSave = useCallback(async () => {
     try {
       setIsSaving(true);
@@ -714,6 +788,15 @@ export function useApplicationDetail(id: number) {
     setSendSms,
     showStatusHeaderDropdown,
     setShowStatusHeaderDropdown,
+
+    // 상태 변경 모달 상태
+    showStatusModal,
+    setShowStatusModal,
+    pendingStatus,
+    setPendingStatus,
+    handleStatusSelect,
+    confirmStatusChange,
+    cancelStatusChange,
 
     // 취소 모달 상태
     showCancelModal,

@@ -17,7 +17,11 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import { createBulkSMSJob, getBulkSMSJob, BulkSMSJobDetail } from "@/lib/api/admin";
+import {
+  createBulkSMSJob,
+  getBulkSMSJob,
+  BulkSMSJobDetail,
+} from "@/lib/api/admin";
 import { cn } from "@/lib/utils";
 
 interface DirectSMSSheetProps {
@@ -107,7 +111,7 @@ export function DirectSMSSheet({
             ) : (
               <Building2 className="w-5 h-5 text-primary" />
             )}
-            {recipientLabel} {selectedIds.length}명에게 SMS 발송
+            {recipientLabel} {selectedIds.length}명에게 문자 발송
           </SheetTitle>
         </SheetHeader>
 
@@ -130,9 +134,9 @@ export function DirectSMSSheet({
                 />
                 <div className="flex justify-between text-xs text-gray-500 mt-2">
                   <span>90자 초과 시 LMS로 발송</span>
-                  <span className={cn(
-                    message.length > 90 ? "text-amber-600" : ""
-                  )}>
+                  <span
+                    className={cn(message.length > 90 ? "text-amber-600" : "")}
+                  >
                     {message.length}/2000
                   </span>
                 </div>
@@ -164,18 +168,24 @@ export function DirectSMSSheet({
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <p className="text-gray-900 font-medium text-lg mb-1">발송 완료</p>
+              <p className="text-gray-900 font-medium text-lg mb-1">
+                발송 완료
+              </p>
               <p className="text-sm text-gray-500 mb-6">
                 {result.sent_count}명에게 성공적으로 발송되었습니다
               </p>
 
               <div className="w-full grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{result.sent_count}</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {result.sent_count}
+                  </p>
                   <p className="text-xs text-gray-500 mt-1">성공</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-red-600">{result.failed_count}</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {result.failed_count}
+                  </p>
                   <p className="text-xs text-gray-500 mt-1">실패</p>
                 </div>
               </div>
@@ -188,7 +198,9 @@ export function DirectSMSSheet({
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
                 <XCircle className="w-8 h-8 text-red-600" />
               </div>
-              <p className="text-gray-900 font-medium text-lg mb-1">발송 실패</p>
+              <p className="text-gray-900 font-medium text-lg mb-1">
+                발송 실패
+              </p>
               <p className="text-sm text-gray-500 mb-4">
                 {error || "발송 중 오류가 발생했습니다"}
               </p>
@@ -196,11 +208,15 @@ export function DirectSMSSheet({
               {result && (
                 <div className="w-full grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{result.sent_count}</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {result.sent_count}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">성공</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-red-600">{result.failed_count}</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {result.failed_count}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">실패</p>
                   </div>
                 </div>

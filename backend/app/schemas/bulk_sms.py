@@ -96,7 +96,8 @@ class SMSRecipient(BaseModel):
 
     id: int
     name: str
-    phone: str  # 마스킹된 번호 (010-****-5678)
+    phone: str  # 마스킹된 번호 (010-****-5678) - UI 표시용
+    phone_raw: str  # 실제 전화번호 - SMS 발송용
     label: str  # 신청번호 또는 회사명
     type: str  # customer, partner
     status: Optional[str] = None  # 상태 (new, approved 등)

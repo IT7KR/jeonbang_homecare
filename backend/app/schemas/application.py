@@ -23,7 +23,7 @@ class ApplicationCreate(BaseModel):
     address: str = Field(..., min_length=5, description="주소")
     address_detail: Optional[str] = Field(None, max_length=200, description="상세 주소")
     selected_services: list[str] = Field(..., min_length=1, description="선택한 서비스 목록")
-    description: str = Field(..., min_length=20, max_length=1000, description="전달 사항")
+    description: str = Field(..., min_length=10, max_length=1000, description="전달 사항")
     preferred_consultation_date: Optional[date] = Field(None, description="희망 상담일")
     preferred_work_date: Optional[date] = Field(None, description="희망 작업일")
 

@@ -83,7 +83,9 @@ export function StatusChangeModal({
       <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">상태 변경 확인</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            상태 변경 확인
+          </h2>
           <button
             onClick={onClose}
             disabled={isLoading}
@@ -115,7 +117,9 @@ export function StatusChangeModal({
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-gray-700">
                 {reasonLabel}
-                {reasonRequired && <span className="text-red-500 ml-0.5">*</span>}
+                {reasonRequired && (
+                  <span className="text-red-500 ml-0.5">*</span>
+                )}
               </label>
               <textarea
                 value={reason}
@@ -127,7 +131,7 @@ export function StatusChangeModal({
             </div>
           )}
 
-          {/* SMS 발송 옵션 */}
+          {/* 문자 발송 옵션 */}
           {showSmsOption && (
             <label className="flex items-start gap-3 p-3 bg-secondary-50 rounded-xl cursor-pointer hover:bg-secondary-100 transition-colors">
               <input

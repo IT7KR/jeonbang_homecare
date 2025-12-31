@@ -52,10 +52,10 @@ export const ServiceCheckboxItem = memo(function ServiceCheckboxItem({
         isDisabled
           ? "cursor-not-allowed opacity-60 bg-gray-50 border-gray-200"
           : isSelected
-            ? isPrimary
-              ? "bg-primary/10 border-primary shadow-sm"
-              : "bg-secondary/10 border-secondary shadow-sm"
-            : "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+          ? isPrimary
+            ? "bg-primary/10 border-primary shadow-sm"
+            : "bg-secondary/10 border-secondary shadow-sm"
+          : "bg-white border-gray-200 hover:border-gray-300 hover:bg-gray-50"
       )}
     >
       {/* Checkbox circle */}
@@ -68,10 +68,10 @@ export const ServiceCheckboxItem = memo(function ServiceCheckboxItem({
           isDisabled
             ? "border-gray-300 bg-gray-100"
             : isSelected
-              ? isPrimary
-                ? "border-primary bg-primary"
-                : "border-secondary bg-secondary"
-              : "border-gray-300 bg-white"
+            ? isPrimary
+              ? "border-primary bg-primary"
+              : "border-secondary bg-secondary"
+            : "border-gray-300 bg-white"
         )}
       >
         {isDisabled && !isSelected ? (
@@ -90,10 +90,10 @@ export const ServiceCheckboxItem = memo(function ServiceCheckboxItem({
           isDisabled
             ? "text-gray-400"
             : isSelected
-              ? isPrimary
-                ? "text-primary"
-                : "text-secondary"
-              : "text-gray-700"
+            ? isPrimary
+              ? "text-primary"
+              : "text-secondary"
+            : "text-gray-700"
         )}
       >
         {name}

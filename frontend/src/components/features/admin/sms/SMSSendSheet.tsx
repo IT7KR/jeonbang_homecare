@@ -67,7 +67,9 @@ export function SMSSendSheet({
   // Recipients
   const [customers, setCustomers] = useState<SMSRecipient[]>([]);
   const [partners, setPartners] = useState<SMSRecipient[]>([]);
-  const [selectedRecipients, setSelectedRecipients] = useState<SelectedRecipient[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<
+    SelectedRecipient[]
+  >([]);
   const [isLoading, setIsLoading] = useState(false);
 
   // Search
@@ -89,7 +91,10 @@ export function SMSSendSheet({
 
   // Result
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ sent_count: number; failed_count: number } | null>(null);
+  const [result, setResult] = useState<{
+    sent_count: number;
+    failed_count: number;
+  } | null>(null);
 
   // Load recipients
   const loadCustomers = async () => {
@@ -172,7 +177,9 @@ export function SMSSendSheet({
         phone: recipient.phone,
         type: recipient.type,
       };
-      setSelectedRecipients(singleSelect ? [newRecipient] : [...selectedRecipients, newRecipient]);
+      setSelectedRecipients(
+        singleSelect ? [newRecipient] : [...selectedRecipients, newRecipient]
+      );
     }
   };
 
@@ -250,7 +257,9 @@ export function SMSSendSheet({
         }
 
         setResult({ sent_count: sentCount, failed_count: failedCount });
-        setStatus(failedCount === 0 ? "success" : sentCount > 0 ? "success" : "error");
+        setStatus(
+          failedCount === 0 ? "success" : sentCount > 0 ? "success" : "error"
+        );
       } else {
         // 이미지 없으면 기존 Bulk SMS Job 사용
         const customerIds = selectedRecipients
@@ -290,7 +299,13 @@ export function SMSSendSheet({
         };
 
         setResult(combined);
-        setStatus(combined.failed_count === 0 ? "success" : combined.sent_count > 0 ? "success" : "error");
+        setStatus(
+          combined.failed_count === 0
+            ? "success"
+            : combined.sent_count > 0
+            ? "success"
+            : "error"
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "발송에 실패했습니다");
@@ -298,7 +313,10 @@ export function SMSSendSheet({
     }
   };
 
-  const pollJob = async (token: string, jobId: number): Promise<BulkSMSJobDetail> => {
+  const pollJob = async (
+    token: string,
+    jobId: number
+  ): Promise<BulkSMSJobDetail> => {
     const job = await getBulkSMSJob(token, jobId);
     if (job.status === "processing" || job.status === "pending") {
       await new Promise((r) => setTimeout(r, 1000));
@@ -331,11 +349,16 @@ export function SMSSendSheet({
   const currentList = activeTab === "customer" ? customers : partners;
   const currentTotal = activeTab === "customer" ? customerTotal : partnerTotal;
   const currentPage = activeTab === "customer" ? customerPage : partnerPage;
-  const setCurrentPage = activeTab === "customer" ? setCustomerPage : setPartnerPage;
+  const setCurrentPage =
+    activeTab === "customer" ? setCustomerPage : setPartnerPage;
   const totalPages = Math.ceil(currentTotal / pageSize);
 
-  const customerCount = selectedRecipients.filter((r) => r.type === "customer").length;
-  const partnerCount = selectedRecipients.filter((r) => r.type === "partner").length;
+  const customerCount = selectedRecipients.filter(
+    (r) => r.type === "customer"
+  ).length;
+  const partnerCount = selectedRecipients.filter(
+    (r) => r.type === "partner"
+  ).length;
 
   return (
     <Sheet open={open} onOpenChange={handleClose}>
@@ -343,7 +366,7 @@ export function SMSSendSheet({
         <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <SheetTitle className="flex items-center gap-2.5 text-lg">
             <Send className="w-5 h-5 text-primary" />
-            SMS 발송
+            문자 발송
           </SheetTitle>
         </SheetHeader>
 
@@ -384,8 +407,14 @@ export function SMSSendSheet({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
-                  placeholder={activeTab === "customer" ? "이름, 신청번호 검색..." : "회사명 검색..."}
-                  value={activeTab === "customer" ? customerSearch : partnerSearch}
+                  placeholder={
+                    activeTab === "customer"
+                      ? "이름, 신청번호 검색..."
+                      : "회사명 검색..."
+                  }
+                  value={
+                    activeTab === "customer" ? customerSearch : partnerSearch
+                  }
                   onChange={(e) => {
                     if (activeTab === "customer") {
                       setCustomerSearch(e.target.value);
@@ -545,7 +574,10 @@ export function SMSSendSheet({
                   </div>
                   <div>
                     <p className="font-medium text-gray-900">
-                      <span className="text-primary">{selectedRecipients.length}명</span>에게 발송
+                      <span className="text-primary">
+                        {selectedRecipients.length}명
+                      </span>
+                      에게 발송
                     </p>
                     <p className="text-sm text-gray-500">
                       {customerCount > 0 && `고객 ${customerCount}명`}
@@ -574,7 +606,8 @@ export function SMSSendSheet({
                   </span>
                 </div>
                 <div className="text-xs text-gray-500 mb-2 px-1">
-                  ※ 발송 시 앞에 &quot;{MESSAGE_PREFIX.trim()}&quot;가 자동으로 붙습니다
+                  ※ 발송 시 앞에 &quot;{MESSAGE_PREFIX.trim()}&quot;가 자동으로
+                  붙습니다
                 </div>
                 <textarea
                   value={message}
@@ -589,7 +622,9 @@ export function SMSSendSheet({
                   <span>45자 초과 시 LMS, 이미지 첨부 시 MMS</span>
                   <span
                     className={cn(
-                      MESSAGE_PREFIX.length + message.length > 45 ? "text-amber-600" : ""
+                      MESSAGE_PREFIX.length + message.length > 45
+                        ? "text-amber-600"
+                        : ""
                     )}
                   >
                     {MESSAGE_PREFIX.length + message.length}/2000
@@ -636,7 +671,8 @@ export function SMSSendSheet({
             <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
             <p className="text-gray-900 font-medium">발송 중...</p>
             <p className="text-sm text-gray-500 mt-1">
-              {selectedRecipients.length}명에게 {messageType}를 발송하고 있습니다
+              {selectedRecipients.length}명에게 {messageType}를 발송하고
+              있습니다
             </p>
           </div>
         )}
@@ -648,7 +684,9 @@ export function SMSSendSheet({
               <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
                 <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
-              <p className="text-gray-900 font-medium text-lg mb-1">발송 완료</p>
+              <p className="text-gray-900 font-medium text-lg mb-1">
+                발송 완료
+              </p>
               <p className="text-sm text-gray-500 mb-6">
                 {result.sent_count}명에게 성공적으로 발송되었습니다
                 {images.length > 0 && ` (사진 ${images.length}장)`}
@@ -656,11 +694,15 @@ export function SMSSendSheet({
 
               <div className="w-full grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{result.sent_count}</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {result.sent_count}
+                  </p>
                   <p className="text-xs text-gray-500 mt-1">성공</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-red-600">{result.failed_count}</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {result.failed_count}
+                  </p>
                   <p className="text-xs text-gray-500 mt-1">실패</p>
                 </div>
               </div>
@@ -682,7 +724,9 @@ export function SMSSendSheet({
               <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-4">
                 <XCircle className="w-8 h-8 text-red-600" />
               </div>
-              <p className="text-gray-900 font-medium text-lg mb-1">발송 실패</p>
+              <p className="text-gray-900 font-medium text-lg mb-1">
+                발송 실패
+              </p>
               <p className="text-sm text-gray-500 mb-4">
                 {error || "발송 중 오류가 발생했습니다"}
               </p>
@@ -690,11 +734,15 @@ export function SMSSendSheet({
               {result && (
                 <div className="w-full grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl">
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">{result.sent_count}</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {result.sent_count}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">성공</p>
                   </div>
                   <div className="text-center">
-                    <p className="text-2xl font-bold text-red-600">{result.failed_count}</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {result.failed_count}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">실패</p>
                   </div>
                 </div>
