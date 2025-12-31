@@ -18,7 +18,6 @@ class AssignmentCreate(BaseModel):
     estimated_cost: Optional[int] = Field(None, ge=0, description="견적 금액")
     estimate_note: Optional[str] = Field(None, max_length=1000, description="견적 메모")
     note: Optional[str] = Field(None, max_length=500, description="배정 메모")
-    send_sms: bool = Field(False, description="SMS 알림 발송 여부")
 
     @field_validator("assigned_services")
     @classmethod
@@ -40,18 +39,15 @@ class AssignmentUpdate(BaseModel):
     estimate_note: Optional[str] = Field(None, max_length=1000, description="견적 메모")
     quote_status: Optional[str] = Field(None, description="견적 상태")
     note: Optional[str] = Field(None, max_length=500, description="배정 메모")
-    send_sms: bool = Field(False, description="SMS 알림 발송 여부")
 
     @field_validator("status")
     @classmethod
     def validate_status(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            valid_statuses = [
-                "pending", "notified", "accepted",
-                "scheduled", "in_progress", "completed", "cancelled"
-            ]
+            # 3개 상태로 단순화: pending → scheduled → completed
+            valid_statuses = ["pending", "scheduled", "completed"]
             if v not in valid_statuses:
-                raise ValueError(f"유효하지 않은 상태: {v}")
+                raise ValueError(f"유효하지 않은 상태: {v}. 가능한 상태: {', '.join(valid_statuses)}")
         return v
 
     @field_validator("quote_status")
@@ -183,6 +179,33 @@ class QuoteStatusUpdate(BaseModel):
         if v not in valid_statuses:
             raise ValueError(f"유효하지 않은 견적 상태: {v}")
         return v
+
+
+class BatchAssignmentStatusUpdate(BaseModel):
+    """배정 일괄 상태 변경 요청"""
+
+    assignment_ids: list[int] = Field(..., min_length=1, description="변경할 배정 ID 목록")
+    status: str = Field(..., description="변경할 상태")
+    send_sms: bool = Field(True, description="SMS 알림 발송 여부")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        # 3개 상태로 단순화: pending → scheduled → completed
+        valid_statuses = ["pending", "scheduled", "completed"]
+        if v not in valid_statuses:
+            raise ValueError(f"유효하지 않은 상태: {v}. 가능한 상태: {', '.join(valid_statuses)}")
+        return v
+
+
+class BatchAssignmentStatusResponse(BaseModel):
+    """배정 일괄 상태 변경 응답"""
+
+    success: bool
+    updated_count: int
+    failed_count: int
+    message: str
+    results: list[dict]  # 각 배정별 결과
 
 
 # AssignmentSummary는 application.py에 정의되어 있음

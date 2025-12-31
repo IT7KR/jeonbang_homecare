@@ -130,6 +130,7 @@ export {
   createApplicationAssignment,
   updateApplicationAssignment,
   deleteApplicationAssignment,
+  batchUpdateAssignmentStatus,
   // Customer History (중복 관리)
   getCustomerHistory,
   // URL 관리
@@ -138,10 +139,15 @@ export {
   renewAssignmentURL,
   revokeAssignmentURL,
   extendAssignmentURL,
+  // SMS 발송
+  sendAssignmentSMS,
 } from "./applications";
 
 // URL Types
 export type { URLInfo, URLRenewRequest, PartnerUrlExtend, URLRevokeRequest } from "./applications";
+
+// Batch Assignment Types
+export type { BatchAssignmentStatusUpdate, BatchAssignmentStatusResponse } from "./applications";
 
 // Partners API
 export {

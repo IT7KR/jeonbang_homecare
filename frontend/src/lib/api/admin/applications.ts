@@ -207,6 +207,52 @@ export async function deleteApplicationAssignment(
   );
 }
 
+/**
+ * 배정 일괄 상태 변경 요청 타입
+ */
+export interface BatchAssignmentStatusUpdate {
+  assignment_ids: number[];
+  status: string;
+  send_sms: boolean;
+}
+
+/**
+ * 배정 일괄 상태 변경 응답 타입
+ */
+export interface BatchAssignmentStatusResponse {
+  success: boolean;
+  updated_count: number;
+  failed_count: number;
+  message: string;
+  results: Array<{
+    assignment_id: number;
+    success: boolean;
+    partner_name?: string;
+    prev_status?: string;
+    new_status?: string;
+    sms_sent?: boolean;
+    error?: string;
+  }>;
+}
+
+/**
+ * 배정 일괄 상태 변경
+ */
+export async function batchUpdateAssignmentStatus(
+  token: string,
+  applicationId: number,
+  data: BatchAssignmentStatusUpdate
+): Promise<BatchAssignmentStatusResponse> {
+  return fetchWithToken<BatchAssignmentStatusResponse>(
+    `/admin/applications/${applicationId}/assignments/batch-status`,
+    token,
+    {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
 // ==================== 고객 이력 API (중복 관리) ====================
 
 /**
@@ -343,6 +389,35 @@ export async function extendAssignmentURL(
     {
       method: "POST",
       body: data,
+    }
+  );
+}
+
+// ==================== SMS 발송 API ====================
+
+/**
+ * SMS 발송 응답 타입
+ */
+export interface SendSMSResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * 배정별 SMS 수동 발송
+ * @param target "customer" (고객) 또는 "partner" (협력사)
+ */
+export async function sendAssignmentSMS(
+  token: string,
+  applicationId: number,
+  assignmentId: number,
+  target: "customer" | "partner"
+): Promise<SendSMSResponse> {
+  return fetchWithToken<SendSMSResponse>(
+    `/admin/applications/${applicationId}/assignments/${assignmentId}/send-sms?target=${target}`,
+    token,
+    {
+      method: "POST",
     }
   );
 }

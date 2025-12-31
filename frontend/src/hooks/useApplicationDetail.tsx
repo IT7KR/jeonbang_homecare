@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { format, parse } from "date-fns";
 import { User, Phone, Calendar as CalendarIcon, Wrench } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
-import { useConfirm } from "@/hooks";
+import { useConfirm, toast } from "@/hooks";
 import {
   getApplication,
   updateApplication,
@@ -17,7 +17,9 @@ import {
   createApplicationAssignment,
   updateApplicationAssignment,
   deleteApplicationAssignment,
+  batchUpdateAssignmentStatus,
   getCustomerHistory,
+  sendAssignmentSMS,
   ApplicationDetail,
   PartnerListItem,
   AuditLog,
@@ -52,7 +54,6 @@ export interface AssignmentFormData {
   final_cost: number | "";
   estimate_note: string;
   note: string;
-  send_sms: boolean;
 }
 
 // 초기 배정 폼 상태
@@ -65,7 +66,6 @@ const initialAssignmentForm: AssignmentFormData = {
   final_cost: "",
   estimate_note: "",
   note: "",
-  send_sms: true,
 };
 
 // 헬퍼 함수들
@@ -172,6 +172,8 @@ export function useApplicationDetail(id: number) {
   const [isAssignmentSaving, setIsAssignmentSaving] = useState(false);
   const [isDeletingAssignment, setIsDeletingAssignment] = useState<number | null>(null);
   const [isChangingAssignmentStatus, setIsChangingAssignmentStatus] = useState<number | null>(null);
+  const [isBatchChangingAssignmentStatus, setIsBatchChangingAssignmentStatus] = useState(false);
+  const [isSendingAssignmentSms, setIsSendingAssignmentSms] = useState<{ assignmentId: number; target: "customer" | "partner" } | null>(null);
   const [assignmentForm, setAssignmentForm] = useState<AssignmentFormData>(initialAssignmentForm);
   const [isPartnerDropdownOpen, setIsPartnerDropdownOpen] = useState(false);
   const [partnerSearchQuery, setPartnerSearchQuery] = useState("");
@@ -649,7 +651,6 @@ export function useApplicationDetail(id: number) {
       final_cost: assignment.final_cost || "",
       estimate_note: assignment.estimate_note || "",
       note: assignment.note || "",
-      send_sms: true,
     });
     setIsAssignmentModalOpen(true);
   }, []);
@@ -681,7 +682,6 @@ export function useApplicationDetail(id: number) {
           final_cost: assignmentForm.final_cost || undefined,
           estimate_note: assignmentForm.estimate_note || undefined,
           note: assignmentForm.note || undefined,
-          send_sms: assignmentForm.send_sms,
         };
 
         await updateApplicationAssignment(token, id, editingAssignment.id, updateData);
@@ -697,7 +697,6 @@ export function useApplicationDetail(id: number) {
           estimated_cost: assignmentForm.estimated_cost || undefined,
           estimate_note: assignmentForm.estimate_note || undefined,
           note: assignmentForm.note || undefined,
-          send_sms: assignmentForm.send_sms,
         };
 
         await createApplicationAssignment(token, id, createData);
@@ -799,6 +798,78 @@ export function useApplicationDetail(id: number) {
     }
   }, [id, getValidToken, router]);
 
+  // 배정 일괄 상태 변경
+  const handleBatchAssignmentStatusChange = useCallback(async (
+    assignmentIds: number[],
+    newStatus: string,
+    sendSms: boolean
+  ) => {
+    if (assignmentIds.length === 0) return;
+
+    try {
+      setIsBatchChangingAssignmentStatus(true);
+      setError(null);
+
+      const token = await getValidToken();
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const result = await batchUpdateAssignmentStatus(token, id, {
+        assignment_ids: assignmentIds,
+        status: newStatus,
+        send_sms: sendSms,
+      });
+
+      // 데이터 새로고침
+      const updatedApp = await getApplication(token, id);
+      setApplication(updatedApp);
+      setStatus(updatedApp.status);
+      setOriginalStatus(updatedApp.status);
+
+      const updatedAuditLogs = await getEntityAuditLogs(token, "application", id, { page_size: 20 });
+      setAuditLogs(updatedAuditLogs.items);
+
+      setSuccessMessage(result.message);
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "일괄 상태 변경에 실패했습니다");
+    } finally {
+      setIsBatchChangingAssignmentStatus(false);
+    }
+  }, [id, getValidToken, router]);
+
+  // 배정에 대한 SMS 발송
+  const handleSendAssignmentSms = useCallback(async (
+    assignmentId: number,
+    target: "customer" | "partner"
+  ) => {
+    try {
+      setIsSendingAssignmentSms({ assignmentId, target });
+      setError(null);
+
+      const token = await getValidToken();
+      if (!token) {
+        router.push("/admin/login");
+        return;
+      }
+
+      const result = await sendAssignmentSMS(token, id, assignmentId, target);
+
+      if (result.success) {
+        const targetLabel = target === "customer" ? "고객" : "협력사";
+        toast.success(`${targetLabel}에게 SMS가 발송되었습니다`);
+      } else {
+        toast.error(result.message || "SMS 발송에 실패했습니다");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "SMS 발송에 실패했습니다");
+    } finally {
+      setIsSendingAssignmentSms(null);
+    }
+  }, [id, getValidToken, router]);
+
   // 섹션 토글
   const toggleSection = useCallback((section: keyof typeof expandedSections) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -880,6 +951,8 @@ export function useApplicationDetail(id: number) {
     isAssignmentSaving,
     isDeletingAssignment,
     isChangingAssignmentStatus,
+    isBatchChangingAssignmentStatus,
+    isSendingAssignmentSms,
     assignmentForm,
     setAssignmentForm,
     isPartnerDropdownOpen,
@@ -928,5 +1001,7 @@ export function useApplicationDetail(id: number) {
     handleSaveAssignment,
     handleDeleteAssignment,
     handleAssignmentStatusChange,
+    handleBatchAssignmentStatusChange,
+    handleSendAssignmentSms,
   };
 }

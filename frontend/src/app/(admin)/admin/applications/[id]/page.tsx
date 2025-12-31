@@ -115,6 +115,8 @@ export default function ApplicationDetailPage() {
               onToggle={() => hook.toggleSection?.("assignments")}
               isDeletingAssignment={hook.isDeletingAssignment}
               isChangingStatus={hook.isChangingAssignmentStatus}
+              isBatchChanging={hook.isBatchChangingAssignmentStatus}
+              isSendingSms={hook.isSendingAssignmentSms}
               onOpenNewAssignment={hook.openNewAssignmentModal}
               onEditAssignment={hook.openEditAssignmentModal}
               onDeleteAssignment={async (assignmentId: number) => {
@@ -130,6 +132,8 @@ export default function ApplicationDetailPage() {
                 }
               }}
               onStatusChange={hook.handleAssignmentStatusChange}
+              onBatchStatusChange={hook.handleBatchAssignmentStatusChange}
+              onSendSms={hook.handleSendAssignmentSms}
               onOpenQuote={(assignmentId: number) => {
                 hook.setQuoteAssignmentId(assignmentId);
                 hook.setIsQuoteModalOpen(true);

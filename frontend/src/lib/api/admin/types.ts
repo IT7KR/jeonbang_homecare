@@ -167,7 +167,6 @@ export interface AssignmentCreate {
   estimated_cost?: number;
   estimate_note?: string;
   note?: string;
-  send_sms?: boolean;
 }
 
 export interface AssignmentUpdate {
@@ -180,7 +179,6 @@ export interface AssignmentUpdate {
   estimate_note?: string;
   quote_status?: QuoteStatus;
   note?: string;
-  send_sms?: boolean;
 }
 
 // 견적 상태 변경 요청

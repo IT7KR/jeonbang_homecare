@@ -39,6 +39,8 @@ from app.schemas.application_assignment import (
     AssignmentListResponse,
     CustomerUrlExtend,
     PartnerUrlExtend,
+    BatchAssignmentStatusUpdate,
+    BatchAssignmentStatusResponse,
 )
 from app.schemas.application_note import (
     ApplicationNoteCreate,
@@ -1053,43 +1055,6 @@ async def create_application_assignment(
         admin=current_admin,
     )
 
-    # SMS 발송
-    if data.send_sms:
-        decrypted = decrypt_application(application, db)
-        partner_phone = decrypt_value(partner.contact_phone)
-        scheduled_date_str = str(data.scheduled_date) if data.scheduled_date else "미정"
-        scheduled_time_str = data.scheduled_time if data.scheduled_time else "미정"
-        estimated_cost_str = f"{data.estimated_cost:,}원" if data.estimated_cost else "협의"
-
-        # 협력사용 열람 URL 생성
-        _, view_url = get_partner_view_url(assignment.id)
-
-        # 고객에게 배정 알림
-        background_tasks.add_task(
-            send_partner_assignment_notification,
-            decrypted["customer_phone"],
-            application.application_number,
-            partner.company_name,
-            partner_phone,
-            decrypted["customer_name"],
-            scheduled_date_str,
-            scheduled_time_str,
-            estimated_cost_str,
-        )
-        # 협력사에게 배정 알림 (열람 URL 포함)
-        background_tasks.add_task(
-            send_partner_notify_assignment,
-            partner_phone,
-            application.application_number,
-            decrypted["customer_name"],
-            decrypted["customer_phone"],
-            decrypted["address"],
-            application.selected_services or [],
-            scheduled_date_str,
-            view_url,
-        )
-        logger.info(f"SMS scheduled: assignment created for {application.application_number}")
-
     logger.info(f"Assignment created: app={application.application_number}, partner={partner.company_name}")
 
     # 배정 생성 시 신청 상태 자동 동기화
@@ -1214,58 +1179,6 @@ async def update_application_assignment(
             admin=current_admin,
         )
 
-    # SMS 발송
-    if data.send_sms and application and partner:
-        decrypted = decrypt_application(application, db)
-        partner_phone = decrypt_value(partner.contact_phone)
-
-        # 일정 확정 알림 (scheduled 상태로 처음 변경될 때)
-        if data.status == "scheduled" and prev_status != "scheduled":
-            background_tasks.add_task(
-                send_schedule_confirmation,
-                decrypted["customer_phone"],
-                application.application_number,
-                str(assignment.scheduled_date) if assignment.scheduled_date else "",
-                assignment.scheduled_time,
-                partner.company_name,
-                decrypted["customer_name"],
-            )
-            # 협력사에게도 알림
-            background_tasks.add_task(
-                send_partner_schedule_notification,
-                partner_phone,
-                application.application_number,
-                decrypted["customer_name"],
-                decrypted["customer_phone"],
-                decrypted["address"],
-                str(assignment.scheduled_date) if assignment.scheduled_date else "",
-                assignment.scheduled_time,
-                assignment.assigned_services or [],
-            )
-        else:
-            # 배정 정보 변경 알림 (일정 또는 견적이 변경된 경우)
-            schedule_changed = (
-                (data.scheduled_date is not None and str(data.scheduled_date) != str(prev_scheduled_date)) or
-                (data.scheduled_time is not None and data.scheduled_time != prev_scheduled_time)
-            )
-            cost_changed = data.estimated_cost is not None and data.estimated_cost != prev_estimated_cost
-
-            if schedule_changed or cost_changed:
-                scheduled_date_str = str(assignment.scheduled_date) if assignment.scheduled_date else "미정"
-                scheduled_time_str = assignment.scheduled_time if assignment.scheduled_time else "미정"
-                estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment.estimated_cost else "협의"
-
-                background_tasks.add_task(
-                    send_assignment_changed_notification,
-                    decrypted["customer_phone"],
-                    application.application_number,
-                    decrypted["customer_name"],
-                    scheduled_date_str,
-                    scheduled_time_str,
-                    estimated_cost_str,
-                )
-                logger.info(f"SMS scheduled: assignment changed for {application.application_number}")
-
     logger.info(f"Assignment updated: id={assignment_id}")
 
     return AssignmentResponse(
@@ -1364,6 +1277,230 @@ def delete_application_assignment(
     logger.info(f"Assignment deleted: id={assignment_id}, partner={partner_name}")
 
     return {"success": True, "message": "배정이 삭제되었습니다"}
+
+
+@router.patch("/{application_id}/assignments/batch-status")
+def batch_update_assignment_status(
+    application_id: int,
+    data: BatchAssignmentStatusUpdate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정 일괄 상태 변경
+
+    - 여러 배정의 상태를 한 번에 변경
+    - 각 배정의 협력사에게 개별 SMS 발송
+    """
+    from app.services.sms import (
+        send_schedule_confirmation,
+        send_partner_schedule_notification,
+    )
+
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    decrypted = decrypt_application(application, db)
+    results = []
+    updated_count = 0
+    failed_count = 0
+
+    for assignment_id in data.assignment_ids:
+        try:
+            assignment = db.query(ApplicationPartnerAssignment).filter(
+                ApplicationPartnerAssignment.id == assignment_id,
+                ApplicationPartnerAssignment.application_id == application_id
+            ).first()
+
+            if not assignment:
+                results.append({
+                    "assignment_id": assignment_id,
+                    "success": False,
+                    "error": "배정을 찾을 수 없습니다"
+                })
+                failed_count += 1
+                continue
+
+            partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+            prev_status = assignment.status
+
+            # 상태 변경
+            if data.status == "completed" and assignment.status != "completed":
+                assignment.completed_at = datetime.now(timezone.utc)
+            assignment.status = data.status
+
+            # Audit Log
+            if data.status != prev_status:
+                log_status_change(
+                    db=db,
+                    entity_type="assignment",
+                    entity_id=assignment.id,
+                    old_status=prev_status,
+                    new_status=data.status,
+                    admin=current_admin,
+                )
+
+            # SMS 발송 (scheduled 상태로 변경 시)
+            if data.send_sms and partner and data.status == "scheduled" and prev_status != "scheduled":
+                partner_phone = decrypt_value(partner.contact_phone)
+                scheduled_date_str = str(assignment.scheduled_date) if assignment.scheduled_date else "미정"
+                scheduled_time_str = assignment.scheduled_time if assignment.scheduled_time else "미정"
+
+                # 고객에게 일정 확정 알림
+                background_tasks.add_task(
+                    send_schedule_confirmation,
+                    decrypted["customer_phone"],
+                    application.application_number,
+                    scheduled_date_str,
+                    scheduled_time_str,
+                    partner.company_name,
+                    decrypted["customer_name"],
+                )
+
+                # 협력사에게 일정 확정 알림
+                background_tasks.add_task(
+                    send_partner_schedule_notification,
+                    partner_phone,
+                    application.application_number,
+                    decrypted["customer_name"],
+                    decrypted["customer_phone"],
+                    decrypted["address"],
+                    scheduled_date_str,
+                    scheduled_time_str,
+                    assignment.assigned_services or [],
+                )
+
+                logger.info(f"SMS scheduled for assignment {assignment_id}: {partner.company_name}")
+
+            results.append({
+                "assignment_id": assignment_id,
+                "success": True,
+                "partner_name": partner.company_name if partner else None,
+                "prev_status": prev_status,
+                "new_status": data.status,
+                "sms_sent": data.send_sms and data.status == "scheduled" and prev_status != "scheduled"
+            })
+            updated_count += 1
+
+        except Exception as e:
+            logger.error(f"Failed to update assignment {assignment_id}: {str(e)}")
+            results.append({
+                "assignment_id": assignment_id,
+                "success": False,
+                "error": str(e)
+            })
+            failed_count += 1
+
+    db.commit()
+
+    # 배정 상태 변경 후 신청 상태 자동 동기화
+    old_app_status, new_app_status = sync_application_from_assignments(
+        db, application_id, trigger_source="batch_assignment_update"
+    )
+    if old_app_status != new_app_status:
+        db.commit()
+        logger.info(
+            f"Application status synced: {application_id} "
+            f"({old_app_status} → {new_app_status}) due to batch assignment update"
+        )
+
+    status_labels = {"pending": "대기", "scheduled": "일정확정", "completed": "완료"}
+    message = f"{updated_count}개 배정이 '{status_labels.get(data.status, data.status)}'(으)로 변경되었습니다"
+    if failed_count > 0:
+        message += f" ({failed_count}개 실패)"
+
+    return BatchAssignmentStatusResponse(
+        success=failed_count == 0,
+        updated_count=updated_count,
+        failed_count=failed_count,
+        message=message,
+        results=results
+    )
+
+
+# =============================================================================
+# 배정별 SMS 발송 API
+# =============================================================================
+
+
+@router.post("/{application_id}/assignments/{assignment_id}/send-sms")
+def send_assignment_sms(
+    application_id: int,
+    assignment_id: int,
+    target: str = Query(..., regex="^(customer|partner)$", description="발송 대상 (customer 또는 partner)"),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    """
+    배정에 대한 SMS 수동 발송
+
+    - target=customer: 고객에게 배정 정보 알림
+    - target=partner: 협력사에게 배정 알림
+    """
+    # 배정 조회
+    assignment = db.query(ApplicationPartnerAssignment).filter(
+        ApplicationPartnerAssignment.id == assignment_id,
+        ApplicationPartnerAssignment.application_id == application_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
+
+    # 신청 정보 조회
+    application = db.query(Application).filter(Application.id == application_id).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    # 협력사 정보 조회
+    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+    if not partner:
+        raise HTTPException(status_code=404, detail="협력사 정보를 찾을 수 없습니다")
+
+    # 고객 정보 복호화
+    decrypted = decrypt_application(application, db)
+    partner_phone = decrypt_value(partner.contact_phone)
+
+    # 배정 정보 포맷팅
+    scheduled_date_str = str(assignment.scheduled_date) if assignment.scheduled_date else ""
+    scheduled_time_str = assignment.scheduled_time or ""
+    estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment.estimated_cost else ""
+
+    if target == "customer":
+        # 고객에게 배정 정보 발송
+        background_tasks.add_task(
+            send_partner_assignment_notification,
+            decrypted["customer_phone"],
+            application.application_number,
+            partner.company_name,
+            partner_phone,
+            decrypted["customer_name"],
+            scheduled_date_str,
+            scheduled_time_str,
+            estimated_cost_str,
+        )
+        logger.info(f"SMS to customer scheduled: {application.application_number}")
+        return {"success": True, "message": "고객에게 SMS가 발송되었습니다"}
+
+    else:  # target == "partner"
+        # 협력사에게 배정 알림 발송
+        view_url = get_partner_view_url(db, assignment.id)
+
+        background_tasks.add_task(
+            send_partner_notify_assignment,
+            partner_phone,
+            application.application_number,
+            decrypted["customer_name"],
+            decrypted["customer_phone"],
+            decrypted["address"],
+            assignment.assigned_services or [],
+            scheduled_date_str,
+            view_url,
+        )
+        logger.info(f"SMS to partner scheduled: {application.application_number}")
+        return {"success": True, "message": "협력사에게 SMS가 발송되었습니다"}
 
 
 # =============================================================================

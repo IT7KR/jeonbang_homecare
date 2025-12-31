@@ -639,15 +639,15 @@ async def send_partner_assignment_notification(
         close_db = True
 
     try:
-        # 템플릿 변수 준비
+        # 템플릿 변수 준비 (빈 값은 템플릿에서 자동 제거됨)
         variables = {
             "customer_name": customer_name,
             "application_number": application_number,
             "partner_name": partner_name,
             "partner_phone": partner_phone,
-            "scheduled_date": scheduled_date or "미정",
-            "scheduled_time": scheduled_time or "미정",
-            "estimated_cost": estimated_cost or "협의",
+            "scheduled_date": scheduled_date,
+            "scheduled_time": scheduled_time,
+            "estimated_cost": estimated_cost,
         }
 
         # 템플릿 기반 메시지 생성
@@ -699,14 +699,14 @@ async def send_partner_notify_assignment(
         close_db = True
 
     try:
-        # 템플릿 변수 준비
+        # 템플릿 변수 준비 (빈 값은 템플릿에서 자동 제거됨)
         variables = {
             "application_number": application_number,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "address": address[:30] if address else "",
             "services": format_services_list(services),
-            "scheduled_date": scheduled_date or "미정",
+            "scheduled_date": scheduled_date,
             "view_url": view_url,
         }
 
@@ -755,12 +755,12 @@ async def send_schedule_confirmation(
         close_db = True
 
     try:
-        # 템플릿 변수 준비
+        # 템플릿 변수 준비 (빈 값은 템플릿에서 자동 제거됨)
         variables = {
             "customer_name": customer_name,
             "application_number": application_number,
             "scheduled_date": scheduled_date,
-            "scheduled_time": scheduled_time or "시간 미정",
+            "scheduled_time": scheduled_time,
             "partner_name": partner_name or "",
         }
 
@@ -813,14 +813,14 @@ async def send_partner_schedule_notification(
         close_db = True
 
     try:
-        # 템플릿 변수 준비
+        # 템플릿 변수 준비 (빈 값은 템플릿에서 자동 제거됨)
         variables = {
             "application_number": application_number,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
             "address": address[:30] if address else "",
             "scheduled_date": scheduled_date,
-            "scheduled_time": scheduled_time or "시간 미정",
+            "scheduled_time": scheduled_time,
             "services": format_services_list(services),
         }
 
@@ -967,13 +967,13 @@ async def send_assignment_changed_notification(
         close_db = True
 
     try:
-        # 템플릿 변수 준비
+        # 템플릿 변수 준비 (빈 값은 템플릿에서 자동 제거됨)
         variables = {
             "customer_name": customer_name,
             "application_number": application_number,
-            "scheduled_date": scheduled_date or "미정",
-            "scheduled_time": scheduled_time or "미정",
-            "estimated_cost": estimated_cost or "협의",
+            "scheduled_date": scheduled_date,
+            "scheduled_time": scheduled_time,
+            "estimated_cost": estimated_cost,
         }
 
         # 템플릿 기반 메시지 생성

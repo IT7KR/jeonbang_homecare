@@ -35,6 +35,8 @@ export function DatePicker({
   fromDate,
   toDate,
 }: DatePickerProps) {
+  const [open, setOpen] = React.useState(false);
+
   // 날짜 범위 제한을 위한 disabled 설정
   const disabledDates = React.useMemo(() => {
     const matchers: Array<{ before: Date } | { after: Date }> = [];
@@ -47,8 +49,16 @@ export function DatePicker({
     return matchers.length > 0 ? matchers : undefined;
   }, [fromDate, toDate]);
 
+  const handleDateSelect = (selectedDate: Date | undefined) => {
+    onDateChange(selectedDate);
+    // 날짜 선택 시 팝오버 닫기
+    if (selectedDate) {
+      setOpen(false);
+    }
+  };
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -67,7 +77,7 @@ export function DatePicker({
         <Calendar
           mode="single"
           selected={date}
-          onSelect={onDateChange}
+          onSelect={handleDateSelect}
           initialFocus
           disabled={disabledDates}
         />

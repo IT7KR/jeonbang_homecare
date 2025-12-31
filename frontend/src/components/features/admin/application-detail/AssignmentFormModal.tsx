@@ -11,7 +11,6 @@ import {
   Phone,
   AlertTriangle,
   Check,
-  MessageSquare,
   Loader2,
 } from "lucide-react";
 import { ApplicationDetail, AssignmentSummary } from "@/lib/api/admin";
@@ -536,32 +535,6 @@ export function AssignmentFormModal({
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
             />
           </div>
-
-          {/* SMS 알림 */}
-          <label className="flex items-center gap-2.5 p-3 bg-secondary-50 rounded-lg cursor-pointer hover:bg-secondary-100 transition-colors">
-            <input
-              type="checkbox"
-              checked={assignmentForm.send_sms}
-              onChange={(e) =>
-                setAssignmentForm((prev) => ({
-                  ...prev,
-                  send_sms: e.target.checked,
-                }))
-              }
-              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
-            />
-            <div className="flex-1">
-              <div className="flex items-center gap-1.5">
-                <MessageSquare size={14} className="text-secondary" />
-                <span className="font-medium text-secondary-800 text-sm">
-                  SMS 알림 발송
-                </span>
-              </div>
-              <p className="text-xs text-secondary-600 mt-0.5">
-                협력사에게 배정 알림 SMS를 발송합니다
-              </p>
-            </div>
-          </label>
         </div>
 
         {/* 푸터 */}
