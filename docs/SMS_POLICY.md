@@ -415,7 +415,7 @@ WHERE is_active = true
 | `backend/app/api/v1/endpoints/applications.py`       | 신청 시 자동 발송        |
 | `backend/app/api/v1/endpoints/partners.py`           | 협력사 등록 시 자동 발송 |
 | `backend/app/api/v1/endpoints/admin/applications.py` | 상태 변경 시 조건부 발송 |
-| `backend/app/api/v1/endpoints/admin/sms.py`          | SMS 관리 API             |
+| `backend/app/api/v1/endpoints/admin/sms.py`          | 문자 관리 API            |
 
 ---
 

@@ -17,13 +17,13 @@
 
 ### 1.2 요구사항
 
-| 구분 | 요구사항 |
-|------|----------|
+| 구분          | 요구사항                                    |
+| ------------- | ------------------------------------------- |
 | 발송 시나리오 | 공지/안내 발송, 상태별 일괄 발송, 선택 발송 |
-| 발송 대상 | 고객(신청자) + 협력사 모두 |
-| 발송 규모 | 50명 이상 대규모 발송 |
-| 구현 방식 | 비동기 Job 기반 (안정성 우선) |
-| UI 접근점 | SMS 페이지 + 신청/협력사 목록 페이지 통합 |
+| 발송 대상     | 고객(신청자) + 협력사 모두                  |
+| 발송 규모     | 50명 이상 대규모 발송                       |
+| 구현 방식     | 비동기 Job 기반 (안정성 우선)               |
+| UI 접근점     | SMS 페이지 + 신청/협력사 목록 페이지 통합   |
 
 ### 1.3 결정된 구현 방향
 
@@ -45,7 +45,7 @@
 │     │                                                           │
 │     ▼                                                           │
 │  ┌─────────────────────┐                                        │
-│  │ SMS 관리 페이지     │                                        │
+│  │ 문자 관리 페이지     │                                        │
 │  │ (admin/sms/page.tsx)│                                        │
 │  └─────────────────────┘                                        │
 │     │                                                           │
@@ -75,20 +75,20 @@
 
 #### Backend 파일
 
-| 파일 경로 | 역할 | 현재 상태 |
-|-----------|------|-----------|
-| `backend/app/models/sms_log.py` | SMS 발송 로그 모델 | 단일 발송 로그만 기록 |
-| `backend/app/services/sms.py` | SMS 발송 서비스 | `send_sms_direct()` 단일 발송만 |
-| `backend/app/api/v1/endpoints/admin/sms.py` | SMS API 엔드포인트 | `/send` 단일 발송만 |
-| `backend/app/schemas/sms_log.py` | SMS 스키마 | 단일 수신자 요청만 |
+| 파일 경로                                   | 역할               | 현재 상태                       |
+| ------------------------------------------- | ------------------ | ------------------------------- |
+| `backend/app/models/sms_log.py`             | SMS 발송 로그 모델 | 단일 발송 로그만 기록           |
+| `backend/app/services/sms.py`               | SMS 발송 서비스    | `send_sms_direct()` 단일 발송만 |
+| `backend/app/api/v1/endpoints/admin/sms.py` | SMS API 엔드포인트 | `/send` 단일 발송만             |
+| `backend/app/schemas/sms_log.py`            | SMS 스키마         | 단일 수신자 요청만              |
 
 #### Frontend 파일
 
-| 파일 경로 | 역할 | 현재 상태 |
-|-----------|------|-----------|
-| `frontend/src/app/(admin)/admin/sms/page.tsx` | SMS 관리 페이지 | 단일 발송 모달만 |
-| `frontend/src/lib/api/admin/sms.ts` | SMS API 함수 | `sendSMS()` 단일 발송만 |
-| `frontend/src/lib/api/admin/types.ts` | API 타입 정의 | 단일 발송 타입만 |
+| 파일 경로                                     | 역할             | 현재 상태               |
+| --------------------------------------------- | ---------------- | ----------------------- |
+| `frontend/src/app/(admin)/admin/sms/page.tsx` | 문자 관리 페이지 | 단일 발송 모달만        |
+| `frontend/src/lib/api/admin/sms.ts`           | SMS API 함수     | `sendSMS()` 단일 발송만 |
+| `frontend/src/lib/api/admin/types.ts`         | API 타입 정의    | 단일 발송 타입만        |
 
 ### 2.3 현재 코드 상세 분석
 
@@ -125,6 +125,7 @@ class SMSLog(Base):
 ```
 
 **분석**:
+
 - 개별 SMS 발송 로그 기록용
 - 복수 발송 시 Job 참조 필드 없음
 - 배치 정보 없음
@@ -147,6 +148,7 @@ async def send_sms_direct(
 ```
 
 **분석**:
+
 - `receiver: str` - 단일 수신자만 처리
 - 루프 처리 로직 없음
 - 배치 처리 미지원
@@ -169,6 +171,7 @@ async def send_manual_sms(
 ```
 
 **분석**:
+
 - 단일 발송 엔드포인트만 존재
 - 복수 발송 엔드포인트 없음
 - 수신자 목록 조회 API 없음
@@ -179,14 +182,14 @@ async def send_manual_sms(
 // 발송 모달 - 단일 번호 입력만
 <input
   type="tel"
-  value={sendPhone}  // 단일 번호
+  value={sendPhone} // 단일 번호
   placeholder="010-1234-5678"
-/>
+/>;
 
 // 발송 함수
 const handleSendSMS = async (e: React.FormEvent) => {
   const result = await sendSMS(token, {
-    receiver_phone: sendPhone,  // 단일
+    receiver_phone: sendPhone, // 단일
     message: sendMessage,
     sms_type: "manual",
   });
@@ -194,21 +197,22 @@ const handleSendSMS = async (e: React.FormEvent) => {
 ```
 
 **분석**:
+
 - 단일 번호 입력 필드만 존재
 - 수신자 선택 UI 없음
 - 복수 발송 버튼 없음
 
 ### 2.4 현재 기능 요약 테이블
 
-| 기능 | 현재 상태 | 비고 |
-|------|-----------|------|
-| 단일 수동 발송 | ✅ 지원 | 관리자가 번호 직접 입력 |
-| 자동 알림 발송 | ✅ 지원 | 신청/협력사 등록 시 자동 발송 |
-| 발송 내역 조회 | ✅ 지원 | 페이지네이션, 필터링 |
-| 실패 건 재발송 | ✅ 지원 | 개별 재발송 |
-| **복수 수동 발송** | ❌ 미지원 | 구현 필요 |
-| **수신자 목록 선택** | ❌ 미지원 | 구현 필요 |
-| **발송 진행 상황 표시** | ❌ 미지원 | 구현 필요 |
+| 기능                    | 현재 상태 | 비고                          |
+| ----------------------- | --------- | ----------------------------- |
+| 단일 수동 발송          | ✅ 지원   | 관리자가 번호 직접 입력       |
+| 자동 알림 발송          | ✅ 지원   | 신청/협력사 등록 시 자동 발송 |
+| 발송 내역 조회          | ✅ 지원   | 페이지네이션, 필터링          |
+| 실패 건 재발송          | ✅ 지원   | 개별 재발송                   |
+| **복수 수동 발송**      | ❌ 미지원 | 구현 필요                     |
+| **수신자 목록 선택**    | ❌ 미지원 | 구현 필요                     |
+| **발송 진행 상황 표시** | ❌ 미지원 | 구현 필요                     |
 
 ---
 
@@ -222,7 +226,7 @@ const handleSendSMS = async (e: React.FormEvent) => {
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
-│  │ SMS 관리 페이지 │  │ 신청 관리 페이지│  │ 협력사 관리    │              │
+│  │ 문자 관리 페이지 │  │ 신청 관리 페이지│  │ 협력사 관리    │              │
 │  │ [복수 발송]     │  │ [체크박스 선택] │  │ [체크박스 선택]│              │
 │  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘              │
 │           │                    │                    │                       │
@@ -1014,7 +1018,7 @@ def mask_phone(phone: str) -> str:
 export interface SMSRecipient {
   id: number;
   name: string;
-  phone: string;  // 마스킹된 번호
+  phone: string; // 마스킹된 번호
   label: string;
   type: "customer" | "partner";
 }
@@ -1050,11 +1054,17 @@ export interface BulkSMSJobDetail {
   job_type: string;
   title?: string;
   target_type: string;
-  status: "pending" | "processing" | "completed" | "partial_failed" | "failed" | "cancelled";
+  status:
+    | "pending"
+    | "processing"
+    | "completed"
+    | "partial_failed"
+    | "failed"
+    | "cancelled";
   total_count: number;
   sent_count: number;
   failed_count: number;
-  progress: number;  // 0-100
+  progress: number; // 0-100
   current_batch: number;
   total_batches: number;
   failed_recipients?: Array<{
@@ -1107,7 +1117,8 @@ export async function getSMSRecipients(
   if (params.status) searchParams.set("status", params.status);
   if (params.search) searchParams.set("search", params.search);
   if (params.page) searchParams.set("page", params.page.toString());
-  if (params.page_size) searchParams.set("page_size", params.page_size.toString());
+  if (params.page_size)
+    searchParams.set("page_size", params.page_size.toString());
 
   return fetchWithAuth<SMSRecipientsResponse>(
     `/admin/sms/recipients?${searchParams.toString()}`,
@@ -1147,7 +1158,8 @@ export async function getBulkSMSJobs(
 ): Promise<BulkSMSJobListResponse> {
   const searchParams = new URLSearchParams();
   if (params?.page) searchParams.set("page", params.page.toString());
-  if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
+  if (params?.page_size)
+    searchParams.set("page_size", params.page_size.toString());
 
   const query = searchParams.toString();
   return fetchWithAuth<BulkSMSJobListResponse>(
@@ -1370,44 +1382,44 @@ const [isQuickSMSOpen, setIsQuickSMSOpen] = useState(false);
 
 ### 6.1 Phase별 작업
 
-| Phase | 작업 | 예상 기간 | 선행 조건 |
-|-------|------|-----------|-----------|
-| **Phase 1** | Backend 모델 및 서비스 | 1-2일 | - |
-| 1-1 | BulkSMSJob 모델 생성 | 2시간 | - |
-| 1-2 | SMSLog 모델 수정 | 30분 | 1-1 |
-| 1-3 | DB 마이그레이션 생성 및 적용 | 30분 | 1-2 |
-| 1-4 | bulk_sms 스키마 정의 | 1시간 | - |
-| 1-5 | BulkSMSService 구현 | 4시간 | 1-3 |
-| 1-6 | sms.py 수정 (bulk 파라미터 추가) | 30분 | 1-5 |
-| **Phase 2** | Backend API | 1일 | Phase 1 |
-| 2-1 | /recipients 엔드포인트 추가 | 2시간 | - |
-| 2-2 | /bulk 엔드포인트 추가 | 2시간 | 1-5 |
-| 2-3 | /bulk/{job_id} 엔드포인트 추가 | 1시간 | 2-2 |
-| 2-4 | /bulk 목록 엔드포인트 추가 | 1시간 | 2-2 |
-| **Phase 3** | Frontend SMS 복수 발송 UI | 1-2일 | Phase 2 |
-| 3-1 | API 타입 및 함수 추가 | 1시간 | - |
-| 3-2 | RecipientTable 컴포넌트 | 2시간 | 3-1 |
-| 3-3 | RecipientSelector 컴포넌트 | 2시간 | 3-2 |
-| 3-4 | MessageComposer 컴포넌트 | 1시간 | - |
-| 3-5 | BulkSMSSheet 컴포넌트 | 3시간 | 3-2, 3-3, 3-4 |
-| 3-6 | SMSPreviewDialog 컴포넌트 | 1시간 | 3-5 |
-| 3-7 | SendProgressDialog 컴포넌트 | 2시간 | 3-1 |
-| 3-8 | SMS 페이지 수정 | 1시간 | 3-5, 3-7 |
-| **Phase 4** | Frontend 기존 페이지 통합 | 1일 | Phase 3 |
-| 4-1 | FloatingActionBar 컴포넌트 | 1시간 | - |
-| 4-2 | QuickSMSDialog 컴포넌트 | 2시간 | 3-5 |
-| 4-3 | 신청 관리 페이지 수정 | 2시간 | 4-1, 4-2 |
-| 4-4 | 협력사 관리 페이지 수정 | 1시간 | 4-3 |
-| **Phase 5** | 테스트 및 마무리 | 0.5일 | Phase 4 |
-| 5-1 | 통합 테스트 | 2시간 | - |
-| 5-2 | 버그 수정 | 2시간 | 5-1 |
+| Phase       | 작업                             | 예상 기간 | 선행 조건     |
+| ----------- | -------------------------------- | --------- | ------------- |
+| **Phase 1** | Backend 모델 및 서비스           | 1-2일     | -             |
+| 1-1         | BulkSMSJob 모델 생성             | 2시간     | -             |
+| 1-2         | SMSLog 모델 수정                 | 30분      | 1-1           |
+| 1-3         | DB 마이그레이션 생성 및 적용     | 30분      | 1-2           |
+| 1-4         | bulk_sms 스키마 정의             | 1시간     | -             |
+| 1-5         | BulkSMSService 구현              | 4시간     | 1-3           |
+| 1-6         | sms.py 수정 (bulk 파라미터 추가) | 30분      | 1-5           |
+| **Phase 2** | Backend API                      | 1일       | Phase 1       |
+| 2-1         | /recipients 엔드포인트 추가      | 2시간     | -             |
+| 2-2         | /bulk 엔드포인트 추가            | 2시간     | 1-5           |
+| 2-3         | /bulk/{job_id} 엔드포인트 추가   | 1시간     | 2-2           |
+| 2-4         | /bulk 목록 엔드포인트 추가       | 1시간     | 2-2           |
+| **Phase 3** | Frontend SMS 복수 발송 UI        | 1-2일     | Phase 2       |
+| 3-1         | API 타입 및 함수 추가            | 1시간     | -             |
+| 3-2         | RecipientTable 컴포넌트          | 2시간     | 3-1           |
+| 3-3         | RecipientSelector 컴포넌트       | 2시간     | 3-2           |
+| 3-4         | MessageComposer 컴포넌트         | 1시간     | -             |
+| 3-5         | BulkSMSSheet 컴포넌트            | 3시간     | 3-2, 3-3, 3-4 |
+| 3-6         | SMSPreviewDialog 컴포넌트        | 1시간     | 3-5           |
+| 3-7         | SendProgressDialog 컴포넌트      | 2시간     | 3-1           |
+| 3-8         | SMS 페이지 수정                  | 1시간     | 3-5, 3-7      |
+| **Phase 4** | Frontend 기존 페이지 통합        | 1일       | Phase 3       |
+| 4-1         | FloatingActionBar 컴포넌트       | 1시간     | -             |
+| 4-2         | QuickSMSDialog 컴포넌트          | 2시간     | 3-5           |
+| 4-3         | 신청 관리 페이지 수정            | 2시간     | 4-1, 4-2      |
+| 4-4         | 협력사 관리 페이지 수정          | 1시간     | 4-3           |
+| **Phase 5** | 테스트 및 마무리                 | 0.5일     | Phase 4       |
+| 5-1         | 통합 테스트                      | 2시간     | -             |
+| 5-2         | 버그 수정                        | 2시간     | 5-1           |
 
 ### 6.2 전체 예상 기간
 
-| 구분 | 기간 |
-|------|------|
-| 최소 | 4.5일 |
-| 최대 | 6.5일 |
+| 구분     | 기간    |
+| -------- | ------- |
+| 최소     | 4.5일   |
+| 최대     | 6.5일   |
 | **권장** | **5일** |
 
 ---
@@ -1416,39 +1428,39 @@ const [isQuickSMSOpen, setIsQuickSMSOpen] = useState(false);
 
 ### 7.1 기술적 제약
 
-| 제약사항 | 영향 | 대응 방안 |
-|----------|------|-----------|
-| Aligo API Rate Limit | 과도한 요청 시 차단 가능 | 배치 간 0.5초 딜레이 |
-| HTTP 타임아웃 | 대규모 동기 발송 불가 | 비동기 Job 처리 |
-| 서버 재시작 | 처리 중 Job 중단 | status 기반 복구 (향후) |
-| DB 세션 관리 | 백그라운드 태스크 세션 | 별도 세션 생성 |
+| 제약사항             | 영향                     | 대응 방안               |
+| -------------------- | ------------------------ | ----------------------- |
+| Aligo API Rate Limit | 과도한 요청 시 차단 가능 | 배치 간 0.5초 딜레이    |
+| HTTP 타임아웃        | 대규모 동기 발송 불가    | 비동기 Job 처리         |
+| 서버 재시작          | 처리 중 Job 중단         | status 기반 복구 (향후) |
+| DB 세션 관리         | 백그라운드 태스크 세션   | 별도 세션 생성          |
 
 ### 7.2 보안 고려사항
 
-| 항목 | 대응 |
-|------|------|
-| 전화번호 노출 | 목록에서 마스킹 (010-****-5678) |
-| 권한 검증 | 모든 API에 관리자 인증 필수 |
-| 발송 기록 | SMSLog에 모든 발송 기록 |
+| 항목          | 대응                                |
+| ------------- | ----------------------------------- |
+| 전화번호 노출 | 목록에서 마스킹 (010-\*\*\*\*-5678) |
+| 권한 검증     | 모든 API에 관리자 인증 필수         |
+| 발송 기록     | SMSLog에 모든 발송 기록             |
 
 ### 7.3 성능 고려사항
 
-| 항목 | 수치 | 비고 |
-|------|------|------|
-| 배치 크기 | 50명 | API 안정성 고려 |
-| 배치 내 병렬 처리 | O | asyncio.gather 사용 |
-| 배치 간 딜레이 | 0.5초 | Rate Limit 방지 |
-| 재시도 횟수 | 3회 | 지수 백오프 |
-| 폴링 간격 | 3초 | 진행 상황 조회 |
+| 항목              | 수치  | 비고                |
+| ----------------- | ----- | ------------------- |
+| 배치 크기         | 50명  | API 안정성 고려     |
+| 배치 내 병렬 처리 | O     | asyncio.gather 사용 |
+| 배치 간 딜레이    | 0.5초 | Rate Limit 방지     |
+| 재시도 횟수       | 3회   | 지수 백오프         |
+| 폴링 간격         | 3초   | 진행 상황 조회      |
 
 ### 7.4 향후 확장 고려
 
-| 기능 | 우선순위 | 비고 |
-|------|----------|------|
-| SMS 템플릿 관리 | 중 | 자주 사용하는 메시지 저장 |
-| 예약 발송 | 중 | 특정 시간에 발송 |
-| 변수 치환 | 하 | {고객명}, {서비스명} 등 |
-| 발송 통계 대시보드 | 하 | 일별/월별 통계 |
+| 기능               | 우선순위 | 비고                      |
+| ------------------ | -------- | ------------------------- |
+| SMS 템플릿 관리    | 중       | 자주 사용하는 메시지 저장 |
+| 예약 발송          | 중       | 특정 시간에 발송          |
+| 변수 치환          | 하       | {고객명}, {서비스명} 등   |
+| 발송 통계 대시보드 | 하       | 일별/월별 통계            |
 
 ---
 
@@ -1456,12 +1468,12 @@ const [isQuickSMSOpen, setIsQuickSMSOpen] = useState(false);
 
 ### 8.1 API 명세 요약
 
-| Method | Endpoint | 설명 |
-|--------|----------|------|
-| GET | `/admin/sms/recipients` | 수신자 목록 조회 |
-| POST | `/admin/sms/bulk` | 복수 발송 Job 생성 |
-| GET | `/admin/sms/bulk/{job_id}` | Job 상태 조회 |
-| GET | `/admin/sms/bulk` | Job 목록 조회 |
+| Method | Endpoint                   | 설명               |
+| ------ | -------------------------- | ------------------ |
+| GET    | `/admin/sms/recipients`    | 수신자 목록 조회   |
+| POST   | `/admin/sms/bulk`          | 복수 발송 Job 생성 |
+| GET    | `/admin/sms/bulk/{job_id}` | Job 상태 조회      |
+| GET    | `/admin/sms/bulk`          | Job 목록 조회      |
 
 ### 8.2 상태 흐름도
 
