@@ -5,7 +5,6 @@ import { type ColumnDef } from "@/components/admin";
 import type { SMSLogItem } from "@/lib/api/admin";
 import { getSMSStatusLabel, getSMSStatusColor } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
-import { TYPE_LABELS, TRIGGER_SOURCE_LABELS } from "@/hooks/useSMS";
 
 interface ColumnsConfig {
   onMessageClick: (log: SMSLogItem) => void;
@@ -48,27 +47,24 @@ export function getSMSColumns({
     },
     {
       key: "sms_type",
-      header: "유형/출처",
+      header: "출처",
       headerClassName: "hidden sm:table-cell",
       render: (log) => {
-        const sourceInfo = TRIGGER_SOURCE_LABELS[log.trigger_source] || {
-          label: log.trigger_source,
-          className: "bg-gray-100 text-gray-700",
-        };
+        // system은 "시스템", 그 외(manual, bulk)는 "직접"으로 표시
+        const isSystem = log.trigger_source === "system";
         return (
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              {log.mms_images && log.mms_images.length > 0 && (
-                <ImageIcon size={14} className="text-purple-500" />
-              )}
-              <span className="text-sm text-gray-600">
-                {TYPE_LABELS[log.sms_type] || log.sms_type}
-              </span>
-            </div>
+          <div className="flex items-center gap-1.5">
+            {log.mms_images && log.mms_images.length > 0 && (
+              <ImageIcon size={14} className="text-purple-500" />
+            )}
             <span
-              className={`inline-flex px-1.5 py-0.5 text-xs font-medium rounded w-fit ${sourceInfo.className}`}
+              className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
+                isSystem
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-green-100 text-green-700"
+              }`}
             >
-              {sourceInfo.label}
+              {isSystem ? "시스템" : "직접"}
             </span>
           </div>
         );

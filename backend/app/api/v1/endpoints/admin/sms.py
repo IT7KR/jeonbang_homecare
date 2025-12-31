@@ -1,6 +1,6 @@
 """
 Admin SMS API endpoints
-관리자용 SMS 관리 API
+관리자용 문자 관리 API
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
@@ -691,17 +691,23 @@ def get_sms_recipients(
         for partner in partners:
             try:
                 phone = decrypt_value(partner.contact_phone)
+                representative_name = decrypt_value(partner.representative_name)
 
-                # 검색 필터
-                if search and search.lower() not in partner.company_name.lower():
-                    continue
+                # 검색 필터 (회사명 또는 대표자명)
+                if search:
+                    search_lower = search.lower()
+                    if (
+                        search_lower not in partner.company_name.lower()
+                        and search_lower not in representative_name.lower()
+                    ):
+                        continue
 
                 recipients.append(SMSRecipient(
                     id=partner.id,
                     name=partner.company_name,
                     phone=mask_phone(phone),
                     phone_raw=phone,
-                    label=partner.company_name,
+                    label=f"{partner.company_name} ({representative_name})",
                     type="partner",
                     status=partner.status,
                 ))

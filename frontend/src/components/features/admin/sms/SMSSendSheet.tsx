@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -47,6 +47,7 @@ interface SelectedRecipient {
   id: number;
   name: string;
   phone: string;
+  phone_raw: string;
   type: "customer" | "partner";
 }
 
@@ -72,9 +73,13 @@ export function SMSSendSheet({
   >([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Search
+  // Search (입력값과 debounced 값 분리)
   const [customerSearch, setCustomerSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
+  const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState("");
+  const [debouncedPartnerSearch, setDebouncedPartnerSearch] = useState("");
+  const customerSearchTimer = useRef<NodeJS.Timeout | null>(null);
+  const partnerSearchTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Pagination
   const [customerPage, setCustomerPage] = useState(1);
@@ -96,8 +101,39 @@ export function SMSSendSheet({
     failed_count: number;
   } | null>(null);
 
+  // Debounce 검색어 (300ms)
+  useEffect(() => {
+    if (customerSearchTimer.current) {
+      clearTimeout(customerSearchTimer.current);
+    }
+    customerSearchTimer.current = setTimeout(() => {
+      setDebouncedCustomerSearch(customerSearch);
+      setCustomerPage(1); // 검색 시 첫 페이지로
+    }, 300);
+    return () => {
+      if (customerSearchTimer.current) {
+        clearTimeout(customerSearchTimer.current);
+      }
+    };
+  }, [customerSearch]);
+
+  useEffect(() => {
+    if (partnerSearchTimer.current) {
+      clearTimeout(partnerSearchTimer.current);
+    }
+    partnerSearchTimer.current = setTimeout(() => {
+      setDebouncedPartnerSearch(partnerSearch);
+      setPartnerPage(1); // 검색 시 첫 페이지로
+    }, 300);
+    return () => {
+      if (partnerSearchTimer.current) {
+        clearTimeout(partnerSearchTimer.current);
+      }
+    };
+  }, [partnerSearch]);
+
   // Load recipients
-  const loadCustomers = async () => {
+  const loadCustomers = async (search: string) => {
     try {
       setIsLoading(true);
       const token = await getValidToken();
@@ -105,7 +141,7 @@ export function SMSSendSheet({
 
       const data = await getSMSRecipients(token, {
         target_type: "customer",
-        search: customerSearch || undefined,
+        search: search || undefined,
         page: customerPage,
         page_size: pageSize,
       });
@@ -118,7 +154,7 @@ export function SMSSendSheet({
     }
   };
 
-  const loadPartners = async () => {
+  const loadPartners = async (search: string) => {
     try {
       setIsLoading(true);
       const token = await getValidToken();
@@ -126,7 +162,7 @@ export function SMSSendSheet({
 
       const data = await getSMSRecipients(token, {
         target_type: "partner",
-        search: partnerSearch || undefined,
+        search: search || undefined,
         page: partnerPage,
         page_size: pageSize,
       });
@@ -141,15 +177,15 @@ export function SMSSendSheet({
 
   useEffect(() => {
     if (open && activeTab === "customer") {
-      loadCustomers();
+      loadCustomers(debouncedCustomerSearch);
     }
-  }, [open, activeTab, customerPage, customerSearch]);
+  }, [open, activeTab, customerPage, debouncedCustomerSearch]);
 
   useEffect(() => {
     if (open && activeTab === "partner") {
-      loadPartners();
+      loadPartners(debouncedPartnerSearch);
     }
-  }, [open, activeTab, partnerPage, partnerSearch]);
+  }, [open, activeTab, partnerPage, debouncedPartnerSearch]);
 
   // Cleanup image previews on unmount
   useEffect(() => {
@@ -175,6 +211,7 @@ export function SMSSendSheet({
         id: recipient.id,
         name: recipient.name,
         phone: recipient.phone,
+        phone_raw: recipient.phone_raw,
         type: recipient.type,
       };
       setSelectedRecipients(
@@ -239,7 +276,7 @@ export function SMSSendSheet({
         for (const recipient of selectedRecipients) {
           try {
             const response = await sendMMS(token, {
-              receiver_phone: recipient.phone,
+              receiver_phone: recipient.phone_raw,
               message: formattedMessage,
               sms_type: "manual",
               image1: base64Images[0],
@@ -410,7 +447,7 @@ export function SMSSendSheet({
                   placeholder={
                     activeTab === "customer"
                       ? "이름, 신청번호 검색..."
-                      : "회사명 검색..."
+                      : "회사명, 대표자명 검색..."
                   }
                   value={
                     activeTab === "customer" ? customerSearch : partnerSearch
@@ -418,10 +455,8 @@ export function SMSSendSheet({
                   onChange={(e) => {
                     if (activeTab === "customer") {
                       setCustomerSearch(e.target.value);
-                      setCustomerPage(1);
                     } else {
                       setPartnerSearch(e.target.value);
-                      setPartnerPage(1);
                     }
                   }}
                   className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
