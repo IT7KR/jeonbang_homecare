@@ -78,3 +78,61 @@ def convert_service_code_to_name(
 
     code_to_name = get_service_code_to_name_map(db)
     return code_to_name.get(code, code)
+
+
+def get_service_name_to_code_map(db: Session) -> dict[str, str]:
+    """
+    서비스 이름 → 코드 매핑 조회
+
+    Args:
+        db: 데이터베이스 세션
+
+    Returns:
+        서비스 이름을 키로, 서비스 코드를 값으로 하는 딕셔너리
+    """
+    service_types = db.query(ServiceType.code, ServiceType.name).all()
+    return {st.name: st.code for st in service_types}
+
+
+def convert_service_names_to_codes(
+    db: Session,
+    names: list[str] | None
+) -> list[str]:
+    """
+    서비스 이름 배열을 서비스 코드 배열로 변환
+
+    Args:
+        db: 데이터베이스 세션
+        names: 서비스 이름 배열 (예: ["제초 작업", "제설 작업"])
+
+    Returns:
+        서비스 코드 배열 (예: ["WEEDING", "SNOW_REMOVAL"])
+        매핑이 없는 이름은 원본 그대로 반환
+    """
+    if not names:
+        return []
+
+    name_to_code = get_service_name_to_code_map(db)
+    return [name_to_code.get(name, name) for name in names]
+
+
+def convert_service_name_to_code(
+    db: Session,
+    name: str | None
+) -> str | None:
+    """
+    단일 서비스 이름을 서비스 코드로 변환
+
+    Args:
+        db: 데이터베이스 세션
+        name: 서비스 이름 (예: "제초 작업")
+
+    Returns:
+        서비스 코드 (예: "WEEDING")
+        매핑이 없는 이름은 원본 그대로 반환
+    """
+    if not name:
+        return None
+
+    name_to_code = get_service_name_to_code_map(db)
+    return name_to_code.get(name, name)

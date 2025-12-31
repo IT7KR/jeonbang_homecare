@@ -75,7 +75,7 @@ from app.services.audit import (
 from app.services.search_index import unified_search, detect_search_type
 from app.services.duplicate_check import get_customer_applications
 from app.services.status_sync import sync_application_from_assignments
-from app.services.service_utils import convert_service_codes_to_names
+from app.services.service_utils import convert_service_codes_to_names, convert_service_names_to_codes
 
 logger = logging.getLogger(__name__)
 
@@ -919,7 +919,7 @@ def get_application_assignments(
             id=assignment.id,
             application_id=assignment.application_id,
             partner_id=assignment.partner_id,
-            assigned_services=assignment.assigned_services or [],
+            assigned_services=convert_service_codes_to_names(db, assignment.assigned_services) or [],
             status=assignment.status,
             scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
             scheduled_time=assignment.scheduled_time,
@@ -967,30 +967,35 @@ async def create_application_assignment(
     if partner.status != "approved":
         raise HTTPException(status_code=400, detail="승인된 협력사만 배정할 수 있습니다")
 
-    # 서비스 영역 매칭 확인
-    if data.assigned_services and partner.service_areas:
-        assigned_services = set(data.assigned_services)
+    # 서비스 이름 → 코드 변환 (프론트엔드에서 서비스 이름으로 전송됨)
+    assigned_service_codes = convert_service_names_to_codes(db, data.assigned_services)
+
+    # 서비스 영역 매칭 확인 (코드 vs 코드 비교)
+    if assigned_service_codes and partner.service_areas:
+        assigned_set = set(assigned_service_codes)
         partner_services = set(partner.service_areas)
-        if not assigned_services.issubset(partner_services):
-            unmatched = assigned_services - partner_services
+        if not assigned_set.issubset(partner_services):
+            unmatched = assigned_set - partner_services
+            # 매칭되지 않은 코드를 다시 이름으로 변환하여 사용자 친화적 메시지
+            unmatched_names = convert_service_codes_to_names(db, list(unmatched))
             raise HTTPException(
                 status_code=400,
-                detail=f"협력사가 해당 서비스를 제공하지 않습니다: {', '.join(unmatched)}"
+                detail=f"협력사가 해당 서비스를 제공하지 않습니다: {', '.join(unmatched_names)}"
             )
 
-    # 신청의 선택 서비스에 포함되어 있는지 확인
+    # 신청의 선택 서비스에 포함되어 있는지 확인 (코드 vs 코드 비교)
     app_services = set(application.selected_services or [])
-    if not set(data.assigned_services).issubset(app_services):
+    if not set(assigned_service_codes).issubset(app_services):
         raise HTTPException(
             status_code=400,
             detail="배정 서비스가 신청의 선택 서비스에 포함되어 있지 않습니다"
         )
 
-    # 배정 생성
+    # 배정 생성 (코드로 저장)
     assignment = ApplicationPartnerAssignment(
         application_id=application_id,
         partner_id=data.partner_id,
-        assigned_services=data.assigned_services,
+        assigned_services=assigned_service_codes,  # 코드로 저장
         scheduled_date=data.scheduled_date,
         scheduled_time=data.scheduled_time,
         estimated_cost=data.estimated_cost,
@@ -1009,11 +1014,11 @@ async def create_application_assignment(
     # 전체 서비스가 배정되었는지 확인 후 상태 업데이트
     if application.status in ["new", "consulting"]:
         all_services = set(application.selected_services or [])
-        # 기존 배정 서비스 + 현재 배정 서비스
+        # 기존 배정 서비스 + 현재 배정 서비스 (모두 코드)
         assigned_services = set()
         for a in existing_assignments:
             assigned_services.update(a.assigned_services or [])
-        assigned_services.update(data.assigned_services or [])
+        assigned_services.update(assigned_service_codes)
 
         # 전체 서비스가 배정된 경우에만 상태 변경
         if assigned_services >= all_services:
@@ -1098,7 +1103,7 @@ async def create_application_assignment(
         id=assignment.id,
         application_id=assignment.application_id,
         partner_id=assignment.partner_id,
-        assigned_services=assignment.assigned_services or [],
+        assigned_services=convert_service_codes_to_names(db, assignment.assigned_services) or [],
         status=assignment.status,
         scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
         scheduled_time=assignment.scheduled_time,
@@ -1161,6 +1166,9 @@ async def update_application_assignment(
                     assignment.completed_at = datetime.now(timezone.utc)
                 elif value == "cancelled" and assignment.status != "cancelled":
                     assignment.cancelled_at = datetime.now(timezone.utc)
+            elif field == "assigned_services":
+                # 서비스 이름 → 코드 변환
+                value = convert_service_names_to_codes(db, value)
             setattr(assignment, field, value)
 
     db.commit()
@@ -1257,7 +1265,7 @@ async def update_application_assignment(
         id=assignment.id,
         application_id=assignment.application_id,
         partner_id=assignment.partner_id,
-        assigned_services=assignment.assigned_services or [],
+        assigned_services=convert_service_codes_to_names(db, assignment.assigned_services) or [],
         status=assignment.status,
         scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
         scheduled_time=assignment.scheduled_time,
