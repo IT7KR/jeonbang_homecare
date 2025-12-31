@@ -158,7 +158,7 @@ export function useApplicationDetail(id: number) {
   // 섹션 접기/펼치기
   const [expandedSections, setExpandedSections] = useState({
     service: true,
-    assignments: false,
+    assignments: true,
     management: true,
     activity: true,
   });

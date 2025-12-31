@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { ApplicationDetail, ApplicationNote, CustomerHistoryResponse } from "@/lib/api/admin";
 import { STATUS_OPTIONS, getStatusInfo, willSendSmsForStatusChange } from "@/lib/constants/application";
+import { getServiceName } from "@/lib/utils/service";
 
 interface ManagementPanelProps {
   application: ApplicationDetail;
@@ -221,11 +222,10 @@ export function ManagementPanel({
                     <span>{new Date(app.created_at).toLocaleDateString("ko-KR")}</span>
                     <span>·</span>
                     <span>
-                      {app.selected_services.slice(0, 2).map((s: string) => {
-                        // Simple service name extraction
-                        const parts = s.split("_");
-                        return parts[parts.length - 1];
-                      }).join(", ")}
+                      {app.selected_services
+                        .slice(0, 2)
+                        .map((s: string) => getServiceName(s))
+                        .join(", ")}
                       {app.selected_services.length > 2 &&
                         ` 외 ${app.selected_services.length - 2}개`}
                     </span>
