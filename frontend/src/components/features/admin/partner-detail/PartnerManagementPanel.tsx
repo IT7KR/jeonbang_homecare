@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Settings, StickyNote, AlertTriangle, Loader2 } from "lucide-react";
-import type { PartnerDetail, SimilarPartnersResponse, PartnerStatusChange } from "@/lib/api/admin";
+import { Settings, StickyNote, AlertTriangle } from "lucide-react";
+import type { PartnerDetail, SimilarPartnersResponse } from "@/lib/api/admin";
 import {
   ActivityTimeline,
   type NoteItem,
@@ -19,14 +19,7 @@ interface PartnerManagementPanelProps {
   timelineNotes: NoteItem[];
   timelineAuditLogs: AuditItem[];
   similarPartners: SimilarPartnersResponse | null;
-  isChangingStatus: boolean;
   isAddingNote: boolean;
-  showStatusReasonModal: boolean;
-  statusChangeReason: string;
-  pendingStatus: PartnerStatusChange["new_status"] | null;
-  onStatusChangeReasonChange: (value: string) => void;
-  onCancelStatusChange: () => void;
-  onConfirmStatusChange: () => void;
   onAddNote: (content: string) => Promise<void>;
   onDeleteNote: (noteId: number) => Promise<void>;
 }
@@ -36,14 +29,7 @@ export function PartnerManagementPanel({
   timelineNotes,
   timelineAuditLogs,
   similarPartners,
-  isChangingStatus,
   isAddingNote,
-  showStatusReasonModal,
-  statusChangeReason,
-  pendingStatus,
-  onStatusChangeReasonChange,
-  onCancelStatusChange,
-  onConfirmStatusChange,
   onAddNote,
   onDeleteNote,
 }: PartnerManagementPanelProps) {
@@ -57,50 +43,17 @@ export function PartnerManagementPanel({
           <Settings size={18} className="text-primary" />
           상태 관리
         </h3>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">현재 상태</span>
-            <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}
-            >
-              {statusInfo.label}
-            </span>
-          </div>
-          {(pendingStatus === "rejected" || pendingStatus === "inactive") &&
-            showStatusReasonModal && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
-                  {pendingStatus === "rejected" ? "거절" : "비활성화"} 사유
-                </label>
-                <textarea
-                  value={statusChangeReason}
-                  onChange={(e) => onStatusChangeReasonChange(e.target.value)}
-                  placeholder="사유를 입력하세요"
-                  rows={2}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-none"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={onCancelStatusChange}
-                    className="flex-1 px-3 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-                  >
-                    취소
-                  </button>
-                  <button
-                    onClick={onConfirmStatusChange}
-                    disabled={isChangingStatus}
-                    className="flex-1 px-3 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
-                  >
-                    {isChangingStatus ? (
-                      <Loader2 className="animate-spin mx-auto" size={16} />
-                    ) : (
-                      "확인"
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-600">현재 상태</span>
+          <span
+            className={`px-3 py-1 rounded-full text-sm font-medium ${statusInfo.bgColor} ${statusInfo.color}`}
+          >
+            {statusInfo.label}
+          </span>
         </div>
+        <p className="text-xs text-gray-500 mt-2">
+          상태 변경은 상단 헤더의 상태 버튼을 클릭하세요
+        </p>
       </div>
 
       {/* 활동 이력 */}

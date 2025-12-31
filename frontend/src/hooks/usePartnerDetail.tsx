@@ -90,7 +90,8 @@ export function usePartnerDetail(id: number) {
   const executeStatusChange = useCallback(
     async (
       newStatus: PartnerStatusChange["new_status"],
-      reason?: string
+      reason?: string,
+      sendSms?: boolean
     ) => {
       try {
         setIsChangingStatus(true);
@@ -102,10 +103,13 @@ export function usePartnerDetail(id: number) {
           return;
         }
 
+        // sendSms가 명시적으로 전달되지 않으면 기본값 사용
+        const shouldSendSms = sendSms ?? (newStatus === "approved" || newStatus === "rejected");
+
         const data: PartnerStatusChange = {
           new_status: newStatus,
           reason: reason || undefined,
-          send_sms: newStatus === "approved" || newStatus === "rejected",
+          send_sms: shouldSendSms,
         };
 
         const updated = await changePartnerStatus(token, id, data);
@@ -119,7 +123,10 @@ export function usePartnerDetail(id: number) {
         setNotes(notesData.items);
         setAuditLogs(auditLogsData.items);
 
-        setSuccessMessage("상태가 변경되었습니다");
+        const smsNote = shouldSendSms && (newStatus === "approved" || newStatus === "rejected")
+          ? " (SMS 알림 발송됨)"
+          : "";
+        setSuccessMessage(`상태가 변경되었습니다${smsNote}`);
         setTimeout(() => setSuccessMessage(null), 3000);
       } catch (err) {
         setError(
@@ -136,9 +143,9 @@ export function usePartnerDetail(id: number) {
     [id, getValidToken, router]
   );
 
-  // 상태 변경 핸들러
+  // 상태 변경 핸들러 - 모든 상태 변경 시 모달 열기
   const handleStatusChange = useCallback(
-    async (newStatus: PartnerStatusChange["new_status"]) => {
+    (newStatus: PartnerStatusChange["new_status"]) => {
       if (!partner) return;
 
       // 같은 상태면 무시
@@ -147,17 +154,21 @@ export function usePartnerDetail(id: number) {
         return;
       }
 
-      // 거절 또는 비활성인 경우 사유 입력 모달
-      if (newStatus === "rejected" || newStatus === "inactive") {
-        setPendingStatus(newStatus);
-        setShowStatusReasonModal(true);
-        setShowStatusDropdown(false);
-        return;
-      }
-
-      await executeStatusChange(newStatus);
+      // 모든 상태 변경 시 모달 열기
+      setPendingStatus(newStatus);
+      setShowStatusReasonModal(true);
+      setShowStatusDropdown(false);
     },
-    [partner, executeStatusChange]
+    [partner]
+  );
+
+  // 모달에서 확인 버튼 클릭 시 호출
+  const confirmStatusChange = useCallback(
+    async (sendSms: boolean, reason?: string) => {
+      if (!pendingStatus) return;
+      await executeStatusChange(pendingStatus, reason, sendSms);
+    },
+    [pendingStatus, executeStatusChange]
   );
 
   // 메모 추가
@@ -304,6 +315,7 @@ export function usePartnerDetail(id: number) {
     // 핸들러
     handleStatusChange,
     executeStatusChange,
+    confirmStatusChange,
     handleAddNote,
     handleDeleteNote,
     handleCancelStatusChange,

@@ -11,3 +11,4 @@ export { QuoteDetailModal } from "./QuoteDetailModal";
 export { PartnerUrlModal } from "./PartnerUrlModal";
 export { CustomerUrlModal } from "./CustomerUrlModal";
 export { WorkPhotosModal } from "./WorkPhotosModal";
+export { ApplicationStatusChangeModal } from "./ApplicationStatusChangeModal";

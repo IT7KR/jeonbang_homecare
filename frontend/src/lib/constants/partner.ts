@@ -50,6 +50,16 @@ export const getPartnerStatusInfo = (status: string) => {
   return PARTNER_STATUS_CONFIG[status] || PARTNER_STATUS_CONFIG.pending;
 };
 
+// SMS 발송이 필요한 상태 변경인지 확인
+export const willSendSmsForPartnerStatusChange = (newStatus: string): boolean => {
+  return newStatus === "approved" || newStatus === "rejected";
+};
+
+// 사유 입력이 필요한 상태 변경인지 확인
+export const needsReasonForPartnerStatusChange = (newStatus: string): boolean => {
+  return newStatus === "rejected" || newStatus === "inactive";
+};
+
 // 파일 다운로드 함수
 export const downloadFile = (fileUrl: string) => {
   const downloadUrl = `${fileUrl}?download=true`;
