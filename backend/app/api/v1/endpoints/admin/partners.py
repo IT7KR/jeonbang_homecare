@@ -35,6 +35,7 @@ from app.services.sms import send_partner_approval_notification
 from app.services.search_index import unified_search, detect_search_type
 from app.services.audit import log_status_change
 from app.services.duplicate_check import find_similar_partners
+from app.services.service_utils import convert_service_codes_to_names
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +52,8 @@ STATUS_LABELS = {
 }
 
 
-def decrypt_partner(partner: Partner) -> dict:
-    """Partner 모델의 암호화된 필드를 복호화"""
+def decrypt_partner(partner: Partner, db: Session) -> dict:
+    """Partner 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환"""
     return {
         "id": partner.id,
         "company_name": partner.company_name,
@@ -62,7 +63,7 @@ def decrypt_partner(partner: Partner) -> dict:
         "contact_email": decrypt_value(partner.contact_email) if partner.contact_email else None,
         "address": decrypt_value(partner.address),
         "address_detail": decrypt_value(partner.address_detail) if partner.address_detail else None,
-        "service_areas": partner.service_areas or [],
+        "service_areas": convert_service_codes_to_names(db, partner.service_areas),
         "work_regions": partner.work_regions or [],
         "introduction": partner.introduction,
         "experience": partner.experience,
@@ -174,7 +175,7 @@ def get_partners(
     # 복호화된 목록 생성
     items = []
     for partner in partners:
-        decrypted = decrypt_partner(partner)
+        decrypted = decrypt_partner(partner, db)
         items.append(PartnerListItem(
             id=decrypted["id"],
             company_name=decrypted["company_name"],
@@ -208,7 +209,7 @@ def get_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    decrypted = decrypt_partner(partner)
+    decrypted = decrypt_partner(partner, db)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -229,7 +230,7 @@ def get_similar_partners(
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     # 협력사 정보 복호화
-    decrypted = decrypt_partner(partner)
+    decrypted = decrypt_partner(partner, db)
     phone = decrypted.get("contact_phone")
     business_number = decrypted.get("business_number")
 
@@ -245,7 +246,7 @@ def get_similar_partners(
     # 결과 구성
     items = []
     for p in similar:
-        p_decrypted = decrypt_partner(p)
+        p_decrypted = decrypt_partner(p, db)
         items.append({
             "id": p_decrypted["id"],
             "company_name": p_decrypted["company_name"],
@@ -299,7 +300,7 @@ def update_partner(
     db.commit()
     db.refresh(partner)
 
-    decrypted = decrypt_partner(partner)
+    decrypted = decrypt_partner(partner, db)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -354,7 +355,7 @@ async def approve_partner(
         )
         logger.info(f"SMS scheduled: partner {'approval' if is_approved else 'rejection'} for {partner.company_name}")
 
-    decrypted = decrypt_partner(partner)
+    decrypted = decrypt_partner(partner, db)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -556,5 +557,5 @@ async def change_partner_status(
         )
         logger.info(f"SMS scheduled: partner status change to {new_status} for {partner.company_name}")
 
-    decrypted = decrypt_partner(partner)
+    decrypted = decrypt_partner(partner, db)
     return PartnerDetailResponse(**decrypted)

@@ -22,6 +22,7 @@ from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
 from app.services.file_upload import process_uploaded_files
+from app.services.service_utils import convert_service_codes_to_names
 from app.schemas.partner_portal import (
     PartnerViewResponse,
     PartnerViewPhoto,
@@ -237,7 +238,7 @@ async def view_assignment(
         # 배정 정보
         assignment_id=assignment.id,
         assignment_status=assignment.status,
-        assigned_services=assignment.assigned_services or [],
+        assigned_services=convert_service_codes_to_names(db, assignment.assigned_services),
         scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
         scheduled_time=assignment.scheduled_time,
         estimated_cost=assignment.estimated_cost,
@@ -247,7 +248,7 @@ async def view_assignment(
         application_number=application.application_number,
         customer_name_masked=customer_name_masked,
         address_partial=address_partial,
-        selected_services=application.selected_services or [],
+        selected_services=convert_service_codes_to_names(db, application.selected_services),
         description=application.description or "",
         preferred_consultation_date=(
             str(application.preferred_consultation_date)

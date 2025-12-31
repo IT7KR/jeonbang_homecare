@@ -34,6 +34,7 @@ from app.schemas.customer_portal import (
     CustomerViewTokenInfo,
 )
 from app.services.quote_pdf import generate_quote_pdf, get_quote_filename
+from app.services.service_utils import convert_service_codes_to_names
 
 router = APIRouter(prefix="/customer-portal", tags=["Customer Portal"])
 logger = logging.getLogger(__name__)
@@ -426,14 +427,14 @@ async def view_assignment(
         assignment_id=assignment.id,
         assignment_status=assignment.status,
         status_label=STATUS_LABELS.get(assignment.status, assignment.status),
-        assigned_services=assignment.assigned_services or [],
+        assigned_services=convert_service_codes_to_names(db, assignment.assigned_services),
         scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
         scheduled_time=assignment.scheduled_time,
         # 신청 정보 (마스킹)
         application_number=application.application_number,
         customer_name_masked=customer_name_masked,
         address_partial=address_partial,
-        selected_services=application.selected_services or [],
+        selected_services=convert_service_codes_to_names(db, application.selected_services),
         description=application.description,
         # 협력사 정보 (마스킹)
         partner_company=partner_company,

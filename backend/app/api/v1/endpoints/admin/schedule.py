@@ -17,6 +17,7 @@ from app.models.admin import Admin
 from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
 from app.models.partner import Partner
+from app.services.service_utils import convert_service_codes_to_names
 
 router = APIRouter(prefix="/schedule", tags=["Admin - Schedule"])
 
@@ -73,8 +74,10 @@ class MonthlyStats(BaseModel):
     by_date: dict[str, int]  # 날짜별 일정 수
 
 
-def decrypt_application_for_schedule(app: Application, partner: Optional[Partner] = None) -> dict:
-    """일정용 신청 정보 복호화"""
+def decrypt_application_for_schedule(
+    app: Application, db: Session, partner: Optional[Partner] = None
+) -> dict:
+    """일정용 신청 정보 복호화 및 서비스 코드→이름 변환"""
     # scheduled_date가 date 객체인 경우 문자열로 변환
     scheduled_date_str = None
     if app.scheduled_date:
@@ -89,7 +92,7 @@ def decrypt_application_for_schedule(app: Application, partner: Optional[Partner
         "customer_name": decrypt_value(app.customer_name),
         "customer_phone": decrypt_value(app.customer_phone),
         "address": decrypt_value(app.address),
-        "selected_services": app.selected_services or [],
+        "selected_services": convert_service_codes_to_names(db, app.selected_services),
         "status": app.status,
         "scheduled_date": scheduled_date_str,
         "scheduled_time": app.scheduled_time,
@@ -168,7 +171,7 @@ def get_schedule_by_assignment(
             address=decrypt_value(app.address),
             partner_id=assignment.partner_id,
             partner_name=partner.company_name if partner else None,
-            assigned_services=assignment.assigned_services or [],
+            assigned_services=convert_service_codes_to_names(db, assignment.assigned_services),
             scheduled_date=scheduled_date_str,
             scheduled_time=assignment.scheduled_time,
             status=assignment.status,
@@ -240,7 +243,7 @@ def get_schedule(
     items = []
     for app in applications:
         partner = partners.get(app.assigned_partner_id) if app.assigned_partner_id else None
-        items.append(ScheduleItem(**decrypt_application_for_schedule(app, partner)))
+        items.append(ScheduleItem(**decrypt_application_for_schedule(app, db, partner)))
 
     return ScheduleListResponse(items=items, total=len(items))
 

@@ -75,14 +75,15 @@ from app.services.audit import (
 from app.services.search_index import unified_search, detect_search_type
 from app.services.duplicate_check import get_customer_applications
 from app.services.status_sync import sync_application_from_assignments
+from app.services.service_utils import convert_service_codes_to_names
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/applications", tags=["Admin - Applications"])
 
 
-def decrypt_application(app: Application) -> dict:
-    """Application 모델의 암호화된 필드를 복호화"""
+def decrypt_application(app: Application, db: Session) -> dict:
+    """Application 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환"""
     return {
         "id": app.id,
         "application_number": app.application_number,
@@ -90,7 +91,7 @@ def decrypt_application(app: Application) -> dict:
         "customer_phone": decrypt_value(app.customer_phone),
         "address": decrypt_value(app.address),
         "address_detail": decrypt_value(app.address_detail) if app.address_detail else None,
-        "selected_services": app.selected_services or [],
+        "selected_services": convert_service_codes_to_names(db, app.selected_services),
         "description": app.description,
         "photos": [get_file_url(photo) for photo in (app.photos or [])],
         "preferred_consultation_date": app.preferred_consultation_date,
@@ -148,7 +149,13 @@ def get_applications(
 
         if detected_type == "number":
             # 신청번호 검색 (DB 직접 검색)
-            query = query.filter(Application.application_number.ilike(f"%{search}%"))
+            # 하이픈 없는 형식(20251231001)을 하이픈 있는 형식(20251231-001)으로 변환
+            import re
+            search_normalized = search
+            if re.match(r'^\d{9,11}$', search):
+                # 하이픈 없는 형식: 앞 8자리-나머지
+                search_normalized = f"{search[:8]}-{search[8:]}"
+            query = query.filter(Application.application_number.ilike(f"%{search_normalized}%"))
         elif detected_type in ("phone", "name"):
             # 암호화된 필드 검색 (인덱스 테이블 사용)
             matching_ids = unified_search(db, "application", search, detected_type)
@@ -197,7 +204,7 @@ def get_applications(
     # 복호화된 목록 생성
     items = []
     for app in applications:
-        decrypted = decrypt_application(app)
+        decrypted = decrypt_application(app, db)
         items.append(ApplicationListItem(
             id=decrypted["id"],
             application_number=decrypted["application_number"],
@@ -290,7 +297,7 @@ async def bulk_assign_applications(
 
         # SMS 발송 (백그라운드)
         if data.send_sms and data.partner_id != prev_partner_id:
-            decrypted = decrypt_application(application)
+            decrypted = decrypt_application(application, db)
             # 고객에게 배정 알림
             background_tasks.add_task(
                 send_partner_assignment_notification,
@@ -350,7 +357,7 @@ async def bulk_assign_applications(
 
 
 def get_assignments_for_application(db: Session, application_id: int) -> list[AssignmentSummary]:
-    """신청에 연결된 배정 목록 조회 (협력사 정보 포함)"""
+    """신청에 연결된 배정 목록 조회 (협력사 정보 포함, 서비스 코드→이름 변환)"""
     assignments = (
         db.query(ApplicationPartnerAssignment)
         .filter(ApplicationPartnerAssignment.application_id == application_id)
@@ -370,7 +377,7 @@ def get_assignments_for_application(db: Session, application_id: int) -> list[As
             partner_id=assignment.partner_id,
             partner_name=partner_name,
             partner_company=partner_company,
-            assigned_services=assignment.assigned_services or [],
+            assigned_services=convert_service_codes_to_names(db, assignment.assigned_services),
             status=assignment.status,
             scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
             scheduled_time=assignment.scheduled_time,
@@ -402,7 +409,7 @@ def get_application(
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    decrypted = decrypt_application(application)
+    decrypted = decrypt_application(application, db)
 
     # 배정 목록 조회 (1:N)
     assignments = get_assignments_for_application(db, application_id)
@@ -559,7 +566,7 @@ async def update_application(
 
     # SMS 발송 처리 (백그라운드)
     if data.send_sms:
-        decrypted = decrypt_application(application)
+        decrypted = decrypt_application(application, db)
         customer_phone = decrypted["customer_phone"]
         customer_name = decrypted["customer_name"]
         address = decrypted["address"]
@@ -705,7 +712,7 @@ async def update_application(
             )
             logger.info(f"SMS scheduled: completion for {application.application_number} with URL: {customer_view_url}")
 
-    decrypted = decrypt_application(application)
+    decrypted = decrypt_application(application, db)
 
     # 일정 충돌 검사 (경고만, 차단하지 않음)
     schedule_conflicts: list[ScheduleConflict] = []
@@ -721,7 +728,7 @@ async def update_application(
             # 같은 시간대인 경우에만 충돌로 간주
             if application.scheduled_time and conflict_app.scheduled_time:
                 if application.scheduled_time == conflict_app.scheduled_time:
-                    conflict_decrypted = decrypt_application(conflict_app)
+                    conflict_decrypted = decrypt_application(conflict_app, db)
                     schedule_conflicts.append(ScheduleConflict(
                         application_id=conflict_app.id,
                         application_number=conflict_app.application_number,
@@ -730,7 +737,7 @@ async def update_application(
                     ))
             else:
                 # 시간이 지정되지 않은 경우 같은 날 다른 신청이 있으면 경고
-                conflict_decrypted = decrypt_application(conflict_app)
+                conflict_decrypted = decrypt_application(conflict_app, db)
                 schedule_conflicts.append(ScheduleConflict(
                     application_id=conflict_app.id,
                     application_number=conflict_app.application_number,
@@ -1039,7 +1046,7 @@ async def create_application_assignment(
 
     # SMS 발송
     if data.send_sms:
-        decrypted = decrypt_application(application)
+        decrypted = decrypt_application(application, db)
         partner_phone = decrypt_value(partner.contact_phone)
         scheduled_date_str = str(data.scheduled_date) if data.scheduled_date else "미정"
         scheduled_time_str = data.scheduled_time if data.scheduled_time else "미정"
@@ -1194,7 +1201,7 @@ async def update_application_assignment(
 
     # SMS 발송
     if data.send_sms and application and partner:
-        decrypted = decrypt_application(application)
+        decrypted = decrypt_application(application, db)
         partner_phone = decrypt_value(partner.contact_phone)
 
         # 일정 확정 알림 (scheduled 상태로 처음 변경될 때)
