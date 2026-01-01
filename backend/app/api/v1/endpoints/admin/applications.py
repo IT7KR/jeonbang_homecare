@@ -77,15 +77,25 @@ from app.services.audit import (
 from app.services.search_index import unified_search, detect_search_type
 from app.services.duplicate_check import get_customer_applications
 from app.services.status_sync import sync_application_from_assignments
-from app.services.service_utils import convert_service_codes_to_names, convert_service_names_to_codes
+from app.services.service_utils import (
+    convert_service_codes_to_names,
+    convert_service_names_to_codes,
+    convert_service_codes_with_map,
+    get_service_code_to_name_map,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/applications", tags=["Admin - Applications"])
 
 
-def decrypt_application(app: Application, db: Session) -> dict:
-    """Application 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환"""
+def decrypt_application(app: Application, service_map: dict[str, str]) -> dict:
+    """Application 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환
+
+    Args:
+        app: Application 모델 인스턴스
+        service_map: get_service_code_to_name_map()으로 조회한 서비스 코드→이름 매핑
+    """
     return {
         "id": app.id,
         "application_number": app.application_number,
@@ -93,7 +103,7 @@ def decrypt_application(app: Application, db: Session) -> dict:
         "customer_phone": decrypt_value(app.customer_phone),
         "address": decrypt_value(app.address),
         "address_detail": decrypt_value(app.address_detail) if app.address_detail else None,
-        "selected_services": convert_service_codes_to_names(db, app.selected_services),
+        "selected_services": convert_service_codes_with_map(service_map, app.selected_services),
         "description": app.description,
         "photos": [get_file_url(photo) for photo in (app.photos or [])],
         "preferred_consultation_date": app.preferred_consultation_date,
@@ -203,10 +213,11 @@ def get_applications(
         .all()
     )
 
-    # 복호화된 목록 생성
+    # 복호화된 목록 생성 (서비스 맵 1회 조회로 N+1 방지)
+    service_map = get_service_code_to_name_map(db)
     items = []
     for app in applications:
-        decrypted = decrypt_application(app, db)
+        decrypted = decrypt_application(app, service_map)
         items.append(ApplicationListItem(
             id=decrypted["id"],
             application_number=decrypted["application_number"],
@@ -256,6 +267,9 @@ async def bulk_assign_applications(
     results: list[BulkAssignResult] = []
     success_count = 0
 
+    # 서비스 맵 1회 조회로 N+1 방지
+    service_map = get_service_code_to_name_map(db)
+
     for app_id in data.application_ids:
         application = db.query(Application).filter(Application.id == app_id).first()
 
@@ -299,7 +313,7 @@ async def bulk_assign_applications(
 
         # SMS 발송 (백그라운드)
         if data.send_sms and data.partner_id != prev_partner_id:
-            decrypted = decrypt_application(application, db)
+            decrypted = decrypt_application(application, service_map)
             # 고객에게 배정 알림
             background_tasks.add_task(
                 send_partner_assignment_notification,
@@ -358,8 +372,18 @@ async def bulk_assign_applications(
     )
 
 
-def get_assignments_for_application(db: Session, application_id: int) -> list[AssignmentSummary]:
-    """신청에 연결된 배정 목록 조회 (협력사 정보 포함, 서비스 코드→이름 변환)"""
+def get_assignments_for_application(
+    db: Session,
+    application_id: int,
+    service_map: dict[str, str] | None = None
+) -> list[AssignmentSummary]:
+    """신청에 연결된 배정 목록 조회 (협력사 정보 포함, 서비스 코드→이름 변환)
+
+    Args:
+        db: 데이터베이스 세션
+        application_id: 신청 ID
+        service_map: 서비스 코드→이름 매핑 (None이면 내부에서 조회)
+    """
     assignments = (
         db.query(ApplicationPartnerAssignment)
         .filter(ApplicationPartnerAssignment.application_id == application_id)
@@ -367,10 +391,24 @@ def get_assignments_for_application(db: Session, application_id: int) -> list[As
         .all()
     )
 
+    if not assignments:
+        return []
+
+    # 서비스 맵이 없으면 조회 (하위 호환성)
+    if service_map is None:
+        service_map = get_service_code_to_name_map(db)
+
+    # 모든 partner_id를 수집하여 배치 쿼리 (N+1 방지)
+    partner_ids = list(set(a.partner_id for a in assignments if a.partner_id))
+    partners_dict = {}
+    if partner_ids:
+        partners = db.query(Partner).filter(Partner.id.in_(partner_ids)).all()
+        partners_dict = {p.id: p for p in partners}
+
     result = []
     for assignment in assignments:
-        # 협력사 정보 조회
-        partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+        # 배치 조회된 협력사 정보 사용
+        partner = partners_dict.get(assignment.partner_id)
         partner_name = partner.company_name if partner else "알 수 없음"
         partner_company = partner.company_name if partner else None
 
@@ -379,7 +417,7 @@ def get_assignments_for_application(db: Session, application_id: int) -> list[As
             partner_id=assignment.partner_id,
             partner_name=partner_name,
             partner_company=partner_company,
-            assigned_services=convert_service_codes_to_names(db, assignment.assigned_services),
+            assigned_services=convert_service_codes_with_map(service_map, assignment.assigned_services),
             status=assignment.status,
             scheduled_date=str(assignment.scheduled_date) if assignment.scheduled_date else None,
             scheduled_time=assignment.scheduled_time,
@@ -411,10 +449,11 @@ def get_application(
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    decrypted = decrypt_application(application, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_application(application, service_map)
 
     # 배정 목록 조회 (1:N)
-    assignments = get_assignments_for_application(db, application_id)
+    assignments = get_assignments_for_application(db, application_id, service_map)
 
     return ApplicationDetailResponse(**decrypted, assignments=assignments)
 
@@ -441,6 +480,9 @@ async def update_application(
 
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
+
+    # 서비스 맵 1회 조회 (N+1 방지)
+    service_map = get_service_code_to_name_map(db)
 
     # 이전 상태 저장 (SMS 발송 및 Audit 로그용)
     prev_partner_id = application.assigned_partner_id
@@ -568,7 +610,7 @@ async def update_application(
 
     # SMS 발송 처리 (백그라운드)
     if data.send_sms:
-        decrypted = decrypt_application(application, db)
+        decrypted = decrypt_application(application, service_map)
         customer_phone = decrypted["customer_phone"]
         customer_name = decrypted["customer_name"]
         address = decrypted["address"]
@@ -714,7 +756,7 @@ async def update_application(
             )
             logger.info(f"SMS scheduled: completion for {application.application_number} with URL: {customer_view_url}")
 
-    decrypted = decrypt_application(application, db)
+    decrypted = decrypt_application(application, service_map)
 
     # 일정 충돌 검사 (경고만, 차단하지 않음)
     schedule_conflicts: list[ScheduleConflict] = []
@@ -730,7 +772,7 @@ async def update_application(
             # 같은 시간대인 경우에만 충돌로 간주
             if application.scheduled_time and conflict_app.scheduled_time:
                 if application.scheduled_time == conflict_app.scheduled_time:
-                    conflict_decrypted = decrypt_application(conflict_app, db)
+                    conflict_decrypted = decrypt_application(conflict_app, service_map)
                     schedule_conflicts.append(ScheduleConflict(
                         application_id=conflict_app.id,
                         application_number=conflict_app.application_number,
@@ -739,7 +781,7 @@ async def update_application(
                     ))
             else:
                 # 시간이 지정되지 않은 경우 같은 날 다른 신청이 있으면 경고
-                conflict_decrypted = decrypt_application(conflict_app, db)
+                conflict_decrypted = decrypt_application(conflict_app, service_map)
                 schedule_conflicts.append(ScheduleConflict(
                     application_id=conflict_app.id,
                     application_number=conflict_app.application_number,
@@ -1302,7 +1344,8 @@ def batch_update_assignment_status(
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    decrypted = decrypt_application(application, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_application(application, service_map)
     results = []
     updated_count = 0
     failed_count = 0
@@ -1460,7 +1503,8 @@ def send_assignment_sms(
         raise HTTPException(status_code=404, detail="협력사 정보를 찾을 수 없습니다")
 
     # 고객 정보 복호화
-    decrypted = decrypt_application(application, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_application(application, service_map)
     partner_phone = decrypt_value(partner.contact_phone)
 
     # 배정 정보 포맷팅

@@ -35,7 +35,11 @@ from app.services.sms import send_partner_approval_notification
 from app.services.search_index import unified_search, detect_search_type
 from app.services.audit import log_status_change
 from app.services.duplicate_check import find_similar_partners
-from app.services.service_utils import convert_service_codes_to_names
+from app.services.service_utils import (
+    convert_service_codes_to_names,
+    convert_service_codes_with_map,
+    get_service_code_to_name_map,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +56,13 @@ STATUS_LABELS = {
 }
 
 
-def decrypt_partner(partner: Partner, db: Session) -> dict:
-    """Partner 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환"""
+def decrypt_partner(partner: Partner, service_map: dict[str, str]) -> dict:
+    """Partner 모델의 암호화된 필드를 복호화 및 서비스 코드→이름 변환
+
+    Args:
+        partner: Partner 모델 인스턴스
+        service_map: get_service_code_to_name_map()으로 조회한 서비스 코드→이름 매핑
+    """
     return {
         "id": partner.id,
         "company_name": partner.company_name,
@@ -63,7 +72,7 @@ def decrypt_partner(partner: Partner, db: Session) -> dict:
         "contact_email": decrypt_value(partner.contact_email) if partner.contact_email else None,
         "address": decrypt_value(partner.address),
         "address_detail": decrypt_value(partner.address_detail) if partner.address_detail else None,
-        "service_areas": convert_service_codes_to_names(db, partner.service_areas),
+        "service_areas": convert_service_codes_with_map(service_map, partner.service_areas),
         "work_regions": partner.work_regions or [],
         "introduction": partner.introduction,
         "experience": partner.experience,
@@ -172,10 +181,11 @@ def get_partners(
         .all()
     )
 
-    # 복호화된 목록 생성
+    # 복호화된 목록 생성 (서비스 맵 1회 조회로 N+1 방지)
+    service_map = get_service_code_to_name_map(db)
     items = []
     for partner in partners:
-        decrypted = decrypt_partner(partner, db)
+        decrypted = decrypt_partner(partner, service_map)
         items.append(PartnerListItem(
             id=decrypted["id"],
             company_name=decrypted["company_name"],
@@ -209,7 +219,8 @@ def get_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    decrypted = decrypt_partner(partner, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -229,8 +240,11 @@ def get_similar_partners(
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
+    # 서비스 맵 1회 조회로 N+1 방지
+    service_map = get_service_code_to_name_map(db)
+
     # 협력사 정보 복호화
-    decrypted = decrypt_partner(partner, db)
+    decrypted = decrypt_partner(partner, service_map)
     phone = decrypted.get("contact_phone")
     business_number = decrypted.get("business_number")
 
@@ -246,7 +260,7 @@ def get_similar_partners(
     # 결과 구성
     items = []
     for p in similar:
-        p_decrypted = decrypt_partner(p, db)
+        p_decrypted = decrypt_partner(p, service_map)
         items.append({
             "id": p_decrypted["id"],
             "company_name": p_decrypted["company_name"],
@@ -300,7 +314,8 @@ def update_partner(
     db.commit()
     db.refresh(partner)
 
-    decrypted = decrypt_partner(partner, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -355,7 +370,8 @@ async def approve_partner(
         )
         logger.info(f"SMS scheduled: partner {'approval' if is_approved else 'rejection'} for {partner.company_name}")
 
-    decrypted = decrypt_partner(partner, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
 
@@ -557,5 +573,6 @@ async def change_partner_status(
         )
         logger.info(f"SMS scheduled: partner status change to {new_status} for {partner.company_name}")
 
-    decrypted = decrypt_partner(partner, db)
+    service_map = get_service_code_to_name_map(db)
+    decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
