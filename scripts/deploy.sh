@@ -8,9 +8,29 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
+# Parse options
+NO_CACHE=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-cache|-f)
+            NO_CACHE="--no-cache"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
 echo "=========================================="
 echo "  전방 홈케어 - Production Deployment"
 echo "=========================================="
+
+if [ -n "$NO_CACHE" ]; then
+    echo "  Mode: Full rebuild (no cache)"
+else
+    echo "  Mode: Incremental build (cached)"
+fi
 
 # Check if .env file exists
 if [ ! -f ".env" ]; then
@@ -33,7 +53,7 @@ fi
 
 echo ""
 echo "Step 3: Building new images..."
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build $NO_CACHE
 
 echo ""
 echo "Step 4: Stopping old containers..."

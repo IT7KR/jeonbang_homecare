@@ -14,7 +14,7 @@ services:
       args:
         - APP_ENV=production
     ports:
-      - "8000:8000"  # NPM 리버스 프록시 접근용
+      - "8020:8020"  # NPM 리버스 프록시 접근용
     environment:
       - APP_ENV=production
       - DEBUG=false

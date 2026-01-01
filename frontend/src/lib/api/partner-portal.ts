@@ -5,7 +5,7 @@
 
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8020/api/v1";
 
 // 토큰 기반 인증 클라이언트 (JWT 아님)
 const portalClient = axios.create({

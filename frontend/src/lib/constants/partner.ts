@@ -4,7 +4,7 @@ import type { PartnerStatusChange } from "@/lib/api/admin";
 
 // 파일 URL 기본 경로
 export const FILE_BASE_URL = (
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8020/api/v1"
 ).replace("/api/v1", "");
 
 // 상태 설정

@@ -6,7 +6,7 @@
 // ===== 설정 =====
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8020/api/v1";
 
 // 업로드 파일 URL (API URL에서 /api/v1 제거)
 export const UPLOADS_BASE_URL = API_BASE_URL.replace(/\/api\/v\d+$/, "");

@@ -26,13 +26,13 @@ const nextConfig: NextConfig = {
       {
         protocol: "http",
         hostname: "localhost",
-        port: "8000",
+        port: "8020",
         pathname: "/uploads/**",
       },
       {
         protocol: "http",
         hostname: "localhost",
-        port: "8000",
+        port: "8020",
         pathname: "/api/v1/files/**",
       },
       {
@@ -64,7 +64,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     // Docker 내부에서는 서비스 이름 사용, 로컬에서는 localhost
     const backendHost =
-      process.env.BACKEND_INTERNAL_URL || "http://backend:8000";
+      process.env.BACKEND_INTERNAL_URL || "http://backend:8020";
     return [
       {
         source: "/uploads/:path*",
@@ -96,11 +96,11 @@ const nextConfig: NextConfig = {
               // 스타일: 동일 출처 + 인라인 스타일 허용 (Tailwind CSS용)
               "style-src 'self' 'unsafe-inline'",
               // 이미지: 동일 출처 + data URI + blob + 백엔드 API (파일 서빙용)
-              "img-src 'self' data: blob: http://localhost:8000 https://*.jeonbang.kr",
+              "img-src 'self' data: blob: http://localhost:8020 https://*.jeonbang.kr",
               // 폰트: 동일 출처
               "font-src 'self'",
               // API 연결: 동일 출처 + 백엔드 API
-              "connect-src 'self' http://localhost:8000 https://*.jeonbang.com https://*.geonbang.com",
+              "connect-src 'self' http://localhost:8020 https://*.jeonbang.com https://*.geonbang.com",
               // iframe: 주소 검색용 카카오/다음 API (HTTP/HTTPS 모두 허용)
               "frame-src 'self' https://t1.daumcdn.net http://t1.daumcdn.net https://postcode.map.daum.net http://postcode.map.daum.net",
               // 기본 URI: 동일 출처

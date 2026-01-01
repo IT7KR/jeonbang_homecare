@@ -79,8 +79,8 @@ cp .env.example .env
 ### 서비스 포트 (개발 환경)
 
 - Frontend: http://localhost:3500
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- Backend API: http://localhost:8020
+- API Docs: http://localhost:8020/docs
 - PostgreSQL: localhost:5437
 - Adminer: http://localhost:8080
 

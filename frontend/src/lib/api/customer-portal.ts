@@ -4,7 +4,7 @@
 
 import axios from "axios";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8020/api/v1";
 
 // 인증 없이 사용하는 클라이언트
 const publicClient = axios.create({
