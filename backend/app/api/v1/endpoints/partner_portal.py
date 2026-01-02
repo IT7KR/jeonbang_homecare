@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.database import get_db
 from app.core.encryption import decrypt_value
@@ -142,7 +143,7 @@ def validate_partner_view_token(token: str) -> Optional[int]:
 async def view_assignment(
     token: str,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     협력사용 배정 정보 열람
@@ -161,9 +162,12 @@ async def view_assignment(
         )
 
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(
@@ -179,9 +183,10 @@ async def view_assignment(
         )
 
     # 신청 정보 조회
-    application = db.query(Application).filter(
-        Application.id == assignment.application_id
-    ).first()
+    result = await db.execute(
+        select(Application).where(Application.id == assignment.application_id)
+    )
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(
@@ -299,7 +304,7 @@ MAX_WORK_PHOTOS_PER_TYPE = 30  # 시공 전/후 각각 최대 30장
 async def get_partner_work_photos(
     token: str,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     협력사 포털 - 시공 사진 목록 조회
@@ -315,9 +320,12 @@ async def get_partner_work_photos(
         )
 
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(
@@ -408,7 +416,7 @@ async def upload_partner_photos(
     photo_type: str = Form(..., description="사진 유형: 'before' 또는 'after'"),
     photos: list[UploadFile] = File(..., description="업로드할 사진 파일들"),
     request: Request = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     협력사 포털 - 시공 사진 업로드
@@ -436,9 +444,12 @@ async def upload_partner_photos(
         )
 
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(
@@ -520,7 +531,7 @@ async def upload_partner_photos(
         assignment.work_photos_uploaded_at = now
     assignment.work_photos_updated_at = now
 
-    db.commit()
+    await db.commit()
 
     logger.info(
         f"Partner photos uploaded: assignment={assignment_id}, "
@@ -543,7 +554,7 @@ async def delete_partner_photo(
     photo_type: str,
     photo_index: int,
     request: Request = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     협력사 포털 - 시공 사진 삭제
@@ -568,9 +579,12 @@ async def delete_partner_photo(
         )
 
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(
@@ -623,7 +637,7 @@ async def delete_partner_photo(
 
     assignment.work_photos_updated_at = datetime.now(timezone.utc)
 
-    db.commit()
+    await db.commit()
 
     photo_type_label = "시공 전" if photo_type == "before" else "시공 후"
     return {

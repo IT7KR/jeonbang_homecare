@@ -14,8 +14,8 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import asc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import asc, select, func
 from io import BytesIO
 
 from app.core.database import get_db
@@ -120,7 +120,7 @@ def extract_partial_address(address: str) -> str:
     return address[:30] + "..." if len(address) > 30 else address
 
 
-def validate_customer_token(token: str, db: Session) -> Optional[ApplicationPartnerAssignment]:
+async def validate_customer_token(token: str, db: AsyncSession) -> Optional[ApplicationPartnerAssignment]:
     """
     고객 열람 토큰 검증 (서명만 확인, 만료는 DB에서 확인)
 
@@ -147,9 +147,12 @@ def validate_customer_token(token: str, db: Session) -> Optional[ApplicationPart
     assignment_id = result.entity_id
 
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    db_result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = db_result.scalar_one_or_none()
 
     if not assignment:
         return None
@@ -263,7 +266,7 @@ def get_progress_steps(assignment: ApplicationPartnerAssignment, application: Ap
 async def view_assignment(
     token: str,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     고객용 시공 정보 열람
@@ -274,7 +277,7 @@ async def view_assignment(
     - **token**: 고객 열람 토큰 (SMS로 전달됨)
     """
     # 토큰 검증
-    assignment = validate_customer_token(token, db)
+    assignment = await validate_customer_token(token, db)
     if assignment is None:
         raise HTTPException(
             status_code=404,
@@ -282,9 +285,10 @@ async def view_assignment(
         )
 
     # 신청 정보 조회
-    application = db.query(Application).filter(
-        Application.id == assignment.application_id
-    ).first()
+    result = await db.execute(
+        select(Application).where(Application.id == assignment.application_id)
+    )
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(
@@ -293,9 +297,10 @@ async def view_assignment(
         )
 
     # 협력사 정보 조회
-    partner = db.query(Partner).filter(
-        Partner.id == assignment.partner_id
-    ).first()
+    result = await db.execute(
+        select(Partner).where(Partner.id == assignment.partner_id)
+    )
+    partner = result.scalar_one_or_none()
 
     # IP 로깅 (감사 추적)
     client_ip = request.client.host if request.client else "unknown"
@@ -320,9 +325,12 @@ async def view_assignment(
 
     # 견적 정보 조회
     quote = None
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment.id
-    ).order_by(asc(QuoteItem.sort_order)).all()
+    result = await db.execute(
+        select(QuoteItem).where(
+            QuoteItem.assignment_id == assignment.id
+        ).order_by(asc(QuoteItem.sort_order))
+    )
+    items = result.scalars().all()
 
     if items:
         quote_number = f"{application.application_number}-Q{assignment.id}"
@@ -461,7 +469,7 @@ async def view_assignment(
 async def download_quote_pdf(
     token: str,
     request: Request,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     고객용 견적서 PDF 다운로드
@@ -471,7 +479,7 @@ async def download_quote_pdf(
     - **token**: 고객 열람 토큰
     """
     # 토큰 검증
-    assignment = validate_customer_token(token, db)
+    assignment = await validate_customer_token(token, db)
     if assignment is None:
         raise HTTPException(
             status_code=404,
@@ -479,9 +487,10 @@ async def download_quote_pdf(
         )
 
     # 신청 정보 조회 (견적번호 생성용)
-    application = db.query(Application).filter(
-        Application.id == assignment.application_id
-    ).first()
+    result = await db.execute(
+        select(Application).where(Application.id == assignment.application_id)
+    )
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(
@@ -490,9 +499,12 @@ async def download_quote_pdf(
         )
 
     # 견적 항목 확인
-    items_count = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment.id
-    ).count()
+    result = await db.execute(
+        select(func.count()).select_from(QuoteItem).where(
+            QuoteItem.assignment_id == assignment.id
+        )
+    )
+    items_count = result.scalar() or 0
 
     if items_count == 0:
         raise HTTPException(
@@ -509,7 +521,7 @@ async def download_quote_pdf(
 
     try:
         # PDF 생성
-        pdf_bytes = generate_quote_pdf(db, assignment.id)
+        pdf_bytes = await generate_quote_pdf(db, assignment.id)
 
         # 파일명 생성
         quote_number = f"{application.application_number}-Q{assignment.id}"
@@ -542,7 +554,7 @@ async def download_quote_pdf(
 @router.get("/token-info/{token}", response_model=CustomerViewTokenInfo)
 async def get_token_info(
     token: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     토큰 정보 조회 (유효성 확인용)
@@ -551,7 +563,7 @@ async def get_token_info(
 
     - **token**: 고객 열람 토큰
     """
-    assignment = validate_customer_token(token, db)
+    assignment = await validate_customer_token(token, db)
 
     if assignment is None:
         return CustomerViewTokenInfo(

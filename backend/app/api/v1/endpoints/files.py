@@ -9,7 +9,7 @@ from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import FileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.file_token import decode_file_token_extended, FileTokenInfo
@@ -52,7 +52,7 @@ async def serve_file(
     token: str,
     download: bool = False,
     request: Request = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Optional[Admin] = Depends(get_current_admin_optional),
 ):
     """
@@ -127,7 +127,7 @@ async def serve_file(
     # 감사 로그 기록
     action = "download" if download else "view"
     try:
-        log_file_access(
+        await log_file_access(
             db=db,
             action=action,
             file_path=file_path,
@@ -139,7 +139,7 @@ async def serve_file(
             ip_address=request.client.host if request and request.client else None,
             user_agent=request.headers.get("user-agent") if request else None,
         )
-        db.commit()
+        await db.commit()
     except Exception as e:
         logger.warning(f"Failed to log file access: {e}")
         # 로깅 실패해도 파일 서빙은 계속

@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, BackgroundTasks, UploadFile, File, Form, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.encryption import encrypt_value, generate_search_hash, generate_composite_hash
@@ -121,7 +121,7 @@ async def save_business_registration_file(
 @router.post("", response_model=PartnerCreateResponse)
 async def create_partner(
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     # FormData 필드들
     companyName: str = Form(...),
     representativeName: str = Form(...),
@@ -154,7 +154,7 @@ async def create_partner(
         raise HTTPException(status_code=400, detail="잘못된 데이터 형식입니다.")
 
     # 중복 협력사 체크
-    duplicate_result = check_partner_duplicate(
+    duplicate_result = await check_partner_duplicate(
         db,
         phone=contactPhone,
         company_name=companyName,
@@ -205,17 +205,17 @@ async def create_partner(
     )
 
     db.add(new_partner)
-    db.commit()
-    db.refresh(new_partner)
+    await db.commit()
+    await db.refresh(new_partner)
 
     # 검색 인덱스 생성 (평문 값 사용)
-    update_partner_search_index(
+    await update_partner_search_index(
         db,
         new_partner.id,
         representativeName,
         contactPhone
     )
-    db.commit()
+    await db.commit()
 
     # 사업자등록증 파일 저장
     if businessRegistrationFile and businessRegistrationFile.filename:
@@ -229,7 +229,7 @@ async def create_partner(
 
                 # 파일 업로드 감사 로그 기록
                 try:
-                    log_file_access(
+                    await log_file_access(
                         db=db,
                         action="upload",
                         file_path=file_path,
@@ -242,7 +242,7 @@ async def create_partner(
                 except Exception as log_error:
                     logger.warning(f"파일 업로드 로그 기록 실패: {log_error}")
 
-                db.commit()
+                await db.commit()
         except ValueError as e:
             # 파일 저장 실패해도 협력사 등록은 성공 처리
             pass

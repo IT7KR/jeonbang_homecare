@@ -4,7 +4,8 @@ Application API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from datetime import date
 import json
@@ -67,7 +68,7 @@ async def create_application(
     preferred_consultation_date: Optional[str] = Form(None),  # YYYY-MM-DD
     preferred_work_date: Optional[str] = Form(None),  # YYYY-MM-DD
     photos: list[UploadFile] = File(default=[]),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     서비스 신청 생성
@@ -106,20 +107,19 @@ async def create_application(
 
     # 준비 중인 서비스 포함 여부 확인
     if services_list:
-        selected_instances = (
-            db.query(ServiceType)
-            .filter(ServiceType.code.in_(services_list))
-            .all()
+        result = await db.execute(
+            select(ServiceType).where(ServiceType.code.in_(services_list))
         )
+        selected_instances = result.scalars().all()
         for instance in selected_instances:
             if instance.booking_status == 'PREPARING':
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"서비스 '{instance.name}'(은)는 현재 준비 중이므로 선택할 수 없습니다."
                 )
 
     # 중복 신청 체크
-    duplicate_result = check_application_duplicate(db, data.customer_phone)
+    duplicate_result = await check_application_duplicate(db, data.customer_phone)
     duplicate_info = None
     if duplicate_result.is_duplicate:
         duplicate_info = DuplicateApplicationInfo(
@@ -141,7 +141,7 @@ async def create_application(
     )
 
     # 신청번호 생성
-    application_number = generate_application_number(db)
+    application_number = await generate_application_number(db)
 
     # 전화번호 해시 생성 (중복 감지용)
     phone_hash = generate_search_hash(data.customer_phone, "phone")
@@ -163,17 +163,17 @@ async def create_application(
     )
 
     db.add(new_application)
-    db.commit()
-    db.refresh(new_application)
+    await db.commit()
+    await db.refresh(new_application)
 
     # 검색 인덱스 생성 (평문 값 사용)
-    update_application_search_index(
+    await update_application_search_index(
         db,
         new_application.id,
         data.customer_name,
         data.customer_phone
     )
-    db.commit()
+    await db.commit()
 
     # 관리자에게만 SMS 알림 (백그라운드)
     # 중복 정보를 dict로 변환하여 전달
@@ -212,10 +212,10 @@ async def create_application(
 
 
 @router.post("/simple", response_model=ApplicationCreateResponse)
-def create_application_simple(
+async def create_application_simple(
     background_tasks: BackgroundTasks,
     data: ApplicationCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     서비스 신청 생성 (사진 없이, JSON 본문으로)
@@ -226,11 +226,10 @@ def create_application_simple(
     """
     # 준비 중인 서비스 포함 여부 확인
     if data.selected_services:
-        selected_instances = (
-            db.query(ServiceType)
-            .filter(ServiceType.code.in_(data.selected_services))
-            .all()
+        result = await db.execute(
+            select(ServiceType).where(ServiceType.code.in_(data.selected_services))
         )
+        selected_instances = result.scalars().all()
         for instance in selected_instances:
             if instance.booking_status == 'PREPARING':
                 raise HTTPException(
@@ -239,7 +238,7 @@ def create_application_simple(
                 )
 
     # 중복 신청 체크
-    duplicate_result = check_application_duplicate(db, data.customer_phone)
+    duplicate_result = await check_application_duplicate(db, data.customer_phone)
     duplicate_info = None
     if duplicate_result.is_duplicate:
         duplicate_info = DuplicateApplicationInfo(
@@ -254,7 +253,7 @@ def create_application_simple(
         )
 
     # 신청번호 생성
-    application_number = generate_application_number(db)
+    application_number = await generate_application_number(db)
 
     # 전화번호 해시 생성 (중복 감지용)
     phone_hash = generate_search_hash(data.customer_phone, "phone")
@@ -276,17 +275,17 @@ def create_application_simple(
     )
 
     db.add(new_application)
-    db.commit()
-    db.refresh(new_application)
+    await db.commit()
+    await db.refresh(new_application)
 
     # 검색 인덱스 생성 (평문 값 사용)
-    update_application_search_index(
+    await update_application_search_index(
         db,
         new_application.id,
         data.customer_name,
         data.customer_phone
     )
-    db.commit()
+    await db.commit()
 
     # 관리자에게만 SMS 알림 (백그라운드)
     # 중복 정보를 dict로 변환하여 전달

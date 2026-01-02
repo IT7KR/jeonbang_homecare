@@ -5,7 +5,8 @@ Service API endpoints
 
 from typing import List
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.service import ServiceCategory, ServiceType
@@ -20,27 +21,27 @@ router = APIRouter(prefix="/services", tags=["services"])
 
 
 @router.get("/categories", response_model=List[ServiceCategoryResponse])
-def get_service_categories(db: Session = Depends(get_db)):
+async def get_service_categories(db: AsyncSession = Depends(get_db)):
     """
     서비스 카테고리 목록 조회
 
     Returns:
         List[ServiceCategoryResponse]: 카테고리 목록 (정렬순)
     """
-    categories = (
-        db.query(ServiceCategory)
-        .filter(ServiceCategory.is_active == True)
+    result = await db.execute(
+        select(ServiceCategory)
+        .where(ServiceCategory.is_active == True)
         .order_by(ServiceCategory.sort_order)
-        .all()
     )
+    categories = result.scalars().all()
     return categories
 
 
 @router.get("/types", response_model=List[ServiceTypeResponse])
-def get_service_types(
+async def get_service_types(
     category_code: str | None = None,
     include_inactive: bool = True,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     서비스 타입 목록 조회
@@ -54,17 +55,18 @@ def get_service_types(
     Returns:
         List[ServiceTypeResponse]: 서비스 타입 목록 (정렬순)
     """
-    query = db.query(ServiceType)
+    stmt = select(ServiceType)
 
     if not include_inactive:
-        query = query.filter(ServiceType.is_active == True)
+        stmt = stmt.where(ServiceType.is_active == True)
 
     if category_code:
-        query = query.filter(ServiceType.category_code == category_code)
+        stmt = stmt.where(ServiceType.category_code == category_code)
 
-    service_types = query.order_by(
-        ServiceType.category_code, ServiceType.sort_order
-    ).all()
+    stmt = stmt.order_by(ServiceType.category_code, ServiceType.sort_order)
+
+    result = await db.execute(stmt)
+    service_types = result.scalars().all()
 
     # 준비 중인 서비스 비활성화 처리 (프론트엔드 UI용)
     for service in service_types:
@@ -75,9 +77,9 @@ def get_service_types(
 
 
 @router.get("", response_model=ServicesListResponse)
-def get_all_services(
+async def get_all_services(
     include_inactive: bool = True,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     전체 서비스 목록 조회 (카테고리 + 서비스 타입)
@@ -92,20 +94,22 @@ def get_all_services(
         ServicesListResponse: 카테고리별 서비스 목록
     """
     # 카테고리는 항상 활성화된 것만 표시
-    categories = (
-        db.query(ServiceCategory)
-        .filter(ServiceCategory.is_active == True)
+    cat_result = await db.execute(
+        select(ServiceCategory)
+        .where(ServiceCategory.is_active == True)
         .order_by(ServiceCategory.sort_order)
-        .all()
     )
+    categories = cat_result.scalars().all()
 
     # 모든 서비스 타입을 한번에 조회 (N+1 방지)
     # include_inactive=True면 비활성화 서비스도 포함 (프론트에서 '준비 중' 표시)
-    types_query = db.query(ServiceType)
+    types_stmt = select(ServiceType)
     if not include_inactive:
-        types_query = types_query.filter(ServiceType.is_active == True)
+        types_stmt = types_stmt.where(ServiceType.is_active == True)
+    types_stmt = types_stmt.order_by(ServiceType.sort_order)
 
-    all_types = types_query.order_by(ServiceType.sort_order).all()
+    types_result = await db.execute(types_stmt)
+    all_types = types_result.scalars().all()
 
     # 준비 중인 서비스 비활성화 처리 (프론트엔드 UI용)
     for service in all_types:
