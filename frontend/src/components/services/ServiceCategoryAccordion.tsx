@@ -146,9 +146,7 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
             <div
               className={cn(
                 "px-2.5 py-1 rounded-full text-xs font-semibold",
-                isPrimary
-                  ? "bg-primary text-white"
-                  : "bg-secondary text-white"
+                isPrimary ? "bg-primary text-white" : "bg-secondary text-white"
               )}
             >
               {selectedCount}개
@@ -185,11 +183,13 @@ export const ServiceCategoryAccordion = memo(function ServiceCategoryAccordion({
               : "border-gray-100 bg-gray-50/50"
           )}
         >
-          <div className={cn(
-            "grid grid-cols-2 gap-2",
-            // 컴팩트 모드가 아닐 때만 반응형 3열 허용
-            !compactMode && "lg:grid-cols-3"
-          )}>
+          <div
+            className={cn(
+              "grid grid-cols-2 gap-2",
+              // 컴팩트 모드가 아닐 때만 반응형 3열 허용
+              !compactMode && "lg:grid-cols-3"
+            )}
+          >
             {services.map((service) =>
               compactMode ? (
                 <ServiceCheckboxItem

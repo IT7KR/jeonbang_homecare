@@ -17,6 +17,12 @@ export interface ServiceGroup {
  */
 export const SERVICE_GROUPS: ServiceGroup[] = [
   {
+    id: "regular",
+    name: "정기 관리",
+    icon: "Calendar",
+    categoryIds: ["package_management"],
+  },
+  {
     id: "outdoor",
     name: "외부 관리",
     icon: "Trees",
@@ -40,12 +46,6 @@ export const SERVICE_GROUPS: ServiceGroup[] = [
       "electrical",
       "cleaning",
     ],
-  },
-  {
-    id: "regular",
-    name: "정기 관리",
-    icon: "Calendar",
-    categoryIds: ["package_management"],
   },
   {
     id: "others",

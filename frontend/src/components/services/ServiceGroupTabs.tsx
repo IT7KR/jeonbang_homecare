@@ -34,7 +34,9 @@ export function ServiceGroupTabs({
   return (
     <div
       className={cn(
-        isVertical ? "flex flex-col gap-2" : "flex gap-2",
+        isVertical
+          ? "flex flex-col gap-2"
+          : "grid grid-cols-2 md:grid-cols-4 gap-2",
         className
       )}
       role="tablist"
@@ -62,7 +64,7 @@ export function ServiceGroupTabs({
               // 레이아웃별 스타일
               isVertical
                 ? "w-full px-4 py-4 justify-start"
-                : "flex-1 px-3 py-3 justify-center",
+                : "w-full px-3 py-3 justify-center",
               // 활성/비활성 상태
               isActive
                 ? [

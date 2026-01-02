@@ -82,11 +82,9 @@ export const ServiceCheckboxItem = memo(function ServiceCheckboxItem({
       </div>
 
       {/* Label */}
-      <span
+      <div
         className={cn(
-          "flex-1 text-[16px] font-medium leading-tight",
-          "truncate",
-
+          "flex-1 flex flex-col justify-center min-w-0",
           isDisabled
             ? "text-gray-400"
             : isSelected
@@ -96,13 +94,26 @@ export const ServiceCheckboxItem = memo(function ServiceCheckboxItem({
             : "text-gray-700"
         )}
       >
-        {name}
+        <div className="flex flex-col leading-tight">
+          {name.includes("(") ? (
+            <>
+              <span className="text-[15px] font-semibold">
+                {name.split("(")[0].trim()}
+              </span>
+              <span className="text-[13px] opacity-80">
+                ({name.split("(")[1]}
+              </span>
+            </>
+          ) : (
+            <span className="text-[16px] font-medium">{name}</span>
+          )}
+        </div>
         {!isActive && (
-          <span className="ml-1 text-[12px] text-gray-400 font-normal">
+          <span className="mt-0.5 text-[12px] text-gray-400 font-normal">
             (준비 중)
           </span>
         )}
-      </span>
+      </div>
     </button>
   );
 });

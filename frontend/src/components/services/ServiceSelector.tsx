@@ -40,7 +40,7 @@ export function ServiceSelector(props: ServiceSelectorProps) {
     enableSearch = false,
     enableDesktopLayout = false,
     enableQuickNav = true,
-    defaultGroup = "outdoor",
+    defaultGroup = "regular",
     seniorMode = false,
     compactMode = false,
     className,
@@ -185,13 +185,8 @@ export function ServiceSelector(props: ServiceSelectorProps) {
 
     if (filteredCategories.length > 0) {
       const initialExpanded = new Set<string>();
-      // 개선: 시니어 모드에서도 초기에는 상위 2개만 펼쳐서 스크롤 부담 감소
-      const categoriesToExpand = filteredCategories.slice(
-        0,
-        seniorMode ? 2 : 3
-      );
 
-      categoriesToExpand.forEach((cat) => {
+      filteredCategories.forEach((cat) => {
         initialExpanded.add(getCategoryId(cat));
       });
       setExpandedCategories(initialExpanded);
@@ -523,7 +518,6 @@ export function ServiceSelector(props: ServiceSelectorProps) {
           <CategoriesSection />
         </div>
       )}
-
     </div>
   );
 }

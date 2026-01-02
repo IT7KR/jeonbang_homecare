@@ -50,7 +50,7 @@ export function Header() {
 
       <header className="w-full bg-background">
         <div className="container mx-auto px-4">
-          <div className="flex h-[60px] md:h-[70px] lg:h-[100px] items-center">
+          <div className="flex h-[60px] md:h-[70px] lg:h-[100px] items-center justify-between">
             {/* 로고 - 왼쪽 */}
             <Link
               href={ROUTES.HOME}
@@ -68,95 +68,101 @@ export function Header() {
               />
             </Link>
 
-          {/* 데스크톱 네비게이션 - 중앙 정렬 */}
-          <nav className="hidden lg:flex flex-1 items-center justify-center space-x-12">
-            {NAV_ITEMS.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={(e) => {
-                  if (item.isAnchor) {
-                    e.preventDefault();
-                    handleNavClick(item.href, item.isAnchor);
-                  }
-                  if (item.isNewTab) {
-                    e.preventDefault();
-                    window.open(item.href, "_blank");
-                  }
-                }}
-                className="text-xl font-bold text-gray-700 transition-colors hover:text-primary"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+            {/* 데스크톱 네비게이션 - 중앙 정렬 */}
+            <nav className="hidden lg:flex flex-1 items-center justify-center space-x-12">
+              {NAV_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={(e) => {
+                    if (item.isAnchor) {
+                      e.preventDefault();
+                      handleNavClick(item.href, item.isAnchor);
+                    }
+                    if (item.isNewTab) {
+                      e.preventDefault();
+                      window.open(item.href, "_blank");
+                    }
+                  }}
+                  className="text-xl font-bold text-gray-700 transition-colors hover:text-primary"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
 
-          {/* 오른쪽 균형 맞추기 (로고와 동일한 너비) */}
-          <div className="hidden lg:block w-[85px]" />
+            {/* 오른쪽 균형 맞추기 (로고와 동일한 너비) */}
+            <div className="hidden lg:block w-[85px]" />
 
-          {/* 모바일 메뉴 버튼 (우측에 위치) */}
-          <div className="lg:hidden">
-            <Sheet open={isOpen} onOpenChange={setIsOpen}>
-              <SheetTrigger asChild className="lg:hidden">
-                <Button variant="ghost" size="icon" aria-label="메뉴 열기">
-                  <Menu className="h-6 w-6" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-[320px] sm:w-[380px]">
-                <SheetHeader>
-                  <SheetTitle className="text-left text-2xl">
-                    <span className="text-primary font-bold">전방</span> 홈케어
-                  </SheetTitle>
-                </SheetHeader>
-                <nav className="flex flex-col mt-8 space-y-1">
-                  {NAV_ITEMS.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={(e) => {
-                        if (item.isAnchor) {
-                          e.preventDefault();
-                        }
-                        handleNavClick(item.href, item.isAnchor);
-                      }}
-                      className="text-xl font-semibold text-gray-700 transition-colors hover:text-primary hover:bg-gray-50 px-4 py-4 rounded-lg"
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
-
-                  <div className="border-t border-gray-200 my-4" />
-
-                  <a
-                    href={`tel:${COMPANY_INFO.phone}`}
-                    className="flex items-center space-x-3 text-xl font-bold text-secondary hover:opacity-80 px-4 py-4 rounded-lg hover:bg-gray-50"
-                    aria-label={`전화 문의: ${COMPANY_INFO.phone}`}
+            {/* 모바일 메뉴 버튼 (우측에 위치) */}
+            <div className="lg:hidden">
+              <Sheet open={isOpen} onOpenChange={setIsOpen}>
+                <SheetTrigger asChild className="lg:hidden">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="메뉴 열기"
+                    className="h-12 w-12"
                   >
-                    <Phone className="h-6 w-6" aria-hidden="true" />
-                    <span>{COMPANY_INFO.phone}</span>
-                  </a>
-
-                  <div className="pt-4">
-                    <Button
-                      asChild
-                      className="w-full h-14 text-lg font-bold"
-                      size="lg"
-                    >
+                    <Menu className="h-8 w-8" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-[320px] sm:w-[380px]">
+                  <SheetHeader>
+                    <SheetTitle className="text-left text-2xl">
+                      <span className="text-primary font-bold">전방</span>{" "}
+                      홈케어
+                    </SheetTitle>
+                  </SheetHeader>
+                  <nav className="flex flex-col mt-8 space-y-1">
+                    {NAV_ITEMS.map((item) => (
                       <Link
-                        href={ROUTES.APPLY}
-                        onClick={() => setIsOpen(false)}
+                        key={item.href}
+                        href={item.href}
+                        onClick={(e) => {
+                          if (item.isAnchor) {
+                            e.preventDefault();
+                          }
+                          handleNavClick(item.href, item.isAnchor);
+                        }}
+                        className="text-xl font-semibold text-gray-700 transition-colors hover:text-primary hover:bg-gray-50 px-4 py-4 rounded-lg"
                       >
-                        견적 요청하기
+                        {item.label}
                       </Link>
-                    </Button>
-                  </div>
-                </nav>
-              </SheetContent>
-            </Sheet>
+                    ))}
+
+                    <div className="border-t border-gray-200 my-4" />
+
+                    <a
+                      href={`tel:${COMPANY_INFO.phone}`}
+                      className="flex items-center space-x-3 text-xl font-bold text-secondary hover:opacity-80 px-4 py-4 rounded-lg hover:bg-gray-50"
+                      aria-label={`전화 문의: ${COMPANY_INFO.phone}`}
+                    >
+                      <Phone className="h-6 w-6" aria-hidden="true" />
+                      <span>{COMPANY_INFO.phone}</span>
+                    </a>
+
+                    <div className="pt-4">
+                      <Button
+                        asChild
+                        className="w-full h-14 text-lg font-bold"
+                        size="lg"
+                      >
+                        <Link
+                          href={ROUTES.APPLY}
+                          onClick={() => setIsOpen(false)}
+                        >
+                          견적 요청하기
+                        </Link>
+                      </Button>
+                    </div>
+                  </nav>
+                </SheetContent>
+              </Sheet>
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
     </>
   );
 }
