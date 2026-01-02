@@ -86,7 +86,7 @@ class Application(Base):
         return f"<Application {self.application_number}: {self.status}>"
 
 
-def generate_application_number(db) -> str:
+async def generate_application_number(db) -> str:
     """신청번호 생성: YYYYMMDD-XXX 형식"""
     from sqlalchemy import select, func as sql_func
 
@@ -98,7 +98,7 @@ def generate_application_number(db) -> str:
         select(sql_func.max(Application.application_number))
         .where(Application.application_number.like(f"{date_prefix}-%"))
     )
-    result = db.execute(stmt)
+    result = await db.execute(stmt)
     last_number = result.scalar()
 
     if last_number:
