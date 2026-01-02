@@ -5,8 +5,8 @@ Admin SMS Template API endpoints
 
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 from typing import Optional
 
 from app.core.database import get_db
@@ -50,34 +50,34 @@ def template_to_response(template: SMSTemplate) -> SMSTemplateResponse:
 
 
 @router.get("", response_model=SMSTemplateListResponse)
-def get_sms_templates(
+async def get_sms_templates(
     is_active: Optional[bool] = Query(None, description="활성화 상태 필터"),
     search: Optional[str] = Query(None, description="검색어 (제목, 키)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 템플릿 목록 조회
     """
-    query = db.query(SMSTemplate)
+    stmt = select(SMSTemplate)
 
     # 활성화 상태 필터
     if is_active is not None:
-        query = query.filter(SMSTemplate.is_active == is_active)
+        stmt = stmt.where(SMSTemplate.is_active == is_active)
 
     # 검색
     if search:
         search_term = f"%{search}%"
-        query = query.filter(
+        stmt = stmt.where(
             (SMSTemplate.title.ilike(search_term)) |
             (SMSTemplate.template_key.ilike(search_term))
         )
 
     # 정렬: 시스템 템플릿 먼저, 그 다음 제목순
-    templates = query.order_by(
-        desc(SMSTemplate.is_system),
-        SMSTemplate.title
-    ).all()
+    stmt = stmt.order_by(desc(SMSTemplate.is_system), SMSTemplate.title)
+
+    result = await db.execute(stmt)
+    templates = result.scalars().all()
 
     return SMSTemplateListResponse(
         items=[template_to_response(t) for t in templates],
@@ -86,15 +86,16 @@ def get_sms_templates(
 
 
 @router.get("/{template_id}", response_model=SMSTemplateResponse)
-def get_sms_template(
+async def get_sms_template(
     template_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 템플릿 상세 조회
     """
-    template = db.query(SMSTemplate).filter(SMSTemplate.id == template_id).first()
+    result = await db.execute(select(SMSTemplate).where(SMSTemplate.id == template_id))
+    template = result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(status_code=404, detail="템플릿을 찾을 수 없습니다")
@@ -103,17 +104,18 @@ def get_sms_template(
 
 
 @router.get("/key/{template_key}", response_model=SMSTemplateResponse)
-def get_sms_template_by_key(
+async def get_sms_template_by_key(
     template_key: str,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 템플릿 키로 조회
     """
-    template = db.query(SMSTemplate).filter(
-        SMSTemplate.template_key == template_key
-    ).first()
+    result = await db.execute(
+        select(SMSTemplate).where(SMSTemplate.template_key == template_key)
+    )
+    template = result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(status_code=404, detail="템플릿을 찾을 수 없습니다")
@@ -122,18 +124,19 @@ def get_sms_template_by_key(
 
 
 @router.post("", response_model=SMSTemplateResponse)
-def create_sms_template(
+async def create_sms_template(
     data: SMSTemplateCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 템플릿 생성 (사용자 정의 템플릿)
     """
     # 키 중복 체크
-    existing = db.query(SMSTemplate).filter(
-        SMSTemplate.template_key == data.template_key
-    ).first()
+    result = await db.execute(
+        select(SMSTemplate).where(SMSTemplate.template_key == data.template_key)
+    )
+    existing = result.scalar_one_or_none()
 
     if existing:
         raise HTTPException(status_code=400, detail="이미 존재하는 템플릿 키입니다")
@@ -151,17 +154,17 @@ def create_sms_template(
     )
 
     db.add(template)
-    db.commit()
-    db.refresh(template)
+    await db.commit()
+    await db.refresh(template)
 
     return template_to_response(template)
 
 
 @router.put("/{template_id}", response_model=SMSTemplateResponse)
-def update_sms_template(
+async def update_sms_template(
     template_id: int,
     data: SMSTemplateUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -169,7 +172,8 @@ def update_sms_template(
 
     시스템 템플릿은 content만 수정 가능합니다.
     """
-    template = db.query(SMSTemplate).filter(SMSTemplate.id == template_id).first()
+    result = await db.execute(select(SMSTemplate).where(SMSTemplate.id == template_id))
+    template = result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(status_code=404, detail="템플릿을 찾을 수 없습니다")
@@ -192,16 +196,16 @@ def update_sms_template(
 
     template.updated_by = current_admin.id
 
-    db.commit()
-    db.refresh(template)
+    await db.commit()
+    await db.refresh(template)
 
     return template_to_response(template)
 
 
 @router.delete("/{template_id}")
-def delete_sms_template(
+async def delete_sms_template(
     template_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -209,7 +213,8 @@ def delete_sms_template(
 
     시스템 템플릿은 삭제할 수 없습니다.
     """
-    template = db.query(SMSTemplate).filter(SMSTemplate.id == template_id).first()
+    result = await db.execute(select(SMSTemplate).where(SMSTemplate.id == template_id))
+    template = result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(status_code=404, detail="템플릿을 찾을 수 없습니다")
@@ -217,24 +222,25 @@ def delete_sms_template(
     if template.is_system:
         raise HTTPException(status_code=400, detail="시스템 템플릿은 삭제할 수 없습니다")
 
-    db.delete(template)
-    db.commit()
+    await db.delete(template)
+    await db.commit()
 
     return {"message": "템플릿이 삭제되었습니다"}
 
 
 @router.post("/preview", response_model=SMSTemplatePreviewResponse)
-def preview_sms_template(
+async def preview_sms_template(
     data: SMSTemplatePreviewRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     SMS 템플릿 미리보기 (변수 치환)
     """
-    template = db.query(SMSTemplate).filter(
-        SMSTemplate.template_key == data.template_key
-    ).first()
+    result = await db.execute(
+        select(SMSTemplate).where(SMSTemplate.template_key == data.template_key)
+    )
+    template = result.scalar_one_or_none()
 
     if not template:
         raise HTTPException(status_code=404, detail="템플릿을 찾을 수 없습니다")

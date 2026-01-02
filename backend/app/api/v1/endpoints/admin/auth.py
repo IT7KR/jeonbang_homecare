@@ -5,7 +5,8 @@ Admin Authentication API
 
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from jose import JWTError
 
 from app.core.database import get_db
@@ -32,9 +33,9 @@ router = APIRouter(prefix="/auth", tags=["Admin Auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-def login(
+async def login(
     data: AdminLogin,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 로그인
@@ -44,7 +45,8 @@ def login(
     - 액세스 토큰: 1시간, 리프레시 토큰: 14일
     """
     # 관리자 조회
-    admin = db.query(Admin).filter(Admin.email == data.email).first()
+    result = await db.execute(select(Admin).where(Admin.email == data.email))
+    admin = result.scalar_one_or_none()
 
     if not admin:
         raise HTTPException(
@@ -68,8 +70,8 @@ def login(
 
     # 마지막 로그인 시간 업데이트
     admin.last_login_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(admin)
+    await db.commit()
+    await db.refresh(admin)
 
     # JWT 토큰 생성
     access_token = create_access_token(
@@ -94,9 +96,9 @@ def login(
 
 
 @router.post("/refresh", response_model=RefreshResponse)
-def refresh_token(
+async def refresh_token(
     data: RefreshRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     토큰 갱신
@@ -121,7 +123,8 @@ def refresh_token(
         )
 
     # 관리자 조회 및 활성 상태 확인
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    result = await db.execute(select(Admin).where(Admin.id == int(admin_id)))
+    admin = result.scalar_one_or_none()
 
     if not admin or not admin.is_active:
         raise HTTPException(
@@ -148,7 +151,7 @@ def refresh_token(
 
 
 @router.get("/me", response_model=AdminResponse)
-def get_me(
+async def get_me(
     admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -158,10 +161,10 @@ def get_me(
 
 
 @router.put("/password")
-def change_password(
+async def change_password(
     data: AdminPasswordChange,
     admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     비밀번호 변경
@@ -175,6 +178,6 @@ def change_password(
 
     # 새 비밀번호 해싱 및 저장
     admin.password_hash = hash_password(data.new_password)
-    db.commit()
+    await db.commit()
 
     return {"message": "비밀번호가 변경되었습니다"}

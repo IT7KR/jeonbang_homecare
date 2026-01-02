@@ -4,7 +4,8 @@ Admin Settings API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 
@@ -70,7 +71,7 @@ class AdminListItem(BaseModel):
 
 
 @router.get("/profile", response_model=ProfileResponse)
-def get_profile(
+async def get_profile(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -87,9 +88,9 @@ def get_profile(
 
 
 @router.put("/profile", response_model=ProfileResponse)
-def update_profile(
+async def update_profile(
     data: ProfileUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -100,8 +101,8 @@ def update_profile(
     if data.phone is not None:
         current_admin.phone = encrypt_value(data.phone) if data.phone else None
 
-    db.commit()
-    db.refresh(current_admin)
+    await db.commit()
+    await db.refresh(current_admin)
 
     return ProfileResponse(
         id=current_admin.id,
@@ -114,9 +115,9 @@ def update_profile(
 
 
 @router.put("/password")
-def change_password(
+async def change_password(
     data: PasswordChange,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -135,7 +136,7 @@ def change_password(
 
     # 새 비밀번호 해싱 및 저장
     current_admin.password_hash = hash_password(data.new_password)
-    db.commit()
+    await db.commit()
 
     return {"message": "비밀번호가 변경되었습니다"}
 
@@ -144,14 +145,15 @@ def change_password(
 
 
 @router.get("/admins", response_model=list[AdminListItem])
-def get_admins(
-    db: Session = Depends(get_db),
+async def get_admins(
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     관리자 목록 조회
     """
-    admins = db.query(Admin).order_by(Admin.created_at.desc()).all()
+    result = await db.execute(select(Admin).order_by(desc(Admin.created_at)))
+    admins = result.scalars().all()
 
     return [
         AdminListItem(
@@ -169,16 +171,17 @@ def get_admins(
 
 
 @router.post("/admins", response_model=AdminListItem)
-def create_admin(
+async def create_admin(
     data: AdminCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     관리자 생성
     """
     # 이메일 중복 확인
-    existing = db.query(Admin).filter(Admin.email == data.email).first()
+    result = await db.execute(select(Admin).where(Admin.email == data.email))
+    existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="이미 사용 중인 이메일입니다")
 
@@ -196,8 +199,8 @@ def create_admin(
         is_active=True,
     )
     db.add(admin)
-    db.commit()
-    db.refresh(admin)
+    await db.commit()
+    await db.refresh(admin)
 
     return AdminListItem(
         id=admin.id,
@@ -212,16 +215,17 @@ def create_admin(
 
 
 @router.put("/admins/{admin_id}", response_model=AdminListItem)
-def update_admin(
+async def update_admin(
     admin_id: int,
     data: AdminUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     관리자 수정
     """
-    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    admin = result.scalar_one_or_none()
     if not admin:
         raise HTTPException(status_code=404, detail="관리자를 찾을 수 없습니다")
 
@@ -236,8 +240,8 @@ def update_admin(
     if data.is_active is not None:
         admin.is_active = data.is_active
 
-    db.commit()
-    db.refresh(admin)
+    await db.commit()
+    await db.refresh(admin)
 
     return AdminListItem(
         id=admin.id,
@@ -252,15 +256,16 @@ def update_admin(
 
 
 @router.delete("/admins/{admin_id}")
-def delete_admin(
+async def delete_admin(
     admin_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     관리자 삭제
     """
-    admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    admin = result.scalar_one_or_none()
     if not admin:
         raise HTTPException(status_code=404, detail="관리자를 찾을 수 없습니다")
 
@@ -268,7 +273,7 @@ def delete_admin(
     if admin.id == current_admin.id:
         raise HTTPException(status_code=400, detail="자신의 계정은 삭제할 수 없습니다")
 
-    db.delete(admin)
-    db.commit()
+    await db.delete(admin)
+    await db.commit()
 
     return {"message": "관리자가 삭제되었습니다"}

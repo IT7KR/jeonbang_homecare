@@ -11,8 +11,8 @@ from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import Response
-from sqlalchemy.orm import Session
-from sqlalchemy import asc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, asc, func
 
 from app.core.database import get_db
 from app.core.security import get_current_admin
@@ -34,11 +34,14 @@ from app.services.quote_pdf import generate_quote_pdf, get_quote_filename
 router = APIRouter(prefix="/assignments/{assignment_id}/quote", tags=["quotes"])
 
 
-def get_assignment_or_404(db: Session, assignment_id: int) -> ApplicationPartnerAssignment:
+async def get_assignment_or_404(db: AsyncSession, assignment_id: int) -> ApplicationPartnerAssignment:
     """배정 조회 (없으면 404)"""
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
     if not assignment:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -47,21 +50,25 @@ def get_assignment_or_404(db: Session, assignment_id: int) -> ApplicationPartner
     return assignment
 
 
-def update_assignment_estimated_cost(db: Session, assignment_id: int) -> int:
+async def update_assignment_estimated_cost(db: AsyncSession, assignment_id: int) -> int:
     """배정의 estimated_cost를 견적 항목 합계로 업데이트"""
     # 견적 항목 합계 계산
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).all()
+    result = await db.execute(
+        select(QuoteItem).where(QuoteItem.assignment_id == assignment_id)
+    )
+    items = result.scalars().all()
     total_amount = sum(item.amount for item in items)
 
     # 배정 업데이트
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
     if assignment:
         assignment.estimated_cost = total_amount
-        db.commit()
+        await db.commit()
 
     return total_amount
 
@@ -69,19 +76,22 @@ def update_assignment_estimated_cost(db: Session, assignment_id: int) -> int:
 @router.get("", response_model=QuoteSummary)
 async def get_quote_items(
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     배정의 견적 항목 목록 조회
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     # 견적 항목 조회 (정렬 순서대로)
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id)).all()
+    result = await db.execute(
+        select(QuoteItem)
+        .where(QuoteItem.assignment_id == assignment_id)
+        .order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id))
+    )
+    items = result.scalars().all()
 
     # 합계 계산
     total_amount = sum(item.amount for item in items)
@@ -98,14 +108,14 @@ async def get_quote_items(
 async def create_quote_item(
     assignment_id: int,
     data: QuoteItemCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적 항목 추가
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     # 금액 계산
     amount = data.quantity * data.unit_price
@@ -122,11 +132,11 @@ async def create_quote_item(
         sort_order=data.sort_order or 0,
     )
     db.add(item)
-    db.commit()
-    db.refresh(item)
+    await db.commit()
+    await db.refresh(item)
 
     # 배정의 estimated_cost 자동 업데이트
-    update_assignment_estimated_cost(db, assignment_id)
+    await update_assignment_estimated_cost(db, assignment_id)
 
     return item
 
@@ -135,14 +145,14 @@ async def create_quote_item(
 async def create_quote_items_bulk(
     assignment_id: int,
     data: QuoteItemBulkCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적 항목 일괄 추가
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     created_items = []
     for idx, item_data in enumerate(data.items):
@@ -160,12 +170,12 @@ async def create_quote_items_bulk(
         db.add(item)
         created_items.append(item)
 
-    db.commit()
+    await db.commit()
     for item in created_items:
-        db.refresh(item)
+        await db.refresh(item)
 
     # 배정의 estimated_cost 자동 업데이트 및 합계 계산
-    total_amount = update_assignment_estimated_cost(db, assignment_id)
+    total_amount = await update_assignment_estimated_cost(db, assignment_id)
 
     return QuoteSummary(
         assignment_id=assignment_id,
@@ -180,20 +190,23 @@ async def update_quote_item(
     assignment_id: int,
     item_id: int,
     data: QuoteItemUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적 항목 수정
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     # 항목 조회
-    item = db.query(QuoteItem).filter(
-        QuoteItem.id == item_id,
-        QuoteItem.assignment_id == assignment_id,
-    ).first()
+    result = await db.execute(
+        select(QuoteItem).where(
+            QuoteItem.id == item_id,
+            QuoteItem.assignment_id == assignment_id,
+        )
+    )
+    item = result.scalar_one_or_none()
 
     if not item:
         raise HTTPException(
@@ -209,11 +222,11 @@ async def update_quote_item(
     # 금액 재계산
     item.amount = item.quantity * item.unit_price
 
-    db.commit()
-    db.refresh(item)
+    await db.commit()
+    await db.refresh(item)
 
     # 배정의 estimated_cost 자동 업데이트
-    update_assignment_estimated_cost(db, assignment_id)
+    await update_assignment_estimated_cost(db, assignment_id)
 
     return item
 
@@ -222,20 +235,23 @@ async def update_quote_item(
 async def delete_quote_item(
     assignment_id: int,
     item_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적 항목 삭제
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     # 항목 조회
-    item = db.query(QuoteItem).filter(
-        QuoteItem.id == item_id,
-        QuoteItem.assignment_id == assignment_id,
-    ).first()
+    result = await db.execute(
+        select(QuoteItem).where(
+            QuoteItem.id == item_id,
+            QuoteItem.assignment_id == assignment_id,
+        )
+    )
+    item = result.scalar_one_or_none()
 
     if not item:
         raise HTTPException(
@@ -243,48 +259,58 @@ async def delete_quote_item(
             detail="견적 항목을 찾을 수 없습니다."
         )
 
-    db.delete(item)
-    db.commit()
+    await db.delete(item)
+    await db.commit()
 
     # 배정의 estimated_cost 자동 업데이트
-    update_assignment_estimated_cost(db, assignment_id)
+    await update_assignment_estimated_cost(db, assignment_id)
 
 
 @router.delete("/items", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_quote_items(
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     배정의 모든 견적 항목 삭제
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
-    db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).delete()
-    db.commit()
+    # 삭제할 항목 조회
+    result = await db.execute(
+        select(QuoteItem).where(QuoteItem.assignment_id == assignment_id)
+    )
+    items = result.scalars().all()
+
+    # 항목 삭제
+    for item in items:
+        await db.delete(item)
+
+    await db.commit()
 
 
 @router.post("/calculate", response_model=QuoteSummary)
 async def calculate_and_save(
     assignment_id: int,
     data: QuoteCalculateRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적 합계 계산 및 배정의 estimated_cost 업데이트
     """
     # 배정 확인
-    assignment = get_assignment_or_404(db, assignment_id)
+    assignment = await get_assignment_or_404(db, assignment_id)
 
     # 견적 항목 조회
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id)).all()
+    result = await db.execute(
+        select(QuoteItem)
+        .where(QuoteItem.assignment_id == assignment_id)
+        .order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id))
+    )
+    items = result.scalars().all()
 
     # 합계 계산
     total_amount = sum(item.amount for item in items)
@@ -292,7 +318,7 @@ async def calculate_and_save(
     # 배정의 estimated_cost 업데이트
     if data.update_assignment:
         assignment.estimated_cost = total_amount
-        db.commit()
+        await db.commit()
 
     return QuoteSummary(
         assignment_id=assignment_id,
@@ -306,7 +332,7 @@ async def calculate_and_save(
 async def reorder_quote_items(
     assignment_id: int,
     item_ids: list[int],
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -315,13 +341,16 @@ async def reorder_quote_items(
     item_ids: 새로운 순서대로 정렬된 항목 ID 목록
     """
     # 배정 확인
-    get_assignment_or_404(db, assignment_id)
+    await get_assignment_or_404(db, assignment_id)
 
     # 기존 항목 조회
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id,
-        QuoteItem.id.in_(item_ids),
-    ).all()
+    result = await db.execute(
+        select(QuoteItem).where(
+            QuoteItem.assignment_id == assignment_id,
+            QuoteItem.id.in_(item_ids),
+        )
+    )
+    items = result.scalars().all()
 
     # ID별 항목 매핑
     item_map = {item.id: item for item in items}
@@ -331,12 +360,15 @@ async def reorder_quote_items(
         if item_id in item_map:
             item_map[item_id].sort_order = order
 
-    db.commit()
+    await db.commit()
 
     # 결과 반환
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id)).all()
+    result = await db.execute(
+        select(QuoteItem)
+        .where(QuoteItem.assignment_id == assignment_id)
+        .order_by(asc(QuoteItem.sort_order), asc(QuoteItem.id))
+    )
+    items = result.scalars().all()
 
     total_amount = sum(item.amount for item in items)
 
@@ -351,19 +383,22 @@ async def reorder_quote_items(
 @router.get("/pdf")
 async def download_quote_pdf(
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     견적서 PDF 다운로드
     """
     # 배정 확인
-    assignment = get_assignment_or_404(db, assignment_id)
+    assignment = await get_assignment_or_404(db, assignment_id)
 
     # 견적 항목 확인
-    items_count = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).count()
+    count_result = await db.execute(
+        select(func.count()).select_from(QuoteItem).where(
+            QuoteItem.assignment_id == assignment_id
+        )
+    )
+    items_count = count_result.scalar() or 0
 
     if items_count == 0:
         raise HTTPException(
@@ -372,13 +407,14 @@ async def download_quote_pdf(
         )
 
     try:
-        # PDF 생성
-        pdf_bytes = generate_quote_pdf(db, assignment_id)
+        # PDF 생성 (비동기 함수)
+        pdf_bytes = await generate_quote_pdf(db, assignment_id)
 
         # 신청번호 조회하여 파일명 생성
-        application = db.query(Application).filter(
-            Application.id == assignment.application_id
-        ).first()
+        result = await db.execute(
+            select(Application).where(Application.id == assignment.application_id)
+        )
+        application = result.scalar_one_or_none()
         quote_number = f"{application.application_number}-Q{assignment_id}" if application else f"Q{assignment_id}"
         filename = get_quote_filename(quote_number)
 

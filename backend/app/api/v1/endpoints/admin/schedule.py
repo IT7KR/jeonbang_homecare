@@ -4,8 +4,8 @@ Admin Schedule API endpoints
 """
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, and_, or_
 from typing import Optional
 from datetime import datetime, date
 from pydantic import BaseModel
@@ -104,15 +104,15 @@ def decrypt_application_for_schedule(
     }
 
 
-def get_schedule_by_assignment(
+async def get_schedule_by_assignment(
     start_date: str,
     end_date: str,
     status: Optional[str],
     partner_id: Optional[int],
-    db: Session,
+    db: AsyncSession,
 ) -> ScheduleListResponse:
     """Assignment 기준 일정 조회 (내부 함수)"""
-    query = db.query(ApplicationPartnerAssignment).filter(
+    query = select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.scheduled_date.isnot(None),
         ApplicationPartnerAssignment.scheduled_date >= start_date,
         ApplicationPartnerAssignment.scheduled_date <= end_date,
@@ -120,19 +120,22 @@ def get_schedule_by_assignment(
 
     # 상태 필터
     if status:
-        query = query.filter(ApplicationPartnerAssignment.status == status)
+        query = query.where(ApplicationPartnerAssignment.status == status)
     else:
-        query = query.filter(ApplicationPartnerAssignment.status != "cancelled")
+        query = query.where(ApplicationPartnerAssignment.status != "cancelled")
 
     # 협력사 필터
     if partner_id:
-        query = query.filter(ApplicationPartnerAssignment.partner_id == partner_id)
+        query = query.where(ApplicationPartnerAssignment.partner_id == partner_id)
 
     # 정렬
-    assignments = query.order_by(
+    query = query.order_by(
         ApplicationPartnerAssignment.scheduled_date,
         ApplicationPartnerAssignment.scheduled_time,
-    ).all()
+    )
+
+    result = await db.execute(query)
+    assignments = result.scalars().all()
 
     # Application 및 Partner 정보 조회
     app_ids = set(a.application_id for a in assignments)
@@ -140,16 +143,20 @@ def get_schedule_by_assignment(
 
     applications = {}
     if app_ids:
-        app_list = db.query(Application).filter(Application.id.in_(app_ids)).all()
+        app_query = select(Application).where(Application.id.in_(app_ids))
+        app_result = await db.execute(app_query)
+        app_list = app_result.scalars().all()
         applications = {a.id: a for a in app_list}
 
     partners = {}
     if partner_ids_set:
-        partner_list = db.query(Partner).filter(Partner.id.in_(partner_ids_set)).all()
+        partner_query = select(Partner).where(Partner.id.in_(partner_ids_set))
+        partner_result = await db.execute(partner_query)
+        partner_list = partner_result.scalars().all()
         partners = {p.id: p for p in partner_list}
 
     # 서비스 코드→이름 매핑 조회 (N+1 방지)
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
 
     # 응답 생성
     items = []
@@ -189,13 +196,13 @@ def get_schedule_by_assignment(
 
 
 @router.get("", response_model=ScheduleListResponse)
-def get_schedule(
+async def get_schedule(
     start_date: str = Query(..., description="시작일 (YYYY-MM-DD)"),
     end_date: str = Query(..., description="종료일 (YYYY-MM-DD)"),
     status: Optional[str] = Query(None, description="상태 필터"),
     partner_id: Optional[int] = Query(None, description="협력사 필터"),
     view_mode: str = Query("application", description="조회 모드: application(레거시) 또는 assignment(배정기준)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -206,7 +213,7 @@ def get_schedule(
     """
     if view_mode == "assignment":
         # Assignment 기준 조회 (신규 - 권장)
-        return get_schedule_by_assignment(
+        return await get_schedule_by_assignment(
             start_date=start_date,
             end_date=end_date,
             status=status,
@@ -215,7 +222,7 @@ def get_schedule(
         )
 
     # Application 기준 조회 (레거시 - 기존 동작 유지)
-    query = db.query(Application).filter(
+    query = select(Application).where(
         Application.scheduled_date.isnot(None),
         Application.scheduled_date >= start_date,
         Application.scheduled_date <= end_date,
@@ -223,30 +230,35 @@ def get_schedule(
 
     # 상태 필터
     if status:
-        query = query.filter(Application.status == status)
+        query = query.where(Application.status == status)
     else:
         # 기본: 취소되지 않은 일정만
-        query = query.filter(Application.status != "cancelled")
+        query = query.where(Application.status != "cancelled")
 
     # 협력사 필터
     if partner_id:
-        query = query.filter(Application.assigned_partner_id == partner_id)
+        query = query.where(Application.assigned_partner_id == partner_id)
 
     # 정렬
-    applications = query.order_by(
+    query = query.order_by(
         Application.scheduled_date,
         Application.scheduled_time,
-    ).all()
+    )
+
+    result = await db.execute(query)
+    applications = result.scalars().all()
 
     # 협력사 정보 조회
     partner_ids = set(app.assigned_partner_id for app in applications if app.assigned_partner_id)
     partners = {}
     if partner_ids:
-        partner_list = db.query(Partner).filter(Partner.id.in_(partner_ids)).all()
+        partner_query = select(Partner).where(Partner.id.in_(partner_ids))
+        partner_result = await db.execute(partner_query)
+        partner_list = partner_result.scalars().all()
         partners = {p.id: p for p in partner_list}
 
     # 서비스 코드→이름 매핑 조회 (N+1 방지)
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
 
     # 복호화
     items = []
@@ -258,10 +270,10 @@ def get_schedule(
 
 
 @router.get("/monthly-stats", response_model=MonthlyStats)
-def get_monthly_stats(
+async def get_monthly_stats(
     year: int = Query(..., description="연도"),
     month: int = Query(..., ge=1, le=12, description="월"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -275,12 +287,15 @@ def get_monthly_stats(
         end_date = f"{year:04d}-{month + 1:02d}-01"
 
     # 해당 월의 일정 조회
-    applications = db.query(Application).filter(
+    query = select(Application).where(
         Application.scheduled_date.isnot(None),
         Application.scheduled_date >= start_date,
         Application.scheduled_date < end_date,
         Application.status != "cancelled",
-    ).all()
+    )
+
+    result = await db.execute(query)
+    applications = result.scalars().all()
 
     # 통계 계산
     total_scheduled = len(applications)
@@ -306,14 +321,16 @@ def get_monthly_stats(
 
 
 @router.get("/partners", response_model=list[dict])
-def get_available_partners(
-    db: Session = Depends(get_db),
+async def get_available_partners(
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     일정 배정 가능한 협력사 목록 조회
     """
-    partners = db.query(Partner).filter(Partner.status == "approved").all()
+    query = select(Partner).where(Partner.status == "approved")
+    result = await db.execute(query)
+    partners = result.scalars().all()
 
     return [
         {

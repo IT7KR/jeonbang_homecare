@@ -4,8 +4,8 @@ Admin Partner API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc, or_, cast, String, func
 from typing import Optional, List
 from datetime import datetime, timezone, date
 import math
@@ -90,7 +90,7 @@ def decrypt_partner(partner: Partner, service_map: dict[str, str]) -> dict:
 
 
 @router.get("", response_model=PartnerListResponse)
-def get_partners(
+async def get_partners(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
@@ -101,7 +101,7 @@ def get_partners(
     services: Optional[str] = Query(None, description="서비스 분야 필터 (콤마 구분)"),
     region: Optional[str] = Query(None, description="활동 지역 필터"),
     approved_by: Optional[int] = Query(None, description="승인 관리자 ID"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -114,38 +114,38 @@ def get_partners(
     - 서비스 분야 필터
     - 활동 지역 필터
     """
-    query = db.query(Partner)
+    query = select(Partner)
 
     # 상태 필터
     if status:
-        query = query.filter(Partner.status == status)
+        query = query.where(Partner.status == status)
 
     # 통합 검색
     if search:
         # 검색 타입 자동 감지 또는 지정된 타입 사용
         if search_type == "company":
             # 회사명 검색 (DB 직접 검색)
-            query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+            query = query.where(Partner.company_name.ilike(f"%{search}%"))
         else:
             detected_type = search_type if search_type and search_type != "auto" else detect_search_type(search)
 
             if detected_type in ("phone", "name"):
                 # 암호화된 필드 검색 (인덱스 테이블 사용)
-                matching_ids = unified_search(db, "partner", search, detected_type)
+                matching_ids = await unified_search(db, "partner", search, detected_type)
                 if matching_ids:
-                    query = query.filter(Partner.id.in_(matching_ids))
+                    query = query.where(Partner.id.in_(matching_ids))
                 else:
                     # 인덱스에서 결과가 없으면 회사명에서도 검색 시도
-                    query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+                    query = query.where(Partner.company_name.ilike(f"%{search}%"))
             else:
                 # 기본: 회사명 검색
-                query = query.filter(Partner.company_name.ilike(f"%{search}%"))
+                query = query.where(Partner.company_name.ilike(f"%{search}%"))
 
     # 날짜 범위 필터
     if date_from:
-        query = query.filter(Partner.created_at >= datetime.combine(date_from, datetime.min.time()))
+        query = query.where(Partner.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
-        query = query.filter(Partner.created_at <= datetime.combine(date_to, datetime.max.time()))
+        query = query.where(Partner.created_at <= datetime.combine(date_to, datetime.max.time()))
 
     # 서비스 분야 필터 (JSONB 배열에서 검색)
     if services:
@@ -155,34 +155,37 @@ def get_partners(
                 Partner.service_areas.contains([svc])
                 for svc in service_list
             ]
-            query = query.filter(or_(*service_conditions))
+            query = query.where(or_(*service_conditions))
 
     # 활동 지역 필터 (work_regions JSONB에서 검색)
     if region:
         # work_regions 형식: [{"province": "경기도", "district": "양평군"}, ...]
         # PostgreSQL JSONB 텍스트 변환 후 검색
-        from sqlalchemy import cast, String
-        query = query.filter(
+        query = query.where(
             cast(Partner.work_regions, String).ilike(f"%{region}%")
         )
 
     # 승인 관리자 필터
     if approved_by:
-        query = query.filter(Partner.approved_by == approved_by)
+        query = query.where(Partner.approved_by == approved_by)
 
     # 전체 개수
-    total = query.count()
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar_one()
 
     # 정렬 및 페이징
-    partners = (
+    query = (
         query.order_by(desc(Partner.created_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .all()
     )
 
+    result = await db.execute(query)
+    partners = result.scalars().all()
+
     # 복호화된 목록 생성 (서비스 맵 1회 조회로 N+1 방지)
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
     items = []
     for partner in partners:
         decrypted = decrypt_partner(partner, service_map)
@@ -206,28 +209,30 @@ def get_partners(
 
 
 @router.get("/{partner_id}", response_model=PartnerDetailResponse)
-def get_partner(
+async def get_partner(
     partner_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     협력사 상세 조회 (관리자용)
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
 
 @router.get("/{partner_id}/similar-partners")
-def get_similar_partners(
+async def get_similar_partners(
     partner_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -235,13 +240,15 @@ def get_similar_partners(
 
     해당 협력사와 동일한 전화번호 또는 사업자등록번호를 가진 협력사 목록 조회
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     # 서비스 맵 1회 조회로 N+1 방지
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
 
     # 협력사 정보 복호화
     decrypted = decrypt_partner(partner, service_map)
@@ -249,7 +256,7 @@ def get_similar_partners(
     business_number = decrypted.get("business_number")
 
     # 유사 협력사 검색
-    similar = find_similar_partners(
+    similar = await find_similar_partners(
         db=db,
         phone=phone,
         business_number=business_number,
@@ -281,10 +288,10 @@ def get_similar_partners(
 
 
 @router.put("/{partner_id}", response_model=PartnerDetailResponse)
-def update_partner(
+async def update_partner(
     partner_id: int,
     data: PartnerUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -294,7 +301,9 @@ def update_partner(
     - 거절 사유
     - 관리자 메모
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
@@ -311,10 +320,10 @@ def update_partner(
 
             setattr(partner, field, value)
 
-    db.commit()
-    db.refresh(partner)
+    await db.commit()
+    await db.refresh(partner)
 
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
@@ -324,7 +333,7 @@ async def approve_partner(
     partner_id: int,
     data: PartnerApprove,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -334,7 +343,9 @@ async def approve_partner(
     - rejection_reason: 거절 시 사유 (필수)
     - send_sms: SMS 발송 여부 (기본: True)
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
@@ -352,8 +363,8 @@ async def approve_partner(
         partner.rejection_reason = data.rejection_reason
         partner.approved_by = current_admin.id
 
-    db.commit()
-    db.refresh(partner)
+    await db.commit()
+    await db.refresh(partner)
 
     # SMS 발송 (기본값: True)
     send_sms = getattr(data, 'send_sms', True)
@@ -370,15 +381,15 @@ async def approve_partner(
         )
         logger.info(f"SMS scheduled: partner {'approval' if is_approved else 'rejection'} for {partner.company_name}")
 
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
 
 @router.delete("/{partner_id}")
-def delete_partner(
+async def delete_partner(
     partner_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -386,7 +397,9 @@ def delete_partner(
 
     - super_admin만 삭제 가능
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
@@ -395,8 +408,8 @@ def delete_partner(
     if current_admin.role != "super_admin":
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다. 비활성화를 이용해주세요.")
 
-    db.delete(partner)
-    db.commit()
+    await db.delete(partner)
+    await db.commit()
 
     return {"success": True, "message": "협력사가 삭제되었습니다"}
 
@@ -404,9 +417,9 @@ def delete_partner(
 # ===== 메모 히스토리 API =====
 
 @router.get("/{partner_id}/notes", response_model=PartnerNotesResponse)
-def get_partner_notes(
+async def get_partner_notes(
     partner_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -415,16 +428,20 @@ def get_partner_notes(
     - 최신순 정렬
     - 메모 + 상태변경 이력 포함
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    partner_query = select(Partner).where(Partner.id == partner_id)
+    partner_result = await db.execute(partner_query)
+    partner = partner_result.scalar_one_or_none()
+
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    notes = (
-        db.query(PartnerNote)
-        .filter(PartnerNote.partner_id == partner_id)
+    notes_query = (
+        select(PartnerNote)
+        .where(PartnerNote.partner_id == partner_id)
         .order_by(desc(PartnerNote.created_at))
-        .all()
     )
+    notes_result = await db.execute(notes_query)
+    notes = notes_result.scalars().all()
 
     return PartnerNotesResponse(
         items=[PartnerNoteResponse.model_validate(note) for note in notes],
@@ -433,10 +450,10 @@ def get_partner_notes(
 
 
 @router.post("/{partner_id}/notes", response_model=PartnerNoteResponse)
-def create_partner_note(
+async def create_partner_note(
     partner_id: int,
     data: PartnerNoteCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -444,7 +461,10 @@ def create_partner_note(
 
     - 관리자 메모 히스토리로 저장
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    partner_query = select(Partner).where(Partner.id == partner_id)
+    partner_result = await db.execute(partner_query)
+    partner = partner_result.scalar_one_or_none()
+
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
@@ -457,17 +477,17 @@ def create_partner_note(
     )
 
     db.add(note)
-    db.commit()
-    db.refresh(note)
+    await db.commit()
+    await db.refresh(note)
 
     return PartnerNoteResponse.model_validate(note)
 
 
 @router.delete("/{partner_id}/notes/{note_id}")
-def delete_partner_note(
+async def delete_partner_note(
     partner_id: int,
     note_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -477,10 +497,12 @@ def delete_partner_note(
     - super_admin은 모든 메모 삭제 가능
     - memo 타입만 삭제 가능 (status_change, system 타입은 삭제 불가)
     """
-    note = db.query(PartnerNote).filter(
+    query = select(PartnerNote).where(
         PartnerNote.id == note_id,
         PartnerNote.partner_id == partner_id
-    ).first()
+    )
+    result = await db.execute(query)
+    note = result.scalar_one_or_none()
 
     if not note:
         raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다")
@@ -493,8 +515,8 @@ def delete_partner_note(
     if note.admin_id != current_admin.id and current_admin.role != "super_admin":
         raise HTTPException(status_code=403, detail="본인이 작성한 메모만 삭제할 수 있습니다")
 
-    db.delete(note)
-    db.commit()
+    await db.delete(note)
+    await db.commit()
 
     return {"success": True, "message": "메모가 삭제되었습니다"}
 
@@ -506,7 +528,7 @@ async def change_partner_status(
     partner_id: int,
     data: PartnerStatusChange,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -516,7 +538,9 @@ async def change_partner_status(
     - reason: 상태 변경 사유
     - send_sms: SMS 발송 여부 (기본: True)
     """
-    partner = db.query(Partner).filter(Partner.id == partner_id).first()
+    query = select(Partner).where(Partner.id == partner_id)
+    result = await db.execute(query)
+    partner = result.scalar_one_or_none()
 
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
@@ -544,11 +568,11 @@ async def change_partner_status(
         # rejected가 아닌 상태로 변경 시 거절 사유 초기화
         partner.rejection_reason = None
 
-    db.commit()
-    db.refresh(partner)
+    await db.commit()
+    await db.refresh(partner)
 
     # Audit Log에 상태 변경 이력 저장
-    log_status_change(
+    await log_status_change(
         db=db,
         entity_type="partner",
         entity_id=partner_id,
@@ -556,7 +580,7 @@ async def change_partner_status(
         new_status=new_status,
         admin=current_admin,
     )
-    db.commit()
+    await db.commit()
 
     # SMS 발송 (승인/거절 시)
     if data.send_sms and new_status in ["approved", "rejected"]:
@@ -573,6 +597,6 @@ async def change_partner_status(
         )
         logger.info(f"SMS scheduled: partner status change to {new_status} for {partner.company_name}")
 
-    service_map = get_service_code_to_name_map(db)
+    service_map = await get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)

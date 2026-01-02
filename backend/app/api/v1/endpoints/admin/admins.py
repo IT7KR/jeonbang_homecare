@@ -4,7 +4,8 @@ Admin Management API
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 from typing import Optional
 
 from app.core.database import get_db
@@ -20,38 +21,40 @@ router = APIRouter(prefix="/admins", tags=["Admin Management"])
 
 
 @router.get("", response_model=list[AdminResponse])
-def list_admins(
+async def list_admins(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     is_active: Optional[bool] = None,
     admin: Admin = Depends(get_current_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 목록 조회 (슈퍼 관리자 전용)
     """
-    query = db.query(Admin)
+    stmt = select(Admin)
 
     if is_active is not None:
-        query = query.filter(Admin.is_active == is_active)
+        stmt = stmt.where(Admin.is_active == is_active)
 
-    query = query.order_by(Admin.created_at.desc())
-    admins = query.offset(skip).limit(limit).all()
+    stmt = stmt.order_by(desc(Admin.created_at)).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    admins = result.scalars().all()
 
     return [AdminResponse.model_validate(a) for a in admins]
 
 
 @router.post("", response_model=AdminResponse, status_code=status.HTTP_201_CREATED)
-def create_admin(
+async def create_admin(
     data: AdminCreate,
     admin: Admin = Depends(get_current_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 생성 (슈퍼 관리자 전용)
     """
     # 이메일 중복 체크
-    existing = db.query(Admin).filter(Admin.email == data.email).first()
+    result = await db.execute(select(Admin).where(Admin.email == data.email))
+    existing = result.scalar_one_or_none()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -69,22 +72,23 @@ def create_admin(
     )
 
     db.add(new_admin)
-    db.commit()
-    db.refresh(new_admin)
+    await db.commit()
+    await db.refresh(new_admin)
 
     return AdminResponse.model_validate(new_admin)
 
 
 @router.get("/{admin_id}", response_model=AdminResponse)
-def get_admin(
+async def get_admin(
     admin_id: int,
     admin: Admin = Depends(get_current_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 상세 조회 (슈퍼 관리자 전용)
     """
-    target_admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    target_admin = result.scalar_one_or_none()
 
     if not target_admin:
         raise HTTPException(
@@ -96,16 +100,17 @@ def get_admin(
 
 
 @router.patch("/{admin_id}", response_model=AdminResponse)
-def update_admin(
+async def update_admin(
     admin_id: int,
     data: AdminUpdate,
     admin: Admin = Depends(get_current_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 정보 수정 (슈퍼 관리자 전용)
     """
-    target_admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    target_admin = result.scalar_one_or_none()
 
     if not target_admin:
         raise HTTPException(
@@ -131,24 +136,25 @@ def update_admin(
     for field, value in update_data.items():
         setattr(target_admin, field, value)
 
-    db.commit()
-    db.refresh(target_admin)
+    await db.commit()
+    await db.refresh(target_admin)
 
     return AdminResponse.model_validate(target_admin)
 
 
 @router.delete("/{admin_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_admin(
+async def delete_admin(
     admin_id: int,
     admin: Admin = Depends(get_current_super_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     관리자 삭제 (슈퍼 관리자 전용)
 
     실제 삭제 대신 is_active=False로 비활성화
     """
-    target_admin = db.query(Admin).filter(Admin.id == admin_id).first()
+    result = await db.execute(select(Admin).where(Admin.id == admin_id))
+    target_admin = result.scalar_one_or_none()
 
     if not target_admin:
         raise HTTPException(
@@ -165,6 +171,6 @@ def delete_admin(
 
     # 소프트 삭제
     target_admin.is_active = False
-    db.commit()
+    await db.commit()
 
     return None

@@ -4,8 +4,8 @@ Admin SMS API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, func
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import desc, func, select
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 import math
@@ -51,7 +51,7 @@ router = APIRouter(prefix="/sms", tags=["Admin - SMS"])
 
 
 @router.get("/test-config")
-def test_sms_config(
+async def test_sms_config(
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -82,7 +82,7 @@ def test_sms_config(
 @router.post("/test-send")
 async def test_sms_send(
     test_phone: str = Query(..., description="테스트 수신 번호 (본인 번호)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -198,8 +198,8 @@ def decrypt_sms_log(log: SMSLog) -> dict:
 
 
 @router.get("/stats", response_model=SMSStatsResponse)
-def get_sms_stats(
-    db: Session = Depends(get_db),
+async def get_sms_stats(
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -210,32 +210,45 @@ def get_sms_stats(
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     # 전체 통계
-    total_sent = db.query(func.count(SMSLog.id)).filter(SMSLog.status == "sent").scalar() or 0
-    total_failed = db.query(func.count(SMSLog.id)).filter(SMSLog.status == "failed").scalar() or 0
+    result = await db.execute(select(func.count(SMSLog.id)).where(SMSLog.status == "sent"))
+    total_sent = result.scalar() or 0
+
+    result = await db.execute(select(func.count(SMSLog.id)).where(SMSLog.status == "failed"))
+    total_failed = result.scalar() or 0
 
     # 오늘 통계
-    today_sent = (
-        db.query(func.count(SMSLog.id))
-        .filter(SMSLog.status == "sent", SMSLog.created_at >= today_start)
-        .scalar() or 0
+    result = await db.execute(
+        select(func.count(SMSLog.id)).where(
+            SMSLog.status == "sent",
+            SMSLog.created_at >= today_start
+        )
     )
-    today_failed = (
-        db.query(func.count(SMSLog.id))
-        .filter(SMSLog.status == "failed", SMSLog.created_at >= today_start)
-        .scalar() or 0
+    today_sent = result.scalar() or 0
+
+    result = await db.execute(
+        select(func.count(SMSLog.id)).where(
+            SMSLog.status == "failed",
+            SMSLog.created_at >= today_start
+        )
     )
+    today_failed = result.scalar() or 0
 
     # 이번 달 통계
-    this_month_sent = (
-        db.query(func.count(SMSLog.id))
-        .filter(SMSLog.status == "sent", SMSLog.created_at >= month_start)
-        .scalar() or 0
+    result = await db.execute(
+        select(func.count(SMSLog.id)).where(
+            SMSLog.status == "sent",
+            SMSLog.created_at >= month_start
+        )
     )
-    this_month_failed = (
-        db.query(func.count(SMSLog.id))
-        .filter(SMSLog.status == "failed", SMSLog.created_at >= month_start)
-        .scalar() or 0
+    this_month_sent = result.scalar() or 0
+
+    result = await db.execute(
+        select(func.count(SMSLog.id)).where(
+            SMSLog.status == "failed",
+            SMSLog.created_at >= month_start
+        )
     )
+    this_month_failed = result.scalar() or 0
 
     return SMSStatsResponse(
         total_sent=total_sent,
@@ -248,14 +261,14 @@ def get_sms_stats(
 
 
 @router.get("", response_model=SMSLogListResponse)
-def get_sms_logs(
+async def get_sms_logs(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
     sms_type: Optional[str] = Query(None, description="유형 필터"),
     trigger_source: Optional[str] = Query(None, description="발송 출처 필터 (system, manual, bulk)"),
     search: Optional[str] = Query(None, description="검색어 (수신번호)"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -266,30 +279,28 @@ def get_sms_logs(
       - manual: 관리자 직접 발송
       - bulk: 대량 발송
     """
-    query = db.query(SMSLog)
+    query = select(SMSLog)
 
     # 상태 필터
     if status:
-        query = query.filter(SMSLog.status == status)
+        query = query.where(SMSLog.status == status)
 
     # 유형 필터
     if sms_type:
-        query = query.filter(SMSLog.sms_type == sms_type)
+        query = query.where(SMSLog.sms_type == sms_type)
 
     # 발송 출처 필터
     if trigger_source:
-        query = query.filter(SMSLog.trigger_source == trigger_source)
+        query = query.where(SMSLog.trigger_source == trigger_source)
 
     # 전체 개수
-    total = query.count()
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar() or 0
 
     # 정렬 및 페이징
-    logs = (
-        query.order_by(desc(SMSLog.created_at))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    query = query.order_by(desc(SMSLog.created_at)).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+    logs = result.scalars().all()
 
     # 복호화된 목록 생성
     items = []
@@ -312,7 +323,7 @@ def get_sms_logs(
 @router.post("/send", response_model=SMSSendResponse)
 async def send_manual_sms(
     data: SMSSendRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -350,7 +361,7 @@ async def send_manual_sms(
 @router.post("/send-mms", response_model=SMSSendResponse)
 async def send_manual_mms(
     data: MMSSendRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -396,8 +407,8 @@ async def send_manual_mms(
             sent_at=datetime.now(timezone.utc) if success else None,
         )
         db.add(log)
-        db.commit()
-        db.refresh(log)
+        await db.commit()
+        await db.refresh(log)
 
         if success:
             return SMSSendResponse(
@@ -465,7 +476,7 @@ def convert_file_to_base64(file_path: str, upload_dir: str) -> Optional[str]:
 @router.post("/send-work-photos-mms", response_model=SMSSendResponse)
 async def send_work_photos_mms(
     data: WorkPhotoMMSRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -478,9 +489,12 @@ async def send_work_photos_mms(
     """
     try:
         # 배정 조회
-        assignment = db.query(ApplicationPartnerAssignment).filter(
-            ApplicationPartnerAssignment.id == data.assignment_id
-        ).first()
+        result = await db.execute(
+            select(ApplicationPartnerAssignment).where(
+                ApplicationPartnerAssignment.id == data.assignment_id
+            )
+        )
+        assignment = result.scalar_one_or_none()
 
         if not assignment:
             return SMSSendResponse(
@@ -529,8 +543,8 @@ async def send_work_photos_mms(
             sent_at=datetime.now(timezone.utc) if success else None,
         )
         db.add(log)
-        db.commit()
-        db.refresh(log)
+        await db.commit()
+        await db.refresh(log)
 
         if success:
             return SMSSendResponse(
@@ -556,13 +570,14 @@ async def send_work_photos_mms(
 @router.post("/retry/{log_id}", response_model=SMSSendResponse)
 async def retry_sms(
     log_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     실패한 SMS 재발송
     """
-    log = db.query(SMSLog).filter(SMSLog.id == log_id).first()
+    result = await db.execute(select(SMSLog).where(SMSLog.id == log_id))
+    log = result.scalar_one_or_none()
 
     if not log:
         raise HTTPException(status_code=404, detail="SMS 로그를 찾을 수 없습니다")
@@ -616,13 +631,13 @@ def mask_phone(phone: str) -> str:
 
 
 @router.get("/recipients", response_model=SMSRecipientsResponse)
-def get_sms_recipients(
+async def get_sms_recipients(
     target_type: str = Query(..., description="대상 유형 (customer, partner)"),
     status: Optional[str] = Query(None, description="상태 필터"),
     search: Optional[str] = Query(None, description="검색어"),
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(50, ge=1, le=100, description="페이지 크기"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -639,18 +654,17 @@ def get_sms_recipients(
     total = 0
 
     if target_type == "customer":
-        query = db.query(Application)
+        query = select(Application)
         if status:
-            query = query.filter(Application.status == status)
-        total = query.count()
+            query = query.where(Application.status == status)
+
+        count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+        total = count_result.scalar() or 0
 
         # 페이징
-        applications = (
-            query.order_by(desc(Application.created_at))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
+        query = query.order_by(desc(Application.created_at)).offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(query)
+        applications = result.scalars().all()
 
         for app in applications:
             try:
@@ -675,18 +689,17 @@ def get_sms_recipients(
                 continue
 
     elif target_type == "partner":
-        query = db.query(Partner)
+        query = select(Partner)
         if status:
-            query = query.filter(Partner.status == status)
-        total = query.count()
+            query = query.where(Partner.status == status)
+
+        count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+        total = count_result.scalar() or 0
 
         # 페이징
-        partners = (
-            query.order_by(desc(Partner.created_at))
-            .offset((page - 1) * page_size)
-            .limit(page_size)
-            .all()
-        )
+        query = query.order_by(desc(Partner.created_at)).offset((page - 1) * page_size).limit(page_size)
+        result = await db.execute(query)
+        partners = result.scalars().all()
 
         for partner in partners:
             try:
@@ -726,7 +739,7 @@ def get_sms_recipients(
 async def create_bulk_sms_job(
     data: BulkSMSSendRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -750,8 +763,8 @@ async def create_bulk_sms_job(
         created_by=current_admin.id,
     )
     db.add(job)
-    db.commit()
-    db.refresh(job)
+    await db.commit()
+    await db.refresh(job)
 
     # 백그라운드에서 실행
     background_tasks.add_task(execute_bulk_sms_job, db, job.id)
@@ -764,15 +777,16 @@ async def create_bulk_sms_job(
 
 
 @router.get("/bulk/{job_id}", response_model=BulkSMSJobDetailResponse)
-def get_bulk_sms_job(
+async def get_bulk_sms_job(
     job_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     복수 SMS 발송 Job 상태 조회 (진행 상황 폴링용)
     """
-    job = db.query(BulkSMSJob).filter(BulkSMSJob.id == job_id).first()
+    result = await db.execute(select(BulkSMSJob).where(BulkSMSJob.id == job_id))
+    job = result.scalar_one_or_none()
 
     if not job:
         raise HTTPException(status_code=404, detail="Job을 찾을 수 없습니다")
@@ -809,29 +823,27 @@ def get_bulk_sms_job(
 
 
 @router.get("/bulk", response_model=BulkSMSJobListResponse)
-def get_bulk_sms_jobs(
+async def get_bulk_sms_jobs(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     복수 SMS 발송 Job 목록 조회
     """
-    query = db.query(BulkSMSJob)
+    query = select(BulkSMSJob)
 
     if status:
-        query = query.filter(BulkSMSJob.status == status)
+        query = query.where(BulkSMSJob.status == status)
 
-    total = query.count()
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar() or 0
 
-    jobs = (
-        query.order_by(desc(BulkSMSJob.created_at))
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-        .all()
-    )
+    query = query.order_by(desc(BulkSMSJob.created_at)).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(query)
+    jobs = result.scalars().all()
 
     items = []
     for job in jobs:

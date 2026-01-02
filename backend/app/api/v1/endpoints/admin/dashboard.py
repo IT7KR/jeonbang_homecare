@@ -5,8 +5,8 @@ Admin Dashboard API
 
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -69,9 +69,9 @@ class DashboardResponse(BaseModel):
 
 
 @router.get("", response_model=DashboardResponse)
-def get_dashboard(
+async def get_dashboard(
     admin: Admin = Depends(get_current_admin),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     대시보드 데이터 조회
@@ -82,60 +82,62 @@ def get_dashboard(
     month_start = today_start.replace(day=1)
 
     # 신청 통계
-    applications_total = db.query(func.count(Application.id)).scalar() or 0
+    result = await db.execute(select(func.count(Application.id)))
+    applications_total = result.scalar() or 0
 
     # 상태별 신청 수
-    status_counts = (
-        db.query(Application.status, func.count(Application.id))
+    result = await db.execute(
+        select(Application.status, func.count(Application.id))
         .group_by(Application.status)
-        .all()
     )
+    status_counts = result.all()
     status_map = dict(status_counts)
 
     # 기간별 신청 수
-    applications_today = (
-        db.query(func.count(Application.id))
-        .filter(Application.created_at >= today_start)
-        .scalar() or 0
+    result = await db.execute(
+        select(func.count(Application.id))
+        .where(Application.created_at >= today_start)
     )
+    applications_today = result.scalar() or 0
 
-    applications_this_week = (
-        db.query(func.count(Application.id))
-        .filter(Application.created_at >= week_start)
-        .scalar() or 0
+    result = await db.execute(
+        select(func.count(Application.id))
+        .where(Application.created_at >= week_start)
     )
+    applications_this_week = result.scalar() or 0
 
     # 협력사 통계
-    partners_total = db.query(func.count(Partner.id)).scalar() or 0
+    result = await db.execute(select(func.count(Partner.id)))
+    partners_total = result.scalar() or 0
 
-    partner_status_counts = (
-        db.query(Partner.status, func.count(Partner.id))
+    result = await db.execute(
+        select(Partner.status, func.count(Partner.id))
         .group_by(Partner.status)
-        .all()
     )
+    partner_status_counts = result.all()
     partner_status_map = dict(partner_status_counts)
 
-    partners_this_month = (
-        db.query(func.count(Partner.id))
-        .filter(Partner.created_at >= month_start)
-        .scalar() or 0
+    result = await db.execute(
+        select(func.count(Partner.id))
+        .where(Partner.created_at >= month_start)
     )
+    partners_this_month = result.scalar() or 0
 
     # 최근 신청 (5건)
-    recent_applications = (
-        db.query(Application)
+    result = await db.execute(
+        select(Application)
         .order_by(Application.created_at.desc())
         .limit(5)
-        .all()
     )
+    recent_applications = result.scalars().all()
 
     # 최근 협력사 (5건)
-    recent_partners = (
-        db.query(Partner)
+    result = await db.execute(
+        select(Partner)
         .order_by(Partner.created_at.desc())
         .limit(5)
-        .all()
     )
+    recent_partners = result.scalars().all()
 
     stats = DashboardStats(
         applications_total=applications_total,

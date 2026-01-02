@@ -4,8 +4,8 @@ Admin Application API endpoints
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import desc, or_, and_, select, func
 from sqlalchemy.dialects.postgresql import JSONB
 from typing import Optional, List
 from datetime import datetime, timezone, date
@@ -124,7 +124,7 @@ def decrypt_application(app: Application, service_map: dict[str, str]) -> dict:
 
 
 @router.get("", response_model=ApplicationListResponse)
-def get_applications(
+async def get_applications(
     page: int = Query(1, ge=1, description="페이지 번호"),
     page_size: int = Query(20, ge=1, le=100, description="페이지 크기"),
     status: Optional[str] = Query(None, description="상태 필터"),
@@ -135,7 +135,7 @@ def get_applications(
     services: Optional[str] = Query(None, description="서비스 필터 (콤마 구분)"),
     assigned_admin_id: Optional[int] = Query(None, description="담당 관리자 ID"),
     assigned_partner_id: Optional[int] = Query(None, description="배정 협력사 ID"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -148,11 +148,11 @@ def get_applications(
     - 서비스 필터
     - 담당자 필터
     """
-    query = db.query(Application)
+    stmt = select(Application)
 
     # 상태 필터
     if status:
-        query = query.filter(Application.status == status)
+        query = stmt.where(Application.status == status)
 
     # 통합 검색
     if search:
@@ -167,21 +167,21 @@ def get_applications(
             if re.match(r'^\d{9,11}$', search):
                 # 하이픈 없는 형식: 앞 8자리-나머지
                 search_normalized = f"{search[:8]}-{search[8:]}"
-            query = query.filter(Application.application_number.ilike(f"%{search_normalized}%"))
+            query = stmt.where(Application.application_number.ilike(f"%{search_normalized}%"))
         elif detected_type in ("phone", "name"):
             # 암호화된 필드 검색 (인덱스 테이블 사용)
-            matching_ids = unified_search(db, "application", search, detected_type)
+            matching_ids = await unified_search(db, "application", search, detected_type)
             if matching_ids:
-                query = query.filter(Application.id.in_(matching_ids))
+                query = stmt.where(Application.id.in_(matching_ids))
             else:
                 # 검색 결과 없음 - 빈 결과 반환
-                query = query.filter(Application.id == -1)
+                query = stmt.where(Application.id == -1)
 
     # 날짜 범위 필터
     if date_from:
-        query = query.filter(Application.created_at >= datetime.combine(date_from, datetime.min.time()))
+        query = stmt.where(Application.created_at >= datetime.combine(date_from, datetime.min.time()))
     if date_to:
-        query = query.filter(Application.created_at <= datetime.combine(date_to, datetime.max.time()))
+        query = stmt.where(Application.created_at <= datetime.combine(date_to, datetime.max.time()))
 
     # 서비스 필터 (JSONB 배열에서 검색)
     if services:
@@ -192,26 +192,32 @@ def get_applications(
                 Application.selected_services.contains([svc])
                 for svc in service_list
             ]
-            query = query.filter(or_(*service_conditions))
+            query = stmt.where(or_(*service_conditions))
 
     # 담당 관리자 필터
     if assigned_admin_id:
-        query = query.filter(Application.assigned_admin_id == assigned_admin_id)
+        query = stmt.where(Application.assigned_admin_id == assigned_admin_id)
 
     # 배정 협력사 필터
     if assigned_partner_id:
-        query = query.filter(Application.assigned_partner_id == assigned_partner_id)
+        query = stmt.where(Application.assigned_partner_id == assigned_partner_id)
 
     # 전체 개수
-    total = query.count()
+    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
+
+    total = count_result.scalar()
 
     # 정렬 및 페이징
-    applications = (
-        query.order_by(desc(Application.created_at))
+    result = await db.execute(
+
+        stmt.order_by(desc(Application.created_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .all()
+        
+
     )
+
+    applications = result.scalars().all()
 
     # 복호화된 목록 생성 (서비스 맵 1회 조회로 N+1 방지)
     service_map = get_service_code_to_name_map(db)
@@ -246,7 +252,7 @@ def get_applications(
 async def bulk_assign_applications(
     data: BulkAssignRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -257,7 +263,9 @@ async def bulk_assign_applications(
     - SMS 알림 발송 옵션
     """
     # 협력사 검증
-    partner = db.query(Partner).filter(Partner.id == data.partner_id).first()
+    result = await db.execute(select(Partner).where(Partner.id == data.partner_id))
+
+    partner = result.scalar_one_or_none()
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
     if partner.status != "approved":
@@ -271,7 +279,9 @@ async def bulk_assign_applications(
     service_map = get_service_code_to_name_map(db)
 
     for app_id in data.application_ids:
-        application = db.query(Application).filter(Application.id == app_id).first()
+        result = await db.execute(select(Application).where(Application.id == app_id))
+
+        application = result.scalar_one_or_none()
 
         if not application:
             results.append(BulkAssignResult(
@@ -347,7 +357,7 @@ async def bulk_assign_applications(
         success_count += 1
 
         # 개별 신청에 대한 배정 audit log
-        log_bulk_assignment(
+        await log_bulk_assignment(
             db=db,
             entity_type="application",
             entity_id=app_id,
@@ -358,7 +368,7 @@ async def bulk_assign_applications(
             admin=current_admin,
         )
 
-    db.commit()
+    await db.commit()
 
     if success_count > 0:
         logger.info(f"Bulk assignment: {success_count}/{len(data.application_ids)} to partner {partner.company_name}")
@@ -372,8 +382,8 @@ async def bulk_assign_applications(
     )
 
 
-def get_assignments_for_application(
-    db: Session,
+async def get_assignments_for_application(
+    db: AsyncSession,
     application_id: int,
     service_map: dict[str, str] | None = None
 ) -> list[AssignmentSummary]:
@@ -384,12 +394,12 @@ def get_assignments_for_application(
         application_id: 신청 ID
         service_map: 서비스 코드→이름 매핑 (None이면 내부에서 조회)
     """
-    assignments = (
-        db.query(ApplicationPartnerAssignment)
-        .filter(ApplicationPartnerAssignment.application_id == application_id)
+    result = await db.execute(
+        select(ApplicationPartnerAssignment)
+        .where(ApplicationPartnerAssignment.application_id == application_id)
         .order_by(ApplicationPartnerAssignment.created_at.desc())
-        .all()
     )
+    assignments = result.scalars().all()
 
     if not assignments:
         return []
@@ -402,7 +412,10 @@ def get_assignments_for_application(
     partner_ids = list(set(a.partner_id for a in assignments if a.partner_id))
     partners_dict = {}
     if partner_ids:
-        partners = db.query(Partner).filter(Partner.id.in_(partner_ids)).all()
+        result = await db.execute(
+            select(Partner).where(Partner.id.in_(partner_ids))
+        )
+        partners = result.scalars().all()
         partners_dict = {p.id: p for p in partners}
 
     result = []
@@ -434,9 +447,9 @@ def get_assignments_for_application(
 
 
 @router.get("/{application_id}", response_model=ApplicationDetailResponse)
-def get_application(
+async def get_application(
     application_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -444,7 +457,9 @@ def get_application(
 
     - 1:N 배정 정보 포함 (assignments 필드)
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
@@ -453,7 +468,7 @@ def get_application(
     decrypted = decrypt_application(application, service_map)
 
     # 배정 목록 조회 (1:N)
-    assignments = get_assignments_for_application(db, application_id, service_map)
+    assignments = await get_assignments_for_application(db, application_id, service_map)
 
     return ApplicationDetailResponse(**decrypted, assignments=assignments)
 
@@ -463,7 +478,7 @@ async def update_application(
     application_id: int,
     data: ApplicationUpdate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -476,7 +491,9 @@ async def update_application(
     - 관리자 메모
     - SMS 알림 발송 (선택)
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
@@ -498,7 +515,9 @@ async def update_application(
     # 협력사 배정 시 검증
     if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
         # 협력사 존재 및 상태 확인
-        partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+        result = await db.execute(select(Partner).where(Partner.id == data.assigned_partner_id))
+
+        partner = result.scalar_one_or_none()
         if not partner:
             raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
         if partner.status != "approved":
@@ -538,10 +557,12 @@ async def update_application(
         # scheduled, completed, cancelled는 Assignment에도 동일하게 적용
         sync_statuses = ["scheduled", "completed", "cancelled"]
         if data.status in sync_statuses:
-            assignments = db.query(ApplicationPartnerAssignment).filter(
+            result = await db.execute(select(ApplicationPartnerAssignment).where(
                 ApplicationPartnerAssignment.application_id == application_id,
                 ApplicationPartnerAssignment.status.notin_(["completed", "cancelled"])  # 이미 완료/취소된 건 제외
-            ).all()
+            ))
+
+            assignments = result.scalars().all()
             for assignment in assignments:
                 assignment.status = data.status
                 if data.status == "completed":
@@ -549,13 +570,13 @@ async def update_application(
                 elif data.status == "cancelled":
                     assignment.cancelled_at = datetime.now(timezone.utc)
 
-    db.commit()
-    db.refresh(application)
+    await db.commit()
+    await db.refresh(application)
 
     # Audit Log 기록
     # 상태 변경 로그
     if data.status and data.status != prev_status:
-        log_status_change(
+        await log_status_change(
             db=db,
             entity_type="application",
             entity_id=application.id,
@@ -566,9 +587,11 @@ async def update_application(
 
     # 협력사 배정 로그
     if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
-        partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+        result = await db.execute(select(Partner).where(Partner.id == data.assigned_partner_id))
+
+        partner = result.scalar_one_or_none()
         if partner:
-            log_assignment(
+            await log_assignment(
                 db=db,
                 entity_type="application",
                 entity_id=application.id,
@@ -579,7 +602,7 @@ async def update_application(
 
     # 일정 변경 로그
     if data.scheduled_date and str(data.scheduled_date) != str(prev_scheduled_date) if prev_scheduled_date else data.scheduled_date:
-        log_schedule_change(
+        await log_schedule_change(
             db=db,
             entity_type="application",
             entity_id=application.id,
@@ -594,7 +617,7 @@ async def update_application(
         (data.final_cost is not None and data.final_cost != prev_final_cost)
     )
     if cost_changed:
-        log_cost_change(
+        await log_cost_change(
             db=db,
             entity_type="application",
             entity_id=application.id,
@@ -606,7 +629,7 @@ async def update_application(
         )
 
     # Audit Log commit
-    db.commit()
+    await db.commit()
 
     # SMS 발송 처리 (백그라운드)
     if data.send_sms:
@@ -617,14 +640,18 @@ async def update_application(
 
         # 협력사 배정 알림
         if data.assigned_partner_id and data.assigned_partner_id != prev_partner_id:
-            partner = db.query(Partner).filter(Partner.id == data.assigned_partner_id).first()
+            result = await db.execute(select(Partner).where(Partner.id == data.assigned_partner_id))
+
+            partner = result.scalar_one_or_none()
             if partner:
                 partner_phone = decrypt_value(partner.contact_phone)
                 # 배정 정보 조회 (있다면)
-                assignment = db.query(ApplicationAssignment).filter(
+                result = await db.execute(select(ApplicationAssignment).where(
                     ApplicationAssignment.application_id == application.id,
                     ApplicationAssignment.partner_id == partner.id
-                ).first()
+                ))
+
+                assignment = result.scalar_one_or_none()
                 scheduled_date_str = str(assignment.scheduled_date) if assignment and assignment.scheduled_date else "미정"
                 scheduled_time_str = assignment.scheduled_time if assignment and assignment.scheduled_time else "미정"
                 estimated_cost_str = f"{assignment.estimated_cost:,}원" if assignment and assignment.estimated_cost else "협의"
@@ -662,7 +689,9 @@ async def update_application(
                 partner_name = None
                 partner_phone = None
                 if application.assigned_partner_id:
-                    partner = db.query(Partner).filter(Partner.id == application.assigned_partner_id).first()
+                    result = await db.execute(select(Partner).where(Partner.id == application.assigned_partner_id))
+
+                    partner = result.scalar_one_or_none()
                     if partner:
                         partner_name = partner.company_name
                         partner_phone = decrypt_value(partner.contact_phone)
@@ -720,15 +749,19 @@ async def update_application(
             customer_view_url = None
 
             if application.assigned_partner_id:
-                partner = db.query(Partner).filter(Partner.id == application.assigned_partner_id).first()
+                result = await db.execute(select(Partner).where(Partner.id == application.assigned_partner_id))
+
+                partner = result.scalar_one_or_none()
                 if partner:
                     partner_name = partner.company_name
 
             # 고객 열람 URL 가져오기 또는 생성
-            assignment = db.query(ApplicationPartnerAssignment).filter(
+            result = await db.execute(select(ApplicationPartnerAssignment).where(
                 ApplicationPartnerAssignment.application_id == application_id,
                 ApplicationPartnerAssignment.status.in_(["completed", "in_progress", "scheduled", "accepted"])
-            ).first()
+            ))
+
+            assignment = result.scalar_one_or_none()
 
             if assignment:
                 # 토큰이 없거나 만료된 경우 새로 생성 (기본 7일)
@@ -742,7 +775,7 @@ async def update_application(
                         assignment.customer_token_expires_at = datetime.fromtimestamp(
                             token_info.expires_at, tz=timezone.utc
                         )
-                    db.commit()
+                    await db.commit()
 
                 customer_view_url = _build_customer_view_url(assignment.customer_token)
 
@@ -761,12 +794,15 @@ async def update_application(
     # 일정 충돌 검사 (경고만, 차단하지 않음)
     schedule_conflicts: list[ScheduleConflict] = []
     if application.scheduled_date and application.assigned_partner_id:
-        conflict_apps = db.query(Application).filter(
-            Application.assigned_partner_id == application.assigned_partner_id,
-            Application.scheduled_date == application.scheduled_date,
-            Application.id != application_id,
-            Application.status.in_(["assigned", "scheduled"])
-        ).all()
+        conflict_result = await db.execute(
+            select(Application).where(
+                Application.assigned_partner_id == application.assigned_partner_id,
+                Application.scheduled_date == application.scheduled_date,
+                Application.id != application_id,
+                Application.status.in_(["assigned", "scheduled"])
+            )
+        )
+        conflict_apps = conflict_result.scalars().all()
 
         for conflict_app in conflict_apps:
             # 같은 시간대인 경우에만 충돌로 간주
@@ -793,7 +829,7 @@ async def update_application(
         logger.warning(f"Schedule conflicts detected for {application.application_number}: {len(schedule_conflicts)} conflicts")
 
     # 배정 목록 조회 (1:N)
-    assignments = get_assignments_for_application(db, application_id)
+    assignments = await get_assignments_for_application(db, application_id)
 
     return ApplicationDetailResponse(
         **decrypted,
@@ -803,9 +839,9 @@ async def update_application(
 
 
 @router.delete("/{application_id}")
-def delete_application(
+async def delete_application(
     application_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -814,7 +850,9 @@ def delete_application(
     - 실제 삭제가 아닌 취소 처리 권장
     - super_admin만 실제 삭제 가능
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
 
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
@@ -823,8 +861,8 @@ def delete_application(
     if current_admin.role != "super_admin":
         raise HTTPException(status_code=403, detail="삭제 권한이 없습니다. 취소 처리를 이용해주세요.")
 
-    db.delete(application)
-    db.commit()
+    await db.delete(application)
+    await db.commit()
 
     return {"success": True, "message": "신청이 삭제되었습니다"}
 
@@ -833,11 +871,11 @@ def delete_application(
 
 
 @router.get("/{application_id}/notes", response_model=ApplicationNotesListResponse)
-def get_application_notes(
+async def get_application_notes(
     application_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -846,19 +884,30 @@ def get_application_notes(
     - 최신순 정렬
     - 히스토리 형태로 제공
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    query = db.query(ApplicationNote).filter(ApplicationNote.application_id == application_id)
-    total = query.count()
+    query = select(ApplicationNote).where(ApplicationNote.application_id == application_id)
+    count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
 
-    notes = (
-        query.order_by(desc(ApplicationNote.created_at))
+    total = count_result.scalar()
+
+    result = await db.execute(
+
+
+        stmt.order_by(desc(ApplicationNote.created_at))
         .offset((page - 1) * page_size)
         .limit(page_size)
-        .all()
+        
+
+
     )
+
+
+    notes = result.scalars().all()
 
     return ApplicationNotesListResponse(
         items=[ApplicationNoteResponse.model_validate(note) for note in notes],
@@ -867,10 +916,10 @@ def get_application_notes(
 
 
 @router.post("/{application_id}/notes", response_model=ApplicationNoteResponse)
-def create_application_note(
+async def create_application_note(
     application_id: int,
     data: ApplicationNoteCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -879,7 +928,9 @@ def create_application_note(
     - 히스토리 방식으로 계속 추가됨 (덮어쓰기 아님)
     - 작성자 정보 자동 기록
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
@@ -891,8 +942,8 @@ def create_application_note(
     )
 
     db.add(note)
-    db.commit()
-    db.refresh(note)
+    await db.commit()
+    await db.refresh(note)
 
     logger.info(f"Note added to application {application.application_number} by {current_admin.name}")
 
@@ -900,10 +951,10 @@ def create_application_note(
 
 
 @router.delete("/{application_id}/notes/{note_id}")
-def delete_application_note(
+async def delete_application_note(
     application_id: int,
     note_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -912,10 +963,12 @@ def delete_application_note(
     - 본인이 작성한 메모만 삭제 가능
     - super_admin은 모든 메모 삭제 가능
     """
-    note = db.query(ApplicationNote).filter(
+    result = await db.execute(select(ApplicationNote).where(
         ApplicationNote.id == note_id,
         ApplicationNote.application_id == application_id
-    ).first()
+    ))
+
+    note = result.scalar_one_or_none()
 
     if not note:
         raise HTTPException(status_code=404, detail="메모를 찾을 수 없습니다")
@@ -924,8 +977,8 @@ def delete_application_note(
     if note.admin_id != current_admin.id and current_admin.role != "super_admin":
         raise HTTPException(status_code=403, detail="본인이 작성한 메모만 삭제할 수 있습니다")
 
-    db.delete(note)
-    db.commit()
+    await db.delete(note)
+    await db.commit()
 
     return {"success": True, "message": "메모가 삭제되었습니다"}
 
@@ -934,9 +987,9 @@ def delete_application_note(
 
 
 @router.get("/{application_id}/assignments", response_model=AssignmentListResponse)
-def get_application_assignments(
+async def get_application_assignments(
     application_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -945,20 +998,24 @@ def get_application_assignments(
     - 1:N 배정 지원
     - 협력사 정보 포함
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    assignments = (
-        db.query(ApplicationPartnerAssignment)
-        .filter(ApplicationPartnerAssignment.application_id == application_id)
+    result = await db.execute(
+        select(ApplicationPartnerAssignment)
+        .where(ApplicationPartnerAssignment.application_id == application_id)
         .order_by(ApplicationPartnerAssignment.created_at.desc())
-        .all()
     )
+    assignments = result.scalars().all()
 
     items = []
     for assignment in assignments:
-        partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+        result = await db.execute(select(Partner).where(Partner.id == assignment.partner_id))
+
+        partner = result.scalar_one_or_none()
         items.append(AssignmentResponse(
             id=assignment.id,
             application_id=assignment.application_id,
@@ -990,7 +1047,7 @@ async def create_application_assignment(
     application_id: int,
     data: AssignmentCreate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1000,12 +1057,16 @@ async def create_application_assignment(
     - 서비스 영역 매칭 검증
     - SMS 알림 발송 옵션
     """
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
     # 협력사 검증
-    partner = db.query(Partner).filter(Partner.id == data.partner_id).first()
+    result = await db.execute(select(Partner).where(Partner.id == data.partner_id))
+
+    partner = result.scalar_one_or_none()
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
     if partner.status != "approved":
@@ -1055,9 +1116,11 @@ async def create_application_assignment(
     db.add(assignment)
 
     # 기존 배정 조회 (레거시 필드 업데이트와 전체 배정 확인에 사용)
-    existing_assignments = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.application_id == application_id
-    ).all()
+    ))
+
+    existing_assignments = result.scalars().all()
 
     # 전체 서비스가 배정되었는지 확인 후 상태 업데이트
     if application.status in ["new", "consulting"]:
@@ -1084,11 +1147,11 @@ async def create_application_assignment(
         if data.estimated_cost:
             application.estimated_cost = data.estimated_cost
 
-    db.commit()
-    db.refresh(assignment)
+    await db.commit()
+    await db.refresh(assignment)
 
     # Audit Log
-    log_assignment(
+    await log_assignment(
         db=db,
         entity_type="application",
         entity_id=application_id,
@@ -1104,7 +1167,7 @@ async def create_application_assignment(
         db, application_id, trigger_source="assignment_create"
     )
     if old_app_status != new_app_status:
-        db.commit()
+        await db.commit()
         logger.info(
             f"Application status synced: {application_id} "
             f"({old_app_status} → {new_app_status}) due to new assignment"
@@ -1143,7 +1206,7 @@ async def update_application_assignment(
     assignment_id: int,
     data: AssignmentUpdate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1152,16 +1215,23 @@ async def update_application_assignment(
     - 상태, 일정, 비용 등 수정
     - SMS 알림 발송 옵션
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
 
-    application = db.query(Application).filter(Application.id == application_id).first()
-    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+
+    application = result.scalar_one_or_none()
+    result = await db.execute(select(Partner).where(Partner.id == assignment.partner_id))
+
+    partner = result.scalar_one_or_none()
 
     prev_status = assignment.status
     prev_scheduled_date = assignment.scheduled_date
@@ -1185,8 +1255,8 @@ async def update_application_assignment(
         and assignment.status == "pending"):
         assignment.status = "scheduled"
 
-    db.commit()
-    db.refresh(assignment)
+    await db.commit()
+    await db.refresh(assignment)
 
     # 배정 상태 변경 시 신청 상태 자동 동기화
     if data.status and data.status != prev_status:
@@ -1194,7 +1264,7 @@ async def update_application_assignment(
             db, application_id, trigger_source="assignment_update"
         )
         if old_app_status != new_app_status:
-            db.commit()
+            await db.commit()
             logger.info(
                 f"Application status synced: {application_id} "
                 f"({old_app_status} → {new_app_status}) due to assignment {assignment_id}"
@@ -1202,7 +1272,7 @@ async def update_application_assignment(
 
     # Audit Log
     if data.status and data.status != prev_status:
-        log_status_change(
+        await log_status_change(
             db=db,
             entity_type="assignment",
             entity_id=assignment.id,
@@ -1212,7 +1282,7 @@ async def update_application_assignment(
         )
 
     if data.scheduled_date and str(data.scheduled_date) != str(prev_scheduled_date) if prev_scheduled_date else data.scheduled_date:
-        log_schedule_change(
+        await log_schedule_change(
             db=db,
             entity_type="assignment",
             entity_id=assignment.id,
@@ -1251,10 +1321,10 @@ async def update_application_assignment(
 
 
 @router.delete("/{application_id}/assignments/{assignment_id}")
-def delete_application_assignment(
+async def delete_application_assignment(
     application_id: int,
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1263,19 +1333,24 @@ def delete_application_assignment(
     - 배정 취소 (soft delete가 아닌 실제 삭제)
     - 다른 배정이 없으면 신청 상태도 조정
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
 
-    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+    result = await db.execute(select(Partner).where(Partner.id == assignment.partner_id))
+
+
+    partner = result.scalar_one_or_none()
     partner_name = partner.company_name if partner else "Unknown"
 
     # Audit Log
-    log_change(
+    await log_change(
         db=db,
         entity_type="assignment",
         entity_id=assignment_id,
@@ -1289,28 +1364,34 @@ def delete_application_assignment(
         admin=current_admin,
     )
 
-    db.delete(assignment)
+    await db.delete(assignment)
 
     # 남은 배정 확인
-    remaining = db.query(ApplicationPartnerAssignment).filter(
+    count_stmt = select(func.count()).select_from(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.application_id == application_id
-    ).count()
+    ).subquery())
+
+    count_result = await db.execute(count_stmt)
+
+    remaining = count_result.scalar()
 
     # 모든 배정이 삭제되면 레거시 필드 초기화
     if remaining == 0:
-        application = db.query(Application).filter(Application.id == application_id).first()
+        result = await db.execute(select(Application).where(Application.id == application_id))
+
+        application = result.scalar_one_or_none()
         if application:
             application.assigned_partner_id = None
             # 상태는 그대로 유지 (사용자가 수동으로 변경)
 
-    db.commit()
+    await db.commit()
 
     # 배정 삭제 후 신청 상태 자동 동기화
     old_app_status, new_app_status = sync_application_from_assignments(
         db, application_id, trigger_source="assignment_delete"
     )
     if old_app_status != new_app_status:
-        db.commit()
+        await db.commit()
         logger.info(
             f"Application status synced: {application_id} "
             f"({old_app_status} → {new_app_status}) due to assignment deletion"
@@ -1322,11 +1403,11 @@ def delete_application_assignment(
 
 
 @router.patch("/{application_id}/assignments/batch-status")
-def batch_update_assignment_status(
+async def batch_update_assignment_status(
     application_id: int,
     data: BatchAssignmentStatusUpdate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1340,7 +1421,10 @@ def batch_update_assignment_status(
         send_partner_schedule_notification,
     )
 
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
@@ -1352,10 +1436,12 @@ def batch_update_assignment_status(
 
     for assignment_id in data.assignment_ids:
         try:
-            assignment = db.query(ApplicationPartnerAssignment).filter(
+            result = await db.execute(select(ApplicationPartnerAssignment).where(
                 ApplicationPartnerAssignment.id == assignment_id,
                 ApplicationPartnerAssignment.application_id == application_id
-            ).first()
+            ))
+
+            assignment = result.scalar_one_or_none()
 
             if not assignment:
                 results.append({
@@ -1366,7 +1452,10 @@ def batch_update_assignment_status(
                 failed_count += 1
                 continue
 
-            partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+            result = await db.execute(select(Partner).where(Partner.id == assignment.partner_id))
+
+
+            partner = result.scalar_one_or_none()
             prev_status = assignment.status
 
             # 상태 변경
@@ -1376,7 +1465,7 @@ def batch_update_assignment_status(
 
             # Audit Log
             if data.status != prev_status:
-                log_status_change(
+                await log_status_change(
                     db=db,
                     entity_type="assignment",
                     entity_id=assignment.id,
@@ -1436,14 +1525,14 @@ def batch_update_assignment_status(
             })
             failed_count += 1
 
-    db.commit()
+    await db.commit()
 
     # 배정 상태 변경 후 신청 상태 자동 동기화
     old_app_status, new_app_status = sync_application_from_assignments(
         db, application_id, trigger_source="batch_assignment_update"
     )
     if old_app_status != new_app_status:
-        db.commit()
+        await db.commit()
         logger.info(
             f"Application status synced: {application_id} "
             f"({old_app_status} → {new_app_status}) due to batch assignment update"
@@ -1469,12 +1558,12 @@ def batch_update_assignment_status(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/send-sms")
-def send_assignment_sms(
+async def send_assignment_sms(
     application_id: int,
     assignment_id: int,
     target: str = Query(..., regex="^(customer|partner)$", description="발송 대상 (customer 또는 partner)"),
     background_tasks: BackgroundTasks = None,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1484,21 +1573,27 @@ def send_assignment_sms(
     - target=partner: 협력사에게 배정 알림
     """
     # 배정 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정 정보를 찾을 수 없습니다")
 
     # 신청 정보 조회
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
     # 협력사 정보 조회
-    partner = db.query(Partner).filter(Partner.id == assignment.partner_id).first()
+    result = await db.execute(select(Partner).where(Partner.id == assignment.partner_id))
+
+    partner = result.scalar_one_or_none()
     if not partner:
         raise HTTPException(status_code=404, detail="협력사 정보를 찾을 수 없습니다")
 
@@ -1553,9 +1648,9 @@ def send_assignment_sms(
 
 
 @router.get("/{application_id}/customer-history")
-def get_customer_history(
+async def get_customer_history(
     application_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1565,7 +1660,9 @@ def get_customer_history(
     현재 신청은 목록에서 is_current로 표시됩니다.
     """
     # 현재 신청 조회
-    application = db.query(Application).filter(Application.id == application_id).first()
+    result = await db.execute(select(Application).where(Application.id == application_id))
+
+    application = result.scalar_one_or_none()
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
@@ -1579,7 +1676,7 @@ def get_customer_history(
         }
 
     # 동일 전화번호의 모든 신청 조회
-    customer_applications = get_customer_applications(db, customer_phone, limit=20)
+    customer_applications = await get_customer_applications(db, customer_phone, limit=20)
 
     # 전화번호 마스킹 (010-****-1234 형식)
     phone_parts = customer_phone.replace("-", "")
@@ -1643,19 +1740,21 @@ def _build_view_url(token: str) -> str:
 
 
 @router.get("/{application_id}/assignments/{assignment_id}/url", response_model=URLInfoResponse)
-def get_assignment_url(
+async def get_assignment_url(
     application_id: int,
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     배정의 협력사 포털 URL 조회 (발급된 URL만 반환, 자동 발급 안함)
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1684,20 +1783,22 @@ def get_assignment_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/generate-url", response_model=URLInfoResponse)
-def generate_assignment_url(
+async def generate_assignment_url(
     application_id: int,
     assignment_id: int,
     data: URLRenewRequest = URLRenewRequest(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     배정의 협력사 포털 URL 발급 (명시적 발급)
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1714,7 +1815,7 @@ def generate_assignment_url(
     # DB에 저장
     assignment.url_token = token
     assignment.url_expires_at = expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"URL generated: assignment={assignment_id} by admin={current_admin.id}")
 
@@ -1729,11 +1830,11 @@ def generate_assignment_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/renew-url", response_model=URLInfoResponse)
-def renew_assignment_url(
+async def renew_assignment_url(
     application_id: int,
     assignment_id: int,
     data: URLRenewRequest,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1741,10 +1842,12 @@ def renew_assignment_url(
 
     기존 토큰을 무효화하고 새 토큰 발급
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1765,7 +1868,7 @@ def renew_assignment_url(
     # DB에 저장
     assignment.url_token = token
     assignment.url_expires_at = expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"URL renewed: assignment={assignment_id} by admin={current_admin.id}")
 
@@ -1780,11 +1883,11 @@ def renew_assignment_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/revoke-url")
-def revoke_assignment_url(
+async def revoke_assignment_url(
     application_id: int,
     assignment_id: int,
     data: URLRevokeRequest = URLRevokeRequest(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1792,10 +1895,12 @@ def revoke_assignment_url(
 
     토큰 삭제 및 무효화 처리
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1804,7 +1909,7 @@ def revoke_assignment_url(
     assignment.url_token = None
     assignment.url_expires_at = None
     assignment.url_invalidated_before = datetime.now(timezone.utc)
-    db.commit()
+    await db.commit()
 
     logger.info(f"URL revoked: assignment={assignment_id} by admin={current_admin.id}, reason={data.reason}")
 
@@ -1812,11 +1917,11 @@ def revoke_assignment_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/extend-url", response_model=URLInfoResponse)
-def extend_assignment_url(
+async def extend_assignment_url(
     application_id: int,
     assignment_id: int,
     data: PartnerUrlExtend,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1826,10 +1931,13 @@ def extend_assignment_url(
     """
     from datetime import timedelta
 
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1843,7 +1951,7 @@ def extend_assignment_url(
 
     # 만료 시간만 업데이트 (토큰 변경 없음)
     assignment.url_expires_at = new_expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"URL extended: assignment={assignment_id} by admin={current_admin.id}, additional_days={data.additional_days}")
 
@@ -1877,10 +1985,10 @@ MAX_WORK_PHOTOS_PER_TYPE = 30  # 시공 전/후 각각 최대 30장
 
 
 @router.get("/{application_id}/assignments/{assignment_id}/work-photos", response_model=WorkPhotosResponse)
-def get_work_photos(
+async def get_work_photos(
     application_id: int,
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1888,10 +1996,12 @@ def get_work_photos(
 
     - 시공 전/후 사진 목록과 토큰화된 URL 반환
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1935,7 +2045,7 @@ async def upload_work_photos(
     assignment_id: int,
     photo_type: str,
     photos: list[UploadFile] = File(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -1947,10 +2057,13 @@ async def upload_work_photos(
     if photo_type not in ["before", "after"]:
         raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
 
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -1993,7 +2106,7 @@ async def upload_work_photos(
         assignment.work_photos_uploaded_at = now
     assignment.work_photos_updated_at = now
 
-    db.commit()
+    await db.commit()
 
     logger.info(f"Work photos uploaded: assignment={assignment_id}, type={photo_type}, count={len(uploaded_paths)}")
 
@@ -2007,12 +2120,12 @@ async def upload_work_photos(
 
 
 @router.delete("/{application_id}/assignments/{assignment_id}/work-photos/{photo_type}")
-def delete_work_photo(
+async def delete_work_photo(
     application_id: int,
     assignment_id: int,
     photo_type: str,
     photo_index: int = Query(..., ge=0, description="삭제할 사진 인덱스"),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -2024,10 +2137,13 @@ def delete_work_photo(
     if photo_type not in ["before", "after"]:
         raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
 
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2050,7 +2166,7 @@ def delete_work_photo(
         assignment.work_photos_after = photos
 
     assignment.work_photos_updated_at = datetime.now(timezone.utc)
-    db.commit()
+    await db.commit()
 
     logger.info(f"Work photo deleted: assignment={assignment_id}, type={photo_type}, index={photo_index}")
 
@@ -2063,12 +2179,12 @@ def delete_work_photo(
 
 
 @router.put("/{application_id}/assignments/{assignment_id}/work-photos/{photo_type}/reorder")
-def reorder_work_photos(
+async def reorder_work_photos(
     application_id: int,
     assignment_id: int,
     photo_type: str,
     order: List[int],
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -2080,10 +2196,13 @@ def reorder_work_photos(
     if photo_type not in ["before", "after"]:
         raise HTTPException(status_code=400, detail="photo_type은 'before' 또는 'after'여야 합니다")
 
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2116,7 +2235,7 @@ def reorder_work_photos(
         assignment.work_photos_after = reordered
 
     assignment.work_photos_updated_at = datetime.now(timezone.utc)
-    db.commit()
+    await db.commit()
 
     logger.info(f"Work photos reordered: assignment={assignment_id}, type={photo_type}, order={order}")
 
@@ -2152,19 +2271,21 @@ def _build_customer_view_url(token: str) -> str:
 
 
 @router.get("/{application_id}/assignments/{assignment_id}/customer-url", response_model=CustomerUrlResponse)
-def get_customer_url(
+async def get_customer_url(
     application_id: int,
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     고객 열람 URL 조회
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2196,20 +2317,22 @@ def get_customer_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/customer-url", response_model=CustomerUrlResponse)
-def create_customer_url(
+async def create_customer_url(
     application_id: int,
     assignment_id: int,
     data: CustomerUrlCreate = CustomerUrlCreate(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     고객 열람 URL 발급
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2226,7 +2349,7 @@ def create_customer_url(
     # DB에 저장
     assignment.customer_token = token
     assignment.customer_token_expires_at = expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"Customer URL created: assignment={assignment_id} by admin={current_admin.id}")
 
@@ -2241,11 +2364,11 @@ def create_customer_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/customer-url/extend", response_model=CustomerUrlResponse)
-def extend_customer_url(
+async def extend_customer_url(
     application_id: int,
     assignment_id: int,
     data: CustomerUrlExtend,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
@@ -2255,10 +2378,13 @@ def extend_customer_url(
     """
     from datetime import timedelta
 
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2272,7 +2398,7 @@ def extend_customer_url(
 
     # 만료 시간만 업데이트 (토큰 변경 없음)
     assignment.customer_token_expires_at = new_expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"Customer URL extended: assignment={assignment_id} by admin={current_admin.id}, additional_days={data.additional_days}")
 
@@ -2287,20 +2413,22 @@ def extend_customer_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/customer-url/renew", response_model=CustomerUrlResponse)
-def renew_customer_url(
+async def renew_customer_url(
     application_id: int,
     assignment_id: int,
     data: CustomerUrlCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     고객 열람 URL 재발급 (기존 토큰 무효화)
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2319,7 +2447,7 @@ def renew_customer_url(
 
     assignment.customer_token = token
     assignment.customer_token_expires_at = expires_at
-    db.commit()
+    await db.commit()
 
     logger.info(f"Customer URL renewed: assignment={assignment_id} by admin={current_admin.id}")
 
@@ -2334,19 +2462,21 @@ def renew_customer_url(
 
 
 @router.post("/{application_id}/assignments/{assignment_id}/customer-url/revoke")
-def revoke_customer_url(
+async def revoke_customer_url(
     application_id: int,
     assignment_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
     """
     고객 열람 URL 만료(취소)
     """
-    assignment = db.query(ApplicationPartnerAssignment).filter(
+    result = await db.execute(select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.id == assignment_id,
         ApplicationPartnerAssignment.application_id == application_id,
-    ).first()
+    ))
+
+    assignment = result.scalar_one_or_none()
 
     if not assignment:
         raise HTTPException(status_code=404, detail="배정을 찾을 수 없습니다")
@@ -2354,7 +2484,7 @@ def revoke_customer_url(
     assignment.customer_token = None
     assignment.customer_token_expires_at = None
     assignment.customer_token_invalidated_before = datetime.now(timezone.utc)
-    db.commit()
+    await db.commit()
 
     logger.info(f"Customer URL revoked: assignment={assignment_id} by admin={current_admin.id}")
 
