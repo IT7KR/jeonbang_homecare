@@ -73,7 +73,7 @@ async def create_application(
     """
     서비스 신청 생성
 
-    - 사진은 최대 5장까지 업로드 가능
+    - 사진은 최대 10장까지 업로드 가능
     - 고객 정보는 암호화되어 저장됨
     - 신청 완료 시 관리자에게 SMS 알림
     """
@@ -137,7 +137,7 @@ async def create_application(
     photo_paths = await process_uploaded_files(
         files=photos,
         upload_dir=UPLOAD_DIR,
-        max_files=5,
+        max_files=10,
     )
 
     # 신청번호 생성
