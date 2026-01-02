@@ -118,8 +118,11 @@ def generate_composite_hash(values: list[tuple[str | None, FieldType]]) -> str |
     return hashlib.sha256(combined.encode()).hexdigest()
 
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
 def _get_fernet() -> Fernet:
-    """Generate Fernet instance from SECRET_KEY"""
+    """Generate Fernet instance from SECRET_KEY (Cached)"""
     # Derive a key from SECRET_KEY using PBKDF2
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),

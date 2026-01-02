@@ -10,7 +10,8 @@ from jose import jwt, JWTError
 import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -157,7 +158,7 @@ def verify_refresh_token(token: str) -> dict:
 
 async def get_current_admin(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Admin:
     """
     현재 인증된 관리자 반환 (의존성)
@@ -182,7 +183,11 @@ async def get_current_admin(
     except JWTError:
         raise credentials_exception
 
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    # 비동기 쿼리로 변경
+    result = await db.execute(
+        select(Admin).where(Admin.id == int(admin_id))
+    )
+    admin = result.scalar_one_or_none()
 
     if admin is None:
         raise credentials_exception
@@ -198,7 +203,7 @@ async def get_current_admin(
 
 async def get_current_admin_optional(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> Optional[Admin]:
     """
     현재 인증된 관리자 반환 (선택적 인증)
@@ -217,7 +222,11 @@ async def get_current_admin_optional(
     except JWTError:
         return None
 
-    admin = db.query(Admin).filter(Admin.id == int(admin_id)).first()
+    # 비동기 쿼리로 변경
+    result = await db.execute(
+        select(Admin).where(Admin.id == int(admin_id))
+    )
+    admin = result.scalar_one_or_none()
 
     if admin is None or not admin.is_active:
         return None
