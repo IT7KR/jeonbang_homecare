@@ -5,7 +5,7 @@ import { X, ZoomIn } from "lucide-react";
 import type { SMSLogItem } from "@/lib/api/admin";
 import { getSMSStatusLabel, getSMSStatusColor } from "@/lib/constants/status";
 import { formatDate, formatPhone } from "@/lib/utils";
-import { TYPE_LABELS, TRIGGER_SOURCE_LABELS, getImageUrl } from "@/hooks/useSMS";
+import { TYPE_LABELS, getImageUrl } from "@/hooks/useSMS";
 
 interface MessageDetailModalProps {
   log: SMSLogItem;
@@ -63,11 +63,12 @@ export function MessageDetailModal({
             <span className="text-gray-500">출처:</span>
             <span
               className={`inline-flex px-2 py-0.5 text-xs font-medium rounded ${
-                TRIGGER_SOURCE_LABELS[log.trigger_source]?.className ||
-                "bg-gray-100 text-gray-700"
+                log.trigger_source === "system"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-green-100 text-green-700"
               }`}
             >
-              {TRIGGER_SOURCE_LABELS[log.trigger_source]?.label || log.trigger_source}
+              {log.trigger_source === "system" ? "시스템" : "직접"}
             </span>
           </div>
           <div>

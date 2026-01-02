@@ -41,10 +41,10 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ko_KR",
     siteName: "전방 홈케어",
-    url: "https://geonbang.com/homecare",
+    url: "https://geonbang.it7.kr/homecare",
     images: [
       {
-        url: "https://geonbang.com/homecare/og-image.png",
+        url: "https://geonbang.it7.kr/homecare/og-image.png",
         width: 1200,
         height: 630,
         alt: "전방 홈케어 - 전원주택 관리의 새로운 기준",
@@ -56,14 +56,14 @@ export const metadata: Metadata = {
     title: "전방 홈케어 - 전원주택 관리의 새로운 기준",
     description:
       "전원주택 관리 전문 서비스. 제초, 조경, 청소, 시공까지 원스톱으로 제공합니다.",
-    images: ["https://geonbang.com/homecare/og-image.png"],
+    images: ["https://geonbang.it7.kr/homecare/og-image.webp"],
   },
   robots: {
     index: true,
     follow: true,
   },
   alternates: {
-    canonical: "https://geonbang.com/homecare",
+    canonical: "https://geonbang.it7.kr/homecare",
   },
 };
 

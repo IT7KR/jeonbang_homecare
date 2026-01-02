@@ -18,7 +18,10 @@ import {
   type ApplicationFormData,
 } from "@/lib/validations/application";
 import { ROUTES } from "@/lib/constants";
-import { createApplication, type ApplicationCreateResponse } from "@/lib/api/applications";
+import {
+  createApplication,
+  type ApplicationCreateResponse,
+} from "@/lib/api/applications";
 import { getServices, type ServicesListResponse } from "@/lib/api/services";
 
 // 마법사 스텝 설정 (4단계)
@@ -61,7 +64,8 @@ export default function ApplyPage() {
   const [services, setServices] = useState<ServicesListResponse | null>(null);
   const [servicesLoading, setServicesLoading] = useState(true);
   // 제출 응답 저장 (중복 정보 표시용)
-  const [submitResponse, setSubmitResponse] = useState<ApplicationCreateResponse | null>(null);
+  const [submitResponse, setSubmitResponse] =
+    useState<ApplicationCreateResponse | null>(null);
 
   // 서비스 목록 로드
   useEffect(() => {

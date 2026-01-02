@@ -95,12 +95,12 @@ const nextConfig: NextConfig = {
               }`,
               // 스타일: 동일 출처 + 인라인 스타일 허용 (Tailwind CSS용)
               "style-src 'self' 'unsafe-inline'",
-              // 이미지: 동일 출처 + data URI + blob + 백엔드 API (파일 서빙용)
-              "img-src 'self' data: blob: http://localhost:8020 https://*.jeonbang.kr",
+              // 이미지: 동일 출처 + data URI + blob + 백엔드 API (파일 서빙용) + QR코드 API
+              "img-src 'self' data: blob: http://localhost:8020 https://*.jeonbang.kr https://api.qrserver.com",
               // 폰트: 동일 출처
               "font-src 'self'",
-              // API 연결: 동일 출처 + 백엔드 API
-              "connect-src 'self' http://localhost:8020 https://*.jeonbang.com https://*.geonbang.com",
+              // API 연결: 동일 출처 + 백엔드 API + QR코드 API
+              "connect-src 'self' http://localhost:8020 https://*.jeonbang.com https://*.geonbang.com https://api.qrserver.com",
               // iframe: 주소 검색용 카카오/다음 API (HTTP/HTTPS 모두 허용)
               "frame-src 'self' https://t1.daumcdn.net http://t1.daumcdn.net https://postcode.map.daum.net http://postcode.map.daum.net",
               // 기본 URI: 동일 출처
