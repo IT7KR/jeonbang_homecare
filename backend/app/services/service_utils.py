@@ -22,18 +22,37 @@ def _get_service_code_to_name_map(cache_key: str = "default") -> dict[str, str]:
     return {}
 
 
-def get_service_code_to_name_map(db: Session) -> dict[str, str]:
+@lru_cache(maxsize=1)
+def _get_cached_service_map(cache_key: int) -> dict[str, str]:
     """
-    서비스 코드 → 이름 매핑 조회
+    실제 DB 조회를 수행하고 결과를 캐싱하는 내부 함수.
+    cache_key는 시간(분 단위) 등을 사용하여 주기적으로 갱신되도록 함.
+    """
+    # ⚠️ 순환 참조 방지를 위해 함수 내부에서 import
+    from app.core.database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        service_types = db.query(ServiceType.code, ServiceType.name).all()
+        return {st.code: st.name for st in service_types}
+    finally:
+        db.close()
 
+
+def get_service_code_to_name_map(db: Session = None) -> dict[str, str]:
+    """
+    서비스 코드 → 이름 매핑 조회 (10분 캐시)
+    
     Args:
-        db: 데이터베이스 세션
+        db: 데이터베이스 세션 (캐시된 경우 사용되지 않음)
 
     Returns:
         서비스 코드를 키로, 서비스 이름을 값으로 하는 딕셔너리
     """
-    service_types = db.query(ServiceType.code, ServiceType.name).all()
-    return {st.code: st.name for st in service_types}
+    # 10분 단위로 캐시 키 변경 (600초)
+    import time
+    cache_key = int(time.time() / 600)
+    return _get_cached_service_map(cache_key)
 
 
 def convert_service_codes_to_names(

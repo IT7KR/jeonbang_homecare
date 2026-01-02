@@ -12,8 +12,8 @@ Search Index Service
 import hashlib
 import re
 from typing import List, Optional, Literal
-from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.search_index import SearchIndex
@@ -90,8 +90,8 @@ def generate_search_tokens(value: str, field_type: FieldType) -> List[str]:
     return list(tokens)
 
 
-def create_search_index(
-    db: Session,
+async def create_search_index(
+    db: AsyncSession,
     entity_type: EntityType,
     entity_id: int,
     field_type: FieldType,
@@ -105,7 +105,7 @@ def create_search_index(
         return
 
     # 기존 인덱스 삭제
-    delete_search_index(db, entity_type, entity_id, field_type)
+    await delete_search_index(db, entity_type, entity_id, field_type)
 
     # 해시 생성
     hash_value = generate_search_hash(value, field_type)
@@ -127,8 +127,8 @@ def create_search_index(
         db.add(index)
 
 
-def delete_search_index(
-    db: Session,
+async def delete_search_index(
+    db: AsyncSession,
     entity_type: EntityType,
     entity_id: int,
     field_type: Optional[FieldType] = None
@@ -137,41 +137,41 @@ def delete_search_index(
 
     field_type이 None이면 해당 엔티티의 모든 인덱스 삭제
     """
-    query = db.query(SearchIndex).filter(
+    stmt = delete(SearchIndex).where(
         SearchIndex.entity_type == entity_type,
         SearchIndex.entity_id == entity_id
     )
 
     if field_type:
-        query = query.filter(SearchIndex.field_type == field_type)
+        stmt = stmt.where(SearchIndex.field_type == field_type)
 
-    query.delete(synchronize_session=False)
+    await db.execute(stmt)
 
 
-def update_application_search_index(
-    db: Session,
+async def update_application_search_index(
+    db: AsyncSession,
     application_id: int,
     customer_name: str,
     customer_phone: str
 ) -> None:
     """신청 검색 인덱스 갱신"""
-    create_search_index(db, "application", application_id, "name", customer_name)
-    create_search_index(db, "application", application_id, "phone", customer_phone)
+    await create_search_index(db, "application", application_id, "name", customer_name)
+    await create_search_index(db, "application", application_id, "phone", customer_phone)
 
 
-def update_partner_search_index(
-    db: Session,
+async def update_partner_search_index(
+    db: AsyncSession,
     partner_id: int,
     representative_name: str,
     contact_phone: str
 ) -> None:
     """협력사 검색 인덱스 갱신"""
-    create_search_index(db, "partner", partner_id, "name", representative_name)
-    create_search_index(db, "partner", partner_id, "phone", contact_phone)
+    await create_search_index(db, "partner", partner_id, "name", representative_name)
+    await create_search_index(db, "partner", partner_id, "phone", contact_phone)
 
 
-def search_by_field(
-    db: Session,
+async def search_by_field(
+    db: AsyncSession,
     entity_type: EntityType,
     field_type: FieldType,
     query: str,
@@ -204,24 +204,33 @@ def search_by_field(
     if exact_match:
         # 정확 매칭: 해시로 검색
         hash_value = generate_search_hash(query, field_type)
-        results = db.query(SearchIndex.entity_id).filter(
-            SearchIndex.entity_type == entity_type,
-            SearchIndex.field_type == field_type,
-            SearchIndex.hash_value == hash_value
-        ).distinct().all()
+        stmt = (
+            select(SearchIndex.entity_id)
+            .where(
+                SearchIndex.entity_type == entity_type,
+                SearchIndex.field_type == field_type,
+                SearchIndex.hash_value == hash_value
+            )
+            .distinct()
+        )
     else:
         # 부분 매칭: 토큰으로 검색
-        results = db.query(SearchIndex.entity_id).filter(
-            SearchIndex.entity_type == entity_type,
-            SearchIndex.field_type == field_type,
-            SearchIndex.search_token.ilike(f"%{normalized}%")
-        ).distinct().all()
+        stmt = (
+            select(SearchIndex.entity_id)
+            .where(
+                SearchIndex.entity_type == entity_type,
+                SearchIndex.field_type == field_type,
+                SearchIndex.search_token.ilike(f"%{normalized}%")
+            )
+            .distinct()
+        )
 
-    return [r[0] for r in results]
+    result = await db.execute(stmt)
+    return [r[0] for r in result.all()]
 
 
-def unified_search(
-    db: Session,
+async def unified_search(
+    db: AsyncSession,
     entity_type: EntityType,
     query: str,
     search_type: Optional[str] = None
@@ -245,9 +254,9 @@ def unified_search(
         search_type = detect_search_type(query)
 
     if search_type == "phone":
-        return search_by_field(db, entity_type, "phone", query)
+        return await search_by_field(db, entity_type, "phone", query)
     else:
-        return search_by_field(db, entity_type, "name", query)
+        return await search_by_field(db, entity_type, "name", query)
 
 
 def is_valid_date(date_str: str) -> bool:

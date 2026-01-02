@@ -8,20 +8,21 @@ from typing import Optional
 from datetime import datetime, date, timezone
 import logging
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.encryption import encrypt_value, decrypt_value
-from app.core.database import SessionLocal
+from app.core.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
 
 # ===== SMS 템플릿 조회 =====
 
-def get_template_message(
+async def get_template_message(
     template_key: str,
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
     **kwargs,
 ) -> Optional[str]:
     """
@@ -39,14 +40,17 @@ def get_template_message(
 
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
-        template = db.query(SMSTemplate).filter(
-            SMSTemplate.template_key == template_key,
-            SMSTemplate.is_active == True,
-        ).first()
+        result = await db.execute(
+            select(SMSTemplate).where(
+                SMSTemplate.template_key == template_key,
+                SMSTemplate.is_active == True,
+            )
+        )
+        template = result.scalar_one_or_none()
 
         if not template:
             logger.warning(f"SMS template '{template_key}' not found or inactive")
@@ -58,25 +62,35 @@ def get_template_message(
         return None
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
-def get_admin_phones() -> list[str]:
+async def get_admin_phones(db: Optional[AsyncSession] = None) -> list[str]:
     """
     활성 관리자들의 전화번호 목록 조회
+
+    Args:
+        db: 데이터베이스 세션 (없으면 자동 생성)
 
     Returns:
         전화번호 리스트 (phone이 설정된 활성 관리자만)
     """
     from app.models.admin import Admin
 
-    db = SessionLocal()
+    close_db = False
+    if db is None:
+        db = AsyncSessionLocal()
+        close_db = True
+
     try:
-        admins = db.query(Admin).filter(
-            Admin.is_active == True,
-            Admin.phone.isnot(None),
-            Admin.phone != ""
-        ).all()
+        result = await db.execute(
+            select(Admin).where(
+                Admin.is_active == True,
+                Admin.phone.isnot(None),
+                Admin.phone != ""
+            )
+        )
+        admins = result.scalars().all()
 
         # 암호화된 전화번호를 복호화하여 반환
         phones = []
@@ -90,7 +104,8 @@ def get_admin_phones() -> list[str]:
         logger.error(f"Failed to get admin phones: {e}")
         return []
     finally:
-        db.close()
+        if close_db:
+            await db.close()
 
 # Aligo API Endpoint
 ALIGO_API_URL = "https://apis.aligo.in/send/"
@@ -149,10 +164,13 @@ _SERVICE_CODE_FALLBACK = {
 }
 
 
-def load_service_cache(db: Session) -> int:
+async def load_service_cache_async(db: AsyncSession) -> int:
     """
-    DB에서 서비스 코드→이름 매핑을 캐시로 로드
+    DB에서 서비스 코드→이름 매핑을 캐시로 로드 (비동기)
     앱 시작 시 호출하여 초기화
+
+    Args:
+        db: AsyncSession 인스턴스
 
     Returns:
         로드된 서비스 타입 수
@@ -160,7 +178,10 @@ def load_service_cache(db: Session) -> int:
     global _service_cache
     try:
         from app.models.service import ServiceType
-        types = db.query(ServiceType).filter(ServiceType.is_active == True).all()
+        result = await db.execute(
+            select(ServiceType).where(ServiceType.is_active == True)
+        )
+        types = result.scalars().all()
         _service_cache = {t.code: t.name for t in types}
         logger.info(f"Service cache loaded: {len(_service_cache)} types from DB")
         return len(_service_cache)
@@ -225,10 +246,10 @@ def format_schedule_info(
     return ", ".join(parts) if parts else "미정"
 
 
-def build_message_from_template(
+async def build_message_from_template(
     template_key: str,
     variables: dict,
-    db: Session,
+    db: AsyncSession,
 ) -> Optional[str]:
     """
     템플릿 기반 메시지 생성
@@ -242,7 +263,7 @@ def build_message_from_template(
         str: 변수 치환된 메시지
         None: 템플릿 없거나 비활성화 시 (발송 중단)
     """
-    message = get_template_message(template_key, db=db, **variables)
+    message = await get_template_message(template_key, db=db, **variables)
     if message is None:
         logger.warning(f"SMS 템플릿 없음/비활성: {template_key} - 발송 중단")
     return message
@@ -460,7 +481,7 @@ async def send_application_notification(
     preferred_consultation_date: Optional[date] = None,
     preferred_work_date: Optional[date] = None,
     duplicate_info: Optional[dict] = None,
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> list[dict]:
     """
     서비스 신청 알림 SMS 발송 (모든 활성 관리자에게)
@@ -488,12 +509,12 @@ async def send_application_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
         # 활성 관리자들의 전화번호 조회
-        admin_phones = get_admin_phones()
+        admin_phones = await get_admin_phones(db)
 
         if not admin_phones:
             logger.warning("No admin phones found for notification")
@@ -526,7 +547,7 @@ async def send_application_notification(
             variables["existing_status"] = status_labels.get(raw_status, raw_status)
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return []
@@ -540,14 +561,14 @@ async def send_application_notification(
         return results
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_partner_notification(
     company_name: str,
     contact_phone: str,
     service_areas: list[str],
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> list[dict]:
     """
     협력사 등록 알림 SMS 발송 (모든 활성 관리자에게)
@@ -566,12 +587,12 @@ async def send_partner_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
         # 활성 관리자들의 전화번호 조회
-        admin_phones = get_admin_phones()
+        admin_phones = await get_admin_phones(db)
 
         if not admin_phones:
             logger.warning("No admin phones found for notification")
@@ -585,7 +606,7 @@ async def send_partner_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return []
@@ -599,7 +620,7 @@ async def send_partner_notification(
         return results
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_partner_assignment_notification(
@@ -611,7 +632,7 @@ async def send_partner_assignment_notification(
     scheduled_date: str = "",
     scheduled_time: str = "",
     estimated_cost: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     협력사 배정 알림 SMS 발송 (고객에게)
@@ -635,7 +656,7 @@ async def send_partner_assignment_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -651,7 +672,7 @@ async def send_partner_assignment_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -659,7 +680,7 @@ async def send_partner_assignment_notification(
         return await send_sms(customer_phone, message, "[배정안내]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_partner_notify_assignment(
@@ -671,7 +692,7 @@ async def send_partner_notify_assignment(
     services: list[str],
     scheduled_date: str = "",
     view_url: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     협력사 배정 알림 SMS 발송 (협력사에게)
@@ -695,7 +716,7 @@ async def send_partner_notify_assignment(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -711,7 +732,7 @@ async def send_partner_notify_assignment(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -719,7 +740,7 @@ async def send_partner_notify_assignment(
         return await send_sms(partner_phone, message, "[배정알림]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_schedule_confirmation(
@@ -729,7 +750,7 @@ async def send_schedule_confirmation(
     scheduled_time: str,
     partner_name: Optional[str] = None,
     customer_name: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     일정 확정 알림 SMS 발송 (고객에게)
@@ -751,7 +772,7 @@ async def send_schedule_confirmation(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -765,7 +786,7 @@ async def send_schedule_confirmation(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -773,7 +794,7 @@ async def send_schedule_confirmation(
         return await send_sms(customer_phone, message, "[일정확정]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_partner_schedule_notification(
@@ -785,7 +806,7 @@ async def send_partner_schedule_notification(
     scheduled_date: str,
     scheduled_time: str,
     services: list[str],
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     일정 확정 알림 SMS 발송 (협력사에게)
@@ -809,7 +830,7 @@ async def send_partner_schedule_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -825,7 +846,7 @@ async def send_partner_schedule_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -833,7 +854,7 @@ async def send_partner_schedule_notification(
         return await send_sms(partner_phone, message, "[작업일정]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_partner_approval_notification(
@@ -842,7 +863,7 @@ async def send_partner_approval_notification(
     approved: bool,
     rejection_reason: Optional[str] = None,
     company_name: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     협력사 승인/거절 알림 SMS 발송 (협력사에게)
@@ -863,7 +884,7 @@ async def send_partner_approval_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -875,7 +896,7 @@ async def send_partner_approval_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -883,7 +904,7 @@ async def send_partner_approval_notification(
         return await send_sms(partner_phone, message, "[협력사안내]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_application_cancelled_notification(
@@ -891,7 +912,7 @@ async def send_application_cancelled_notification(
     application_number: str,
     cancel_reason: Optional[str] = None,
     customer_name: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     신청 취소 알림 SMS 발송 (고객에게)
@@ -911,7 +932,7 @@ async def send_application_cancelled_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -923,7 +944,7 @@ async def send_application_cancelled_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -931,7 +952,7 @@ async def send_application_cancelled_notification(
         return await send_sms(customer_phone, message, "[신청취소]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_assignment_changed_notification(
@@ -941,7 +962,7 @@ async def send_assignment_changed_notification(
     scheduled_date: str = "",
     scheduled_time: str = "",
     estimated_cost: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     배정 정보 변경 알림 SMS 발송 (고객에게)
@@ -963,7 +984,7 @@ async def send_assignment_changed_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -977,7 +998,7 @@ async def send_assignment_changed_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -985,7 +1006,7 @@ async def send_assignment_changed_notification(
         return await send_sms(customer_phone, message, "[배정변경]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_completion_notification(
@@ -994,7 +1015,7 @@ async def send_completion_notification(
     partner_name: Optional[str] = None,
     customer_name: str = "",
     customer_view_url: Optional[str] = None,
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     작업 완료 알림 SMS 발송 (고객에게)
@@ -1015,7 +1036,7 @@ async def send_completion_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -1028,7 +1049,7 @@ async def send_completion_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -1036,14 +1057,14 @@ async def send_completion_notification(
         return await send_sms(customer_phone, message, "[완료안내]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_application_received_notification(
     customer_phone: str,
     application_number: str,
     customer_name: str = "",
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     접수 확인 알림 SMS 발송 (고객에게)
@@ -1064,7 +1085,7 @@ async def send_application_received_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -1075,7 +1096,7 @@ async def send_application_received_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -1083,7 +1104,7 @@ async def send_application_received_notification(
         return await send_sms(customer_phone, message, "[접수확인]")
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_schedule_changed_notification(
@@ -1093,7 +1114,7 @@ async def send_schedule_changed_notification(
     old_date: str,
     new_date: str,
     new_time: Optional[str] = None,
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
 ) -> dict:
     """
     일정 변경 알림 SMS 발송 (고객 및 협력사에게)
@@ -1115,7 +1136,7 @@ async def send_schedule_changed_notification(
     # DB 세션 확보
     close_db = False
     if db is None:
-        db = SessionLocal()
+        db = AsyncSessionLocal()
         close_db = True
 
     try:
@@ -1128,7 +1149,7 @@ async def send_schedule_changed_notification(
         }
 
         # 템플릿 기반 메시지 생성
-        message = build_message_from_template(template_key, variables, db)
+        message = await build_message_from_template(template_key, variables, db)
 
         if message is None:
             return {"result_code": "-1", "message": "템플릿 없음/비활성"}
@@ -1143,7 +1164,7 @@ async def send_schedule_changed_notification(
         return customer_result
     finally:
         if close_db:
-            db.close()
+            await db.close()
 
 
 async def send_sms_direct(
@@ -1153,7 +1174,7 @@ async def send_sms_direct(
     trigger_source: str = "system",
     reference_type: Optional[str] = None,
     reference_id: Optional[int] = None,
-    db: Optional[Session] = None,
+    db: Optional[AsyncSession] = None,
     bulk_job_id: Optional[int] = None,
     batch_index: Optional[int] = None,
     template_key: Optional[str] = None,
@@ -1203,8 +1224,8 @@ async def send_sms_direct(
                 template_key=template_key,
             )
             db.add(sms_log)
-            db.commit()
-            db.refresh(sms_log)
+            await db.commit()
+            await db.refresh(sms_log)
 
             return {
                 "success": is_success,
@@ -1213,7 +1234,7 @@ async def send_sms_direct(
             }
         except Exception as e:
             logger.error(f"SMS log save error: {str(e)}")
-            db.rollback()
+            await db.rollback()
 
     return {
         "success": result.get("result_code") == "1",

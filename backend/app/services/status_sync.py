@@ -18,7 +18,8 @@ Assignment 상태 변경 시 Application 상태를 자동으로 동기화합니�
 
 from datetime import datetime, timezone
 from typing import Optional, Tuple, List
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.models.application import Application
 from app.models.application_assignment import ApplicationPartnerAssignment
@@ -65,8 +66,8 @@ def calculate_application_status(assignments: List[ApplicationPartnerAssignment]
     return "assigned"
 
 
-def sync_application_from_assignments(
-    db: Session,
+async def sync_application_from_assignments(
+    db: AsyncSession,
     application_id: int,
     trigger_source: str = "assignment_change"
 ) -> Tuple[Optional[str], Optional[str]]:
@@ -81,16 +82,20 @@ def sync_application_from_assignments(
     Returns:
         (old_status, new_status) 튜플. 변경 없으면 동일한 값
     """
-    application = db.query(Application).filter(
-        Application.id == application_id
-    ).first()
+    result = await db.execute(
+        select(Application).where(Application.id == application_id)
+    )
+    application = result.scalar_one_or_none()
 
     if not application:
         return None, None
 
-    assignments = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.application_id == application_id
-    ).all()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.application_id == application_id
+        )
+    )
+    assignments = result.scalars().all()
 
     old_status = application.status
     new_status = calculate_application_status(assignments)
@@ -104,7 +109,7 @@ def sync_application_from_assignments(
         if new_status == "completed":
             application.completed_at = now
 
-        db.flush()  # 변경사항을 DB에 반영하되 커밋은 호출자에게 위임
+        await db.flush()  # 변경사항을 DB에 반영하되 커밋은 호출자에게 위임
 
     return old_status, new_status
 
@@ -144,8 +149,8 @@ def get_status_mismatch_info(
     return None
 
 
-def auto_update_quote_status(
-    db: Session,
+async def auto_update_quote_status(
+    db: AsyncSession,
     assignment: ApplicationPartnerAssignment
 ) -> str:
     """
@@ -162,12 +167,13 @@ def auto_update_quote_status(
 
     # 현재 quote_status가 none인 경우에만 draft로 자동 업데이트
     if assignment.quote_status == "none":
-        has_quote_items = db.query(QuoteItem).filter(
-            QuoteItem.assignment_id == assignment.id
-        ).first() is not None
+        result = await db.execute(
+            select(QuoteItem).where(QuoteItem.assignment_id == assignment.id).limit(1)
+        )
+        has_quote_items = result.scalar_one_or_none() is not None
 
         if has_quote_items:
             assignment.quote_status = "draft"
-            db.flush()
+            await db.flush()
 
     return assignment.quote_status

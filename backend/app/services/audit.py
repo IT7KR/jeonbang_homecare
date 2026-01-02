@@ -3,8 +3,9 @@ Audit Log Service
 변경 이력 추적 서비스
 """
 
-from typing import Optional, Any, Dict
-from sqlalchemy.orm import Session
+from typing import Optional, Any, Dict, List
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AuditLog, Admin
 from app.services.application_status import STATUS_NAMES as APPLICATION_STATUS_NAMES
@@ -37,8 +38,8 @@ def get_status_label(entity_type: str, status: str) -> str:
     return status
 
 
-def log_change(
-    db: Session,
+async def log_change(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     action: str,
@@ -81,13 +82,13 @@ def log_change(
     )
 
     db.add(audit_log)
-    db.flush()  # ID 생성을 위해 flush
+    await db.flush()  # ID 생성을 위해 flush
 
     return audit_log
 
 
-def log_status_change(
-    db: Session,
+async def log_status_change(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     old_status: str,
@@ -116,7 +117,7 @@ def log_status_change(
     old_label = get_status_label(entity_type, old_status)
     new_label = get_status_label(entity_type, new_status)
 
-    return log_change(
+    return await log_change(
         db=db,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -130,8 +131,8 @@ def log_status_change(
     )
 
 
-def log_assignment(
-    db: Session,
+async def log_assignment(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     partner_id: int,
@@ -156,7 +157,7 @@ def log_assignment(
     Returns:
         생성된 AuditLog 객체
     """
-    return log_change(
+    return await log_change(
         db=db,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -169,8 +170,8 @@ def log_assignment(
     )
 
 
-def log_schedule_change(
-    db: Session,
+async def log_schedule_change(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     scheduled_date: str,
@@ -206,7 +207,7 @@ def log_schedule_change(
     time_str = f" {scheduled_time}" if scheduled_time else ""
     summary = f"일정 설정: {scheduled_date}{time_str}"
 
-    return log_change(
+    return await log_change(
         db=db,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -220,8 +221,8 @@ def log_schedule_change(
     )
 
 
-def log_cost_change(
-    db: Session,
+async def log_cost_change(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     old_estimated_cost: Optional[int] = None,
@@ -270,7 +271,7 @@ def log_cost_change(
 
     summary = ", ".join(changes) if changes else "금액 변경"
 
-    return log_change(
+    return await log_change(
         db=db,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -284,8 +285,8 @@ def log_cost_change(
     )
 
 
-def log_bulk_assignment(
-    db: Session,
+async def log_bulk_assignment(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     partner_id: int,
@@ -314,7 +315,7 @@ def log_bulk_assignment(
     Returns:
         생성된 AuditLog 객체
     """
-    return log_change(
+    return await log_change(
         db=db,
         entity_type=entity_type,
         entity_id=entity_id,
@@ -332,12 +333,12 @@ def log_bulk_assignment(
     )
 
 
-def get_entity_history(
-    db: Session,
+async def get_entity_history(
+    db: AsyncSession,
     entity_type: str,
     entity_id: int,
     limit: int = 50,
-) -> list[AuditLog]:
+) -> List[AuditLog]:
     """
     특정 엔티티의 변경 이력 조회
 
@@ -350,20 +351,20 @@ def get_entity_history(
     Returns:
         AuditLog 목록 (최신순)
     """
-    return (
-        db.query(AuditLog)
-        .filter(
+    result = await db.execute(
+        select(AuditLog)
+        .where(
             AuditLog.entity_type == entity_type,
             AuditLog.entity_id == entity_id,
         )
         .order_by(AuditLog.created_at.desc())
         .limit(limit)
-        .all()
     )
+    return list(result.scalars().all())
 
 
-def log_file_access(
-    db: Session,
+async def log_file_access(
+    db: AsyncSession,
     action: str,
     file_path: str,
     file_size: Optional[int] = None,
@@ -429,7 +430,7 @@ def log_file_access(
     if related_entity_type and related_entity_id:
         new_value["related_entity"] = f"{related_entity_type}:{related_entity_id}"
 
-    return log_change(
+    return await log_change(
         db=db,
         entity_type="file",
         entity_id=related_entity_id or 0,
@@ -443,13 +444,13 @@ def log_file_access(
     )
 
 
-def get_file_access_history(
-    db: Session,
+async def get_file_access_history(
+    db: AsyncSession,
     related_entity_type: Optional[str] = None,
     related_entity_id: Optional[int] = None,
     action: Optional[str] = None,
     limit: int = 50,
-) -> list[AuditLog]:
+) -> List[AuditLog]:
     """
     파일 접근 이력 조회
 
@@ -463,16 +464,18 @@ def get_file_access_history(
     Returns:
         AuditLog 목록 (최신순)
     """
-    query = db.query(AuditLog).filter(AuditLog.entity_type == "file")
+    stmt = select(AuditLog).where(AuditLog.entity_type == "file")
 
     if action:
-        query = query.filter(AuditLog.action == action)
+        stmt = stmt.where(AuditLog.action == action)
 
     if related_entity_type and related_entity_id:
         # JSONB 필드 내 related_entity 값으로 필터링
         related_str = f"{related_entity_type}:{related_entity_id}"
-        query = query.filter(
+        stmt = stmt.where(
             AuditLog.new_value["related_entity"].astext == related_str
         )
 
-    return query.order_by(AuditLog.created_at.desc()).limit(limit).all()
+    stmt = stmt.order_by(AuditLog.created_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

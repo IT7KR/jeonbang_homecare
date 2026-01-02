@@ -15,8 +15,8 @@ from typing import Optional
 import pdfkit
 from jinja2 import Environment, FileSystemLoader
 
-from sqlalchemy.orm import Session
-from sqlalchemy import asc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, asc
 
 from app.models.quote_item import QuoteItem
 from app.models.application_assignment import ApplicationPartnerAssignment
@@ -64,36 +64,48 @@ def _get_jinja_env() -> Environment:
 # PDF 생성 함수
 # ============================================================
 
-def get_quote_data(
-    db: Session,
+async def get_quote_data(
+    db: AsyncSession,
     assignment_id: int
 ) -> dict:
     """
     견적서 생성에 필요한 데이터 조회
     """
     # 배정 정보 조회
-    assignment = db.query(ApplicationPartnerAssignment).filter(
-        ApplicationPartnerAssignment.id == assignment_id
-    ).first()
+    result = await db.execute(
+        select(ApplicationPartnerAssignment).where(
+            ApplicationPartnerAssignment.id == assignment_id
+        )
+    )
+    assignment = result.scalar_one_or_none()
     if not assignment:
         raise ValueError(f"Assignment not found: {assignment_id}")
 
     # 신청 정보 조회
-    application = db.query(Application).filter(
-        Application.id == assignment.application_id
-    ).first()
+    result = await db.execute(
+        select(Application).where(
+            Application.id == assignment.application_id
+        )
+    )
+    application = result.scalar_one_or_none()
     if not application:
         raise ValueError(f"Application not found: {assignment.application_id}")
 
     # 협력사 정보 조회
-    partner = db.query(Partner).filter(
-        Partner.id == assignment.partner_id
-    ).first()
+    result = await db.execute(
+        select(Partner).where(
+            Partner.id == assignment.partner_id
+        )
+    )
+    partner = result.scalar_one_or_none()
 
     # 견적 항목 조회
-    items = db.query(QuoteItem).filter(
-        QuoteItem.assignment_id == assignment_id
-    ).order_by(asc(QuoteItem.sort_order)).all()
+    result = await db.execute(
+        select(QuoteItem).where(
+            QuoteItem.assignment_id == assignment_id
+        ).order_by(asc(QuoteItem.sort_order))
+    )
+    items = result.scalars().all()
 
     # 고객 정보 복호화
     customer_name = decrypt_value(application.customer_name) if application.customer_name else "고객"
@@ -155,8 +167,8 @@ def generate_pdf_from_html(html_content: str) -> bytes:
     return pdf_bytes
 
 
-def generate_quote_pdf(
-    db: Session,
+async def generate_quote_pdf(
+    db: AsyncSession,
     assignment_id: int
 ) -> bytes:
     """
@@ -170,7 +182,7 @@ def generate_quote_pdf(
         PDF 바이트 데이터
     """
     # 데이터 조회
-    data = get_quote_data(db, assignment_id)
+    data = await get_quote_data(db, assignment_id)
 
     # HTML 렌더링
     html_content = render_quote_html(data)
@@ -181,8 +193,8 @@ def generate_quote_pdf(
     return pdf_bytes
 
 
-def save_quote_pdf(
-    db: Session,
+async def save_quote_pdf(
+    db: AsyncSession,
     assignment_id: int,
     output_path: Optional[str] = None
 ) -> str:
@@ -197,7 +209,7 @@ def save_quote_pdf(
     Returns:
         저장된 파일 경로
     """
-    pdf_bytes = generate_quote_pdf(db, assignment_id)
+    pdf_bytes = await generate_quote_pdf(db, assignment_id)
 
     if output_path is None:
         # 임시 파일 생성

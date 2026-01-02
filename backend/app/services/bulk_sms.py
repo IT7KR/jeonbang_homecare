@@ -15,7 +15,8 @@ from datetime import datetime, timezone
 from typing import Optional
 import logging
 
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.models.bulk_sms_job import BulkSMSJob
 from app.models.application import Application
@@ -35,7 +36,7 @@ BATCH_DELAY = 0.5  # 배치 간 대기 시간 (초)
 class BulkSMSService:
     """대량 SMS 발송 서비스"""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
     async def execute_bulk_send(self, job_id: int):
@@ -47,7 +48,10 @@ class BulkSMSService:
         3. 배치 분할 처리
         4. 완료 상태 업데이트
         """
-        job = self.db.query(BulkSMSJob).filter(BulkSMSJob.id == job_id).first()
+        result = await self.db.execute(
+            select(BulkSMSJob).where(BulkSMSJob.id == job_id)
+        )
+        job = result.scalar_one_or_none()
         if not job:
             logger.error(f"BulkSMSJob {job_id} not found")
             return
@@ -56,21 +60,21 @@ class BulkSMSService:
             # Job 시작
             job.status = "processing"
             job.started_at = datetime.now(timezone.utc)
-            self.db.commit()
+            await self.db.commit()
 
             logger.info(f"BulkSMSJob {job_id} started")
 
             # 수신자 목록 조회
-            recipients = self._get_recipients(job)
+            recipients = await self._get_recipients(job)
             job.total_count = len(recipients)
             job.total_batches = math.ceil(len(recipients) / BATCH_SIZE) if recipients else 0
-            self.db.commit()
+            await self.db.commit()
 
             if not recipients:
                 logger.warning(f"BulkSMSJob {job_id}: No recipients found")
                 job.status = "completed"
                 job.completed_at = datetime.now(timezone.utc)
-                self.db.commit()
+                await self.db.commit()
                 return
 
             logger.info(f"BulkSMSJob {job_id}: {len(recipients)} recipients, {job.total_batches} batches")
@@ -79,7 +83,7 @@ class BulkSMSService:
             for batch_index, batch in enumerate(self._chunk(recipients, BATCH_SIZE)):
                 await self._process_batch(job, batch, batch_index)
                 job.current_batch = batch_index + 1
-                self.db.commit()
+                await self.db.commit()
 
                 logger.info(f"BulkSMSJob {job_id}: Batch {batch_index + 1}/{job.total_batches} completed")
 
@@ -90,7 +94,7 @@ class BulkSMSService:
             # 완료 처리
             job.status = "completed" if job.failed_count == 0 else "partial_failed"
             job.completed_at = datetime.now(timezone.utc)
-            self.db.commit()
+            await self.db.commit()
 
             logger.info(
                 f"BulkSMSJob {job_id} finished: "
@@ -102,7 +106,7 @@ class BulkSMSService:
             job.status = "failed"
             job.error_message = str(e)
             job.completed_at = datetime.now(timezone.utc)
-            self.db.commit()
+            await self.db.commit()
 
     async def _process_batch(self, job: BulkSMSJob, recipients: list, batch_index: int):
         """단일 배치 처리 (병렬 발송)"""
@@ -172,35 +176,38 @@ class BulkSMSService:
 
         return {"success": False, "error": "최대 재시도 횟수 초과"}
 
-    def _get_recipients(self, job: BulkSMSJob) -> list:
+    async def _get_recipients(self, job: BulkSMSJob) -> list:
         """Job 설정에 따라 수신자 목록 조회"""
         recipients = []
 
         if job.target_type == "customer":
-            recipients = self._query_customers(job)
+            recipients = await self._query_customers(job)
         elif job.target_type == "partner":
-            recipients = self._query_partners(job)
+            recipients = await self._query_partners(job)
 
         return recipients
 
-    def _query_customers(self, job: BulkSMSJob) -> list:
+    async def _query_customers(self, job: BulkSMSJob) -> list:
         """고객(신청자) 목록 조회"""
-        query = self.db.query(Application)
+        stmt = select(Application)
 
         # 선택 발송 (target_ids가 있는 경우)
         if job.target_ids:
-            query = query.filter(Application.id.in_(job.target_ids))
+            stmt = stmt.where(Application.id.in_(job.target_ids))
 
         # 필터 적용 (target_filter가 있는 경우)
         if job.target_filter:
             if "status" in job.target_filter:
-                query = query.filter(Application.status == job.target_filter["status"])
+                stmt = stmt.where(Application.status == job.target_filter["status"])
             if "region" in job.target_filter:
                 # region은 복호화된 주소에서 확인해야 하므로 애플리케이션 레벨에서 필터링
                 pass
 
+        result = await self.db.execute(stmt)
+        applications = result.scalars().all()
+
         recipients = []
-        for app in query.all():
+        for app in applications:
             try:
                 phone = decrypt_value(app.customer_phone)
                 name = decrypt_value(app.customer_name)
@@ -224,21 +231,24 @@ class BulkSMSService:
 
         return recipients
 
-    def _query_partners(self, job: BulkSMSJob) -> list:
+    async def _query_partners(self, job: BulkSMSJob) -> list:
         """협력사 목록 조회"""
-        query = self.db.query(Partner)
+        stmt = select(Partner)
 
         # 선택 발송 (target_ids가 있는 경우)
         if job.target_ids:
-            query = query.filter(Partner.id.in_(job.target_ids))
+            stmt = stmt.where(Partner.id.in_(job.target_ids))
 
         # 필터 적용 (target_filter가 있는 경우)
         if job.target_filter:
             if "status" in job.target_filter:
-                query = query.filter(Partner.status == job.target_filter["status"])
+                stmt = stmt.where(Partner.status == job.target_filter["status"])
+
+        result = await self.db.execute(stmt)
+        partners = result.scalars().all()
 
         recipients = []
-        for partner in query.all():
+        for partner in partners:
             try:
                 phone = decrypt_value(partner.contact_phone)
                 recipients.append({
@@ -260,7 +270,7 @@ class BulkSMSService:
             yield lst[i:i + size]
 
 
-async def execute_bulk_sms_job(db: Session, job_id: int):
+async def execute_bulk_sms_job(db: AsyncSession, job_id: int):
     """
     백그라운드 태스크에서 호출하는 래퍼 함수
     """

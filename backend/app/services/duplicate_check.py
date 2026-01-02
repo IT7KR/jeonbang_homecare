@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Literal
 
-from sqlalchemy.orm import Session
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.encryption import (
     generate_search_hash,
@@ -56,8 +57,8 @@ class PartnerDuplicateResult:
 ACTIVE_APPLICATION_STATUSES = ["new", "consulting", "assigned", "scheduled"]
 
 
-def check_application_duplicate(
-    db: Session,
+async def check_application_duplicate(
+    db: AsyncSession,
     phone: str,
 ) -> ApplicationDuplicateResult:
     """
@@ -83,15 +84,16 @@ def check_application_duplicate(
         return ApplicationDuplicateResult(is_duplicate=False)
 
     # 진행 중인 동일 전화번호 신청 조회
-    existing = (
-        db.query(Application)
-        .filter(
+    stmt = (
+        select(Application)
+        .where(
             Application.phone_hash == phone_hash,
             Application.status.in_(ACTIVE_APPLICATION_STATUSES)
         )
         .order_by(Application.created_at.desc())
-        .first()
     )
+    result = await db.execute(stmt)
+    existing = result.scalar_one_or_none()
 
     if existing:
         return ApplicationDuplicateResult(
@@ -106,8 +108,8 @@ def check_application_duplicate(
     return ApplicationDuplicateResult(is_duplicate=False)
 
 
-def get_customer_applications(
-    db: Session,
+async def get_customer_applications(
+    db: AsyncSession,
     phone: str,
     limit: int = 10,
 ) -> list[Application]:
@@ -129,13 +131,14 @@ def get_customer_applications(
     if not phone_hash:
         return []
 
-    return (
-        db.query(Application)
-        .filter(Application.phone_hash == phone_hash)
+    stmt = (
+        select(Application)
+        .where(Application.phone_hash == phone_hash)
         .order_by(Application.created_at.desc())
         .limit(limit)
-        .all()
     )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
 # =============================================================================
@@ -143,8 +146,8 @@ def get_customer_applications(
 # =============================================================================
 
 
-def check_partner_duplicate(
-    db: Session,
+async def check_partner_duplicate(
+    db: AsyncSession,
     phone: str,
     company_name: str,
     business_number: Optional[str] = None,
@@ -171,10 +174,11 @@ def check_partner_duplicate(
     if business_number:
         bn_hash = generate_search_hash(business_number, "business_number")
         if bn_hash:
-            query = db.query(Partner).filter(Partner.business_number_hash == bn_hash)
+            stmt = select(Partner).where(Partner.business_number_hash == bn_hash)
             if exclude_id:
-                query = query.filter(Partner.id != exclude_id)
-            existing = query.first()
+                stmt = stmt.where(Partner.id != exclude_id)
+            result = await db.execute(stmt)
+            existing = result.scalar_one_or_none()
 
             if existing:
                 return PartnerDuplicateResult(
@@ -194,10 +198,11 @@ def check_partner_duplicate(
     ])
 
     if phone_company_hash:
-        query = db.query(Partner).filter(Partner.phone_company_hash == phone_company_hash)
+        stmt = select(Partner).where(Partner.phone_company_hash == phone_company_hash)
         if exclude_id:
-            query = query.filter(Partner.id != exclude_id)
-        existing = query.first()
+            stmt = stmt.where(Partner.id != exclude_id)
+        result = await db.execute(stmt)
+        existing = result.scalar_one_or_none()
 
         if existing:
             return PartnerDuplicateResult(
@@ -213,8 +218,8 @@ def check_partner_duplicate(
     return PartnerDuplicateResult(is_duplicate=False)
 
 
-def find_similar_partners(
-    db: Session,
+async def find_similar_partners(
+    db: AsyncSession,
     phone: Optional[str] = None,
     company_name: Optional[str] = None,
     business_number: Optional[str] = None,
@@ -247,15 +252,16 @@ def find_similar_partners(
     if business_number:
         bn_hash = generate_search_hash(business_number, "business_number")
         if bn_hash:
-            partners = (
-                db.query(Partner)
-                .filter(
+            stmt = (
+                select(Partner)
+                .where(
                     Partner.business_number_hash == bn_hash,
-                    Partner.id.notin_(seen_ids)
+                    Partner.id.notin_(seen_ids) if seen_ids else True
                 )
                 .limit(limit)
-                .all()
             )
+            result = await db.execute(stmt)
+            partners = result.scalars().all()
             for p in partners:
                 if p.id not in seen_ids:
                     results.append(p)
@@ -265,15 +271,16 @@ def find_similar_partners(
     if phone and len(results) < limit:
         phone_hash = generate_search_hash(phone, "phone")
         if phone_hash:
-            partners = (
-                db.query(Partner)
-                .filter(
+            stmt = (
+                select(Partner)
+                .where(
                     Partner.phone_hash == phone_hash,
-                    Partner.id.notin_(seen_ids)
+                    Partner.id.notin_(seen_ids) if seen_ids else True
                 )
                 .limit(limit - len(results))
-                .all()
             )
+            result = await db.execute(stmt)
+            partners = result.scalars().all()
             for p in partners:
                 if p.id not in seen_ids:
                     results.append(p)
