@@ -890,7 +890,7 @@ async def get_application_notes(
     if not application:
         raise HTTPException(status_code=404, detail="신청을 찾을 수 없습니다")
 
-    query = select(ApplicationNote).where(ApplicationNote.application_id == application_id)
+    stmt = select(ApplicationNote).where(ApplicationNote.application_id == application_id)
     count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
 
     total = count_result.scalar()

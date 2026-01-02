@@ -185,7 +185,7 @@ async def get_partners(
     partners = result.scalars().all()
 
     # 복호화된 목록 생성 (서비스 맵 1회 조회로 N+1 방지)
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
     items = []
     for partner in partners:
         decrypted = decrypt_partner(partner, service_map)
@@ -224,7 +224,7 @@ async def get_partner(
     if not partner:
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
@@ -248,7 +248,7 @@ async def get_similar_partners(
         raise HTTPException(status_code=404, detail="협력사를 찾을 수 없습니다")
 
     # 서비스 맵 1회 조회로 N+1 방지
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
 
     # 협력사 정보 복호화
     decrypted = decrypt_partner(partner, service_map)
@@ -323,7 +323,7 @@ async def update_partner(
     await db.commit()
     await db.refresh(partner)
 
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
@@ -381,7 +381,7 @@ async def approve_partner(
         )
         logger.info(f"SMS scheduled: partner {'approval' if is_approved else 'rejection'} for {partner.company_name}")
 
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)
 
@@ -597,6 +597,6 @@ async def change_partner_status(
         )
         logger.info(f"SMS scheduled: partner status change to {new_status} for {partner.company_name}")
 
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
     decrypted = decrypt_partner(partner, service_map)
     return PartnerDetailResponse(**decrypted)

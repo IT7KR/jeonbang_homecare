@@ -93,7 +93,7 @@ async def check_application_duplicate(
         .order_by(Application.created_at.desc())
     )
     result = await db.execute(stmt)
-    existing = result.scalar_one_or_none()
+    existing = result.scalars().first()
 
     if existing:
         return ApplicationDuplicateResult(
@@ -178,7 +178,7 @@ async def check_partner_duplicate(
             if exclude_id:
                 stmt = stmt.where(Partner.id != exclude_id)
             result = await db.execute(stmt)
-            existing = result.scalar_one_or_none()
+            existing = result.scalars().first()
 
             if existing:
                 return PartnerDuplicateResult(
@@ -202,7 +202,7 @@ async def check_partner_duplicate(
         if exclude_id:
             stmt = stmt.where(Partner.id != exclude_id)
         result = await db.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = result.scalars().first()
 
         if existing:
             return PartnerDuplicateResult(

@@ -25,6 +25,11 @@ from app.services.service_utils import (
 router = APIRouter(prefix="/schedule", tags=["Admin - Schedule"])
 
 
+def parse_date(date_str: str) -> date:
+    """문자열을 date 객체로 변환 (YYYY-MM-DD 형식)"""
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
+
+
 class ScheduleItem(BaseModel):
     """일정 아이템 (Application 기준 - 레거시)"""
     id: int
@@ -112,10 +117,13 @@ async def get_schedule_by_assignment(
     db: AsyncSession,
 ) -> ScheduleListResponse:
     """Assignment 기준 일정 조회 (내부 함수)"""
+    start = parse_date(start_date)
+    end = parse_date(end_date)
+
     query = select(ApplicationPartnerAssignment).where(
         ApplicationPartnerAssignment.scheduled_date.isnot(None),
-        ApplicationPartnerAssignment.scheduled_date >= start_date,
-        ApplicationPartnerAssignment.scheduled_date <= end_date,
+        ApplicationPartnerAssignment.scheduled_date >= start,
+        ApplicationPartnerAssignment.scheduled_date <= end,
     )
 
     # 상태 필터
@@ -156,7 +164,7 @@ async def get_schedule_by_assignment(
         partners = {p.id: p for p in partner_list}
 
     # 서비스 코드→이름 매핑 조회 (N+1 방지)
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
 
     # 응답 생성
     items = []
@@ -222,10 +230,13 @@ async def get_schedule(
         )
 
     # Application 기준 조회 (레거시 - 기존 동작 유지)
+    start = parse_date(start_date)
+    end = parse_date(end_date)
+
     query = select(Application).where(
         Application.scheduled_date.isnot(None),
-        Application.scheduled_date >= start_date,
-        Application.scheduled_date <= end_date,
+        Application.scheduled_date >= start,
+        Application.scheduled_date <= end,
     )
 
     # 상태 필터
@@ -258,7 +269,7 @@ async def get_schedule(
         partners = {p.id: p for p in partner_list}
 
     # 서비스 코드→이름 매핑 조회 (N+1 방지)
-    service_map = await get_service_code_to_name_map(db)
+    service_map = get_service_code_to_name_map(db)
 
     # 복호화
     items = []
@@ -279,18 +290,18 @@ async def get_monthly_stats(
     """
     월간 일정 통계 조회
     """
-    # 해당 월의 시작일과 종료일
-    start_date = f"{year:04d}-{month:02d}-01"
+    # 해당 월의 시작일과 종료일 (date 객체로 생성)
+    start = date(year, month, 1)
     if month == 12:
-        end_date = f"{year + 1:04d}-01-01"
+        end = date(year + 1, 1, 1)
     else:
-        end_date = f"{year:04d}-{month + 1:02d}-01"
+        end = date(year, month + 1, 1)
 
     # 해당 월의 일정 조회
     query = select(Application).where(
         Application.scheduled_date.isnot(None),
-        Application.scheduled_date >= start_date,
-        Application.scheduled_date < end_date,
+        Application.scheduled_date >= start,
+        Application.scheduled_date < end,
         Application.status != "cancelled",
     )
 
